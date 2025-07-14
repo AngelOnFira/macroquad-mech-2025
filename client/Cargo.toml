@@ -1,0 +1,34 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "client"
+path = "src/main.rs"
+
+[[bin]]
+name = "test_client"
+path = "src/bin/test_client.rs"
+required-features = ["native"]
+
+[dependencies]
+shared = { path = "../shared" }
+macroquad = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+ws = { version = "0.9", optional = true }
+url = "2.5"
+
+# WebAssembly dependencies
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_log = "1.0"
+console_error_panic_hook = "0.1"
+
+[features]
+default = ["native"]
+native = ["ws"]
+web = []
