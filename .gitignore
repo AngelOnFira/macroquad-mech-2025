@@ -1,1 +1,12 @@
 target/
+
+# Web build artifacts
+web_build/*.wasm
+web_build/mq_js_bundle.js
+
+# Logs
+*.log
+nohup.out
+
+# OS files
+.DS_Store

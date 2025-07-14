@@ -29,8 +29,8 @@ async fn main() {
     
     #[cfg(target_arch = "wasm32")]
     {
-        console_error_panic_hook::set_once();
-        console_log::init_with_level(log::Level::Info).expect("Failed to initialize logger");
+        // console_error_panic_hook::set_once();
+        // For WASM, macroquad handles logging automatically
     }
 
     // Initialize game state
@@ -52,15 +52,15 @@ async fn main() {
         // Connect to server in separate thread
         thread::spawn(move || {
             let server_url = format!("ws://127.0.0.1:{}/ws", SERVER_PORT);
-            log::info!("Connecting to {}", server_url);
+            info!("Connecting to {}", server_url);
             
             match NetworkClient::connect(&server_url, game_clone) {
                 Ok(client) => {
                     *net_clone.lock().unwrap() = Some(client);
-                    log::info!("Connected to server!");
+                    info!("Connected to server!");
                 }
                 Err(e) => {
-                    log::error!("Failed to connect: {}", e);
+                    error!("Failed to connect: {}", e);
                 }
             }
         });
@@ -76,15 +76,15 @@ async fn main() {
         // For WASM, connect to localhost for development
         let server_url = format!("ws://127.0.0.1:{}/ws", SERVER_PORT);
         
-        log::info!("Connecting to {}", server_url);
+        info!("Connecting to {}", server_url);
         
         network_client = match NetworkClient::connect(&server_url, Arc::clone(&game_state)) {
             Ok(client) => {
-                log::info!("WebSocket created, waiting for connection...");
+                info!("WebSocket created, waiting for connection...");
                 Some(client)
             }
             Err(e) => {
-                log::error!("Failed to create WebSocket: {:?}", e);
+                error!("Failed to create WebSocket: {:?}", e);
                 None
             }
         };

@@ -1,0 +1,24 @@
+name: "Mech Battle Arena Development"
+processes:
+  - name: "game-server"
+    runner: "shell"
+    command: |
+      RUST_LOG=info cargo run --bin server
+    color: "green"
+
+  - name: "web-server"
+    runner: "shell"
+    command: |
+      cd web_build && python3 serve.py
+    color: "yellow"
+
+  - name: "build-wasm"
+    runner: "shell"
+    command: |
+      just build-web
+    color: "blue"
+
+mcp:
+  enabled: true
+  port: 7174
+  host: "127.0.0.1"

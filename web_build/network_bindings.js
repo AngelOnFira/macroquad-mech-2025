@@ -87,24 +87,11 @@ miniquad_add_plugin({
         }
         
         // Copy message to WASM memory
-        const buffer = new Uint8Array(wasmMemory.buffer, bufferPtr, bufferLen);
+        const buffer = new Uint8Array(wasm_memory.buffer, bufferPtr, bufferLen);
         buffer.set(bytes);
         
         return bytes.length;
     }
         };
-    },
-    
-    on_init: function(wasm_memory, wasm_exports) {
-        // Store references to WASM memory for later use
-        window.wasmMemory = wasm_memory;
-        window.wasmExports = wasm_exports;
     }
 });
-
-// Helper function to convert WASM string pointer to JS string
-function UTF8ToString(ptr, len) {
-    const memory = new Uint8Array(wasmMemory.buffer);
-    const bytes = memory.slice(ptr, ptr + len);
-    return new TextDecoder().decode(bytes);
-}

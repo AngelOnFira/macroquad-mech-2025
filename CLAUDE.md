@@ -12,9 +12,22 @@ A multiplayer web game where teams control giant mechs from the inside. Players 
 
 ## Quick Start
 
+### Using DevTabs (Recommended)
+The project includes a `devtabs.yaml` configuration that manages all development processes:
+
 ```bash
-# Start everything for development
-just dev
+# DevTabs will automatically start:
+# - game-server: The Rust game server
+# - web-server: Python HTTP server for WASM
+# - build-wasm: Builds the WebAssembly client
+
+# Just run DevTabs and it handles everything
+```
+
+### Manual Setup (Alternative)
+```bash
+# Or use Just commands:
+just dev            # Start everything manually
 
 # Or step by step:
 just build-web      # Build WebAssembly client
@@ -55,6 +68,20 @@ just test-client Bob   # Run test client with name "Bob"
 just test-multiplayer  # Run two test clients
 ```
 
+### Browser Testing with Playwright
+The game includes Playwright tests to verify the web version loads and functions correctly:
+
+```bash
+# Run Playwright tests
+npm test               # or yarn test / pnpm test
+
+# Tests verify:
+# - Game loads in browser
+# - WebSocket connection establishes
+# - Canvas renders properly
+# - Basic game functionality
+```
+
 ## Architecture
 
 ### Workspace Structure
@@ -75,26 +102,31 @@ All messages are JSON-serialized enums defined in `shared/src/messages.rs`:
 
 ## Development Workflow
 
-1. **Make Changes**: Edit code in appropriate crate
-2. **Test Locally**: 
+1. **Start Development Environment**: DevTabs handles all processes automatically
+2. **Make Changes**: Edit code in appropriate crate
+3. **Test Locally**: 
+   - Open http://localhost:8080 in browser tabs
+   - DevTabs auto-rebuilds WASM on changes
+4. **Run Tests**:
    ```bash
-   just dev  # Starts server + web server
-   # Open http://localhost:8080 in two tabs
+   just test           # Unit tests
+   npm test           # Playwright browser tests
    ```
-3. **Check Quality**: 
+5. **Check Quality**: 
    ```bash
-   just check  # Lints and type checks
-   just test   # Run tests
+   just check         # Lints and type checks
    ```
 
 ## Important Files
 
+- `devtabs.yaml` - Development environment configuration
 - `justfile` - All development commands
 - `shared/src/messages.rs` - Network protocol
 - `shared/src/types.rs` - Game types
 - `server/src/game.rs` - Core game logic
 - `client/src/main.rs` - Client entry point
 - `client/src/network_web.rs` - WebSocket for browsers
+- `tests/` - Playwright test suite (if exists)
 
 ## Debugging Tips
 
