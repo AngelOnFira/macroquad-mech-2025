@@ -71,7 +71,7 @@ async fn handle_client_message(
             let join_msg = ServerMessage::JoinedGame {
                 player_id,
                 team,
-                spawn_position: spawn_pos,
+                spawn_position: spawn_pos.to_tile_pos(),
             };
             let _ = tx.send((player_id, join_msg));
 
@@ -147,74 +147,113 @@ async fn handle_player_movement(
     dir: Direction,
     tx: &broadcast::Sender<(Uuid, ServerMessage)>,
 ) {
-    if let Some(player) = game.players.get_mut(&player_id) {
-        match player.location {
-            PlayerLocation::OutsideWorld(pos) => {
-                let (dx, dy) = dir.to_offset();
-                let new_pos = pos.offset(dx, dy);
+    // Get player info we need
+    let (current_location, is_carrying_resource, player_team) = {
+        if let Some(player) = game.players.get(&player_id) {
+            (player.location, player.carrying_resource.is_some(), player.team)
+        } else {
+            return;
+        }
+    };
+
+    match current_location {
+        PlayerLocation::OutsideWorld(pos) => {
+            // Use continuous movement
+            let new_pos = pos.move_in_direction(dir, PLAYER_MOVE_SPEED * TILE_SIZE, 0.016); // ~60fps frame time
+            
+            // Check bounds
+            if new_pos.x >= 0.0 && new_pos.x < (ARENA_WIDTH_TILES as f32 * TILE_SIZE) &&
+               new_pos.y >= 0.0 && new_pos.y < (ARENA_HEIGHT_TILES as f32 * TILE_SIZE) {
+                let mut can_move = true;
                 
-                // Check bounds
-                if new_pos.x >= 0 && new_pos.x < ARENA_WIDTH_TILES &&
-                   new_pos.y >= 0 && new_pos.y < ARENA_HEIGHT_TILES {
-                    // Check tether distance if carrying resource
-                    let mut can_move = true;
-                    if player.carrying_resource.is_some() {
-                        let player_team = player.team;
-                        let min_dist = game.mechs.values()
-                            .filter(|m| m.team == player_team)
-                            .map(|m| new_pos.distance_to(&m.position))
+                // Check tether distance if carrying resource
+                if is_carrying_resource {
+                    let team_mechs: Vec<_> = game.mechs.values()
+                        .filter(|m| m.team == player_team)
+                        .collect();
+                    
+                    if team_mechs.is_empty() {
+                        // No mechs for this team - allow movement but log warning
+                        log::warn!("Player {} carrying resource but no mechs exist for team {:?}", player_id, player_team);
+                    } else {
+                        let min_dist = team_mechs.iter()
+                            .map(|m| {
+                                let mech_center = WorldPos::new(
+                                    (m.position.x as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
+                                    (m.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE
+                                );
+                                new_pos.distance_to(&mech_center) / TILE_SIZE
+                            })
                             .min_by(|a, b| a.partial_cmp(b).unwrap())
                             .unwrap_or(f32::MAX);
                         
-                        if min_dist > MAX_DISTANCE_FROM_MECH {
+                        if min_dist >= MAX_DISTANCE_FROM_MECH {
                             can_move = false;
+                            log::info!("Player {} at tether limit (dist: {:.1}, max: {})", player_id, min_dist, MAX_DISTANCE_FROM_MECH);
                         }
                     }
+                }
 
-                    if can_move {
-                        player.location = PlayerLocation::OutsideWorld(new_pos);
-                        let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
-                            player_id,
-                            location: player.location,
-                        }));
+                if can_move {
+                    // Check collision with mechs (10x10 tiles now)
+                    let mut mech_collision = false;
+                    let player_tile = new_pos.to_tile_pos();
+                    for mech in game.mechs.values() {
+                        // Mech occupies a 10x10 tile area
+                        if player_tile.x >= mech.position.x && player_tile.x < mech.position.x + MECH_SIZE_TILES &&
+                           player_tile.y >= mech.position.y && player_tile.y < mech.position.y + MECH_SIZE_TILES {
+                            mech_collision = true;
+                            break;
+                        }
+                    }
+                    
+                    if !mech_collision {
+                        // Update player location
+                        if let Some(player) = game.players.get_mut(&player_id) {
+                            player.location = PlayerLocation::OutsideWorld(new_pos);
+                            let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
+                                player_id,
+                                location: player.location,
+                            }));
+                        }
                     }
                 }
             }
-            PlayerLocation::InsideMech { mech_id, mut floor, mut pos } => {
-                // Get mech interior info
-                let mech_info = game.mechs.get(&mech_id).map(|m| {
-                    m.interior.floors.get(floor as usize).cloned()
-                });
+        }
+        PlayerLocation::InsideMech { mech_id, mut floor, mut pos } => {
+            // Get mech interior info
+            let mech_info = game.mechs.get(&mech_id).map(|m| {
+                m.interior.floors.get(floor as usize).cloned()
+            });
 
-                if let Some(Some(floor_layout)) = mech_info {
-                    let (dx, dy) = dir.to_offset();
-                    let new_pos = pos.offset(dx, dy);
-                    
-                    // Check if new position is walkable
-                    if new_pos.x >= 0 && new_pos.x < FLOOR_WIDTH_TILES &&
-                       new_pos.y >= 0 && new_pos.y < FLOOR_HEIGHT_TILES {
-                        let tile = floor_layout.tiles[new_pos.y as usize][new_pos.x as usize];
-                        if tile != TileType::Wall && tile != TileType::Empty {
-                            pos = new_pos;
+            if let Some(Some(floor_layout)) = mech_info {
+                let (dx, dy) = dir.to_offset();
+                let new_pos = pos.offset(dx, dy);
+                
+                // Check if new position is walkable
+                if new_pos.x >= 0 && new_pos.x < FLOOR_WIDTH_TILES &&
+                   new_pos.y >= 0 && new_pos.y < FLOOR_HEIGHT_TILES {
+                    let tile = floor_layout.tiles[new_pos.y as usize][new_pos.x as usize];
+                    if tile != TileType::Wall && tile != TileType::Empty {
+                        pos = new_pos;
 
-                            // Check for ladder interaction
-                            if tile == TileType::Ladder {
-                                // Move up/down based on direction
-                                match dir {
-                                    Direction::Up if floor > 0 => floor -= 1,
-                                    Direction::Down if floor < (MECH_FLOORS - 1) as u8 => floor += 1,
-                                    _ => {}
-                                }
+                        // Check for ladder interaction
+                        if tile == TileType::Ladder {
+                            // Move up/down based on direction
+                            match dir {
+                                Direction::Up if floor > 0 => floor -= 1,
+                                Direction::Down if floor < (MECH_FLOORS - 1) as u8 => floor += 1,
+                                _ => {}
                             }
+                        }
 
-                            let new_location = PlayerLocation::InsideMech { mech_id, floor, pos };
-                            if let Some(player) = game.players.get_mut(&player_id) {
-                                player.location = new_location;
-                                let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
-                                    player_id,
-                                    location: new_location,
-                                }));
-                            }
+                        let new_location = PlayerLocation::InsideMech { mech_id, floor, pos };
+                        if let Some(player) = game.players.get_mut(&player_id) {
+                            player.location = new_location;
+                            let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
+                                player_id,
+                                location: new_location,
+                            }));
                         }
                     }
                 }
@@ -234,8 +273,10 @@ async fn handle_action_key(
                 // Check for mech entry
                 for mech in game.mechs.values() {
                     if mech.team == player.team {
+                        // Check if player is near mech entrance (left side of mech)
+                        let player_tile = pos.to_tile_pos();
                         let mech_entrance = mech.position.offset(-1, 0);
-                        if pos.distance_to(&mech_entrance) < 2.0 {
+                        if player_tile.distance_to(&mech_entrance) < 2.0 {
                             // Enter mech
                             let new_location = PlayerLocation::InsideMech {
                                 mech_id: mech.id,
@@ -256,15 +297,16 @@ async fn handle_action_key(
 
                 // Check for resource deposit
                 if player.carrying_resource.is_some() {
+                    let player_tile = pos.to_tile_pos();
                     for mech in game.mechs.values() {
-                        if mech.team == player.team && pos.distance_to(&mech.position) < 5.0 {
+                        if mech.team == player.team && player_tile.distance_to(&mech.position) < 5.0 {
                             // Deposit resource at mech
                             if let Some(player) = game.players.get_mut(&player_id) {
                                 if let Some(resource_type) = player.carrying_resource.take() {
                                     let _ = tx.send((Uuid::nil(), ServerMessage::PlayerDroppedResource {
                                         player_id,
                                         resource_type,
-                                        position: pos,
+                                        position: player_tile,
                                     }));
                                 }
                             }
@@ -338,7 +380,8 @@ async fn handle_exit_mech(
 
             // Place player outside mech
             if let Some(mech) = game.mechs.get(&mech_id) {
-                let exit_pos = mech.position.offset(-2, 0);
+                let exit_tile = mech.position.offset(-2, 0);
+                let exit_pos = WorldPos::new(exit_tile.x as f32 * TILE_SIZE, exit_tile.y as f32 * TILE_SIZE);
                 player.location = PlayerLocation::OutsideWorld(exit_pos);
                 let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
                     player_id,

@@ -218,7 +218,7 @@ impl Game {
         }
     }
 
-    pub fn add_player(&mut self, id: Uuid, name: String, preferred_team: Option<TeamId>) -> (TeamId, TilePos) {
+    pub fn add_player(&mut self, id: Uuid, name: String, preferred_team: Option<TeamId>) -> (TeamId, WorldPos) {
         // Balance teams
         let red_count = self.players.values().filter(|p| p.team == TeamId::Red).count();
         let blue_count = self.players.values().filter(|p| p.team == TeamId::Blue).count();
@@ -237,10 +237,10 @@ impl Game {
             TeamId::Blue
         };
 
-        // Spawn near team mech
+        // Spawn near team mech (but not inside it!)
         let spawn_pos = match team {
-            TeamId::Red => TilePos::new(25, 25),
-            TeamId::Blue => TilePos::new(75, 75),
+            TeamId::Red => WorldPos::new(15.0 * TILE_SIZE, 20.0 * TILE_SIZE), // Left of red mech at (20,20)
+            TeamId::Blue => WorldPos::new(75.0 * TILE_SIZE, 80.0 * TILE_SIZE), // Left of blue mech at (80,80)
         };
 
         let player = Player {
@@ -363,8 +363,9 @@ impl Game {
             }
 
             if let PlayerLocation::OutsideWorld(player_pos) = player.location {
+                let player_tile = player_pos.to_tile_pos();
                 for resource in self.resources.values() {
-                    if resource.position.distance_to(&player_pos) < 1.5 {
+                    if resource.position.distance_to(&player_tile) < 1.5 {
                         pickups.push((player.id, resource.id, resource.resource_type));
                         break;
                     }
@@ -383,6 +384,7 @@ impl Game {
                     resource_id,
                 };
                 let _ = tx.send((Uuid::nil(), msg));
+                log::info!("Player {} picked up {:?} resource", player_id, resource_type);
             }
         }
     }

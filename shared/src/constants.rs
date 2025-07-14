@@ -2,7 +2,7 @@
 pub const TILE_SIZE: f32 = 32.0;
 pub const ARENA_WIDTH_TILES: i32 = 100;
 pub const ARENA_HEIGHT_TILES: i32 = 100;
-pub const MECH_SIZE_TILES: i32 = 20;
+pub const MECH_SIZE_TILES: i32 = 10;
 
 // Player settings
 pub const PLAYER_MOVE_SPEED: f32 = 5.0; // tiles per second

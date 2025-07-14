@@ -39,10 +39,28 @@ pub struct WorldPos {
 }
 
 impl WorldPos {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+    
     pub fn to_tile_pos(&self) -> TilePos {
         TilePos {
             x: (self.x / crate::TILE_SIZE).floor() as i32,
             y: (self.y / crate::TILE_SIZE).floor() as i32,
+        }
+    }
+    
+    pub fn distance_to(&self, other: &WorldPos) -> f32 {
+        let dx = self.x - other.x;
+        let dy = self.y - other.y;
+        (dx * dx + dy * dy).sqrt()
+    }
+    
+    pub fn move_in_direction(&self, direction: Direction, speed: f32, delta_time: f32) -> Self {
+        let (dx, dy) = direction.to_velocity();
+        Self {
+            x: self.x + dx * speed * delta_time,
+            y: self.y + dy * speed * delta_time,
         }
     }
 }
@@ -62,6 +80,15 @@ impl Direction {
             Direction::Down => (0, 1),
             Direction::Left => (-1, 0),
             Direction::Right => (1, 0),
+        }
+    }
+    
+    pub fn to_velocity(&self) -> (f32, f32) {
+        match self {
+            Direction::Up => (0.0, -1.0),
+            Direction::Down => (0.0, 1.0),
+            Direction::Left => (-1.0, 0.0),
+            Direction::Right => (1.0, 0.0),
         }
     }
 }
@@ -93,9 +120,9 @@ pub enum StationType {
     Upgrade,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum PlayerLocation {
-    OutsideWorld(TilePos),
+    OutsideWorld(WorldPos),
     InsideMech { mech_id: uuid::Uuid, floor: u8, pos: TilePos },
 }
 

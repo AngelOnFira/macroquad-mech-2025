@@ -71,7 +71,7 @@ impl ClientHandler {
             ServerMessage::JoinedGame { player_id, team, spawn_position } => {
                 game.player_id = Some(player_id);
                 game.player_team = Some(team);
-                game.player_location = PlayerLocation::OutsideWorld(spawn_position);
+                game.player_location = PlayerLocation::OutsideWorld(spawn_position.to_world_pos());
                 log::info!("Joined game as player {} on team {:?}", player_id, team);
             }
 

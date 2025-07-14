@@ -124,6 +124,59 @@ impl Renderer {
             }
         }
 
+        // Draw oxygen tether lines for players carrying resources
+        for player in game_state.players.values() {
+            if let PlayerLocation::OutsideWorld(pos) = player.location {
+                if player.carrying_resource.is_some() {
+                    // Find the nearest team mech
+                    let nearest_mech = game_state.mechs.values()
+                        .filter(|m| m.team == player.team)
+                        .min_by(|a, b| {
+                            let mech_center_a = WorldPos::new(
+                                (a.position.x as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
+                                (a.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE
+                            );
+                            let mech_center_b = WorldPos::new(
+                                (b.position.x as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
+                                (b.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE
+                            );
+                            let dist_a = pos.distance_to(&mech_center_a);
+                            let dist_b = pos.distance_to(&mech_center_b);
+                            dist_a.partial_cmp(&dist_b).unwrap()
+                        });
+                    
+                    if let Some(mech) = nearest_mech {
+                        let mech_center = WorldPos::new(
+                            (mech.position.x as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
+                            (mech.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE
+                        );
+                        let distance = pos.distance_to(&mech_center) / TILE_SIZE;
+                        
+                        // Color based on distance (green to red)
+                        let ratio = (distance / MAX_DISTANCE_FROM_MECH).clamp(0.0, 1.0);
+                        let mut tether_color = Color::new(ratio, 1.0 - ratio, 0.0, 0.7);
+                        let mut line_width = 3.0;
+                        
+                        // Flash red and thicken line when at limit
+                        if distance >= MAX_DISTANCE_FROM_MECH {
+                            tether_color = Color::new(1.0, 0.0, 0.0, 0.9);
+                            line_width = 5.0;
+                        }
+                        
+                        // Draw tether line
+                        draw_line(
+                            cam_x + mech_center.x,
+                            cam_y + mech_center.y,
+                            cam_x + pos.x,
+                            cam_y + pos.y,
+                            line_width,
+                            tether_color
+                        );
+                    }
+                }
+            }
+        }
+
         // Draw players
         for player in game_state.players.values() {
             if let PlayerLocation::OutsideWorld(pos) = player.location {
@@ -133,8 +186,8 @@ impl Renderer {
                 };
                 
                 draw_circle(
-                    cam_x + pos.x as f32 * TILE_SIZE + TILE_SIZE / 2.0,
-                    cam_y + pos.y as f32 * TILE_SIZE + TILE_SIZE / 2.0,
+                    cam_x + pos.x,
+                    cam_y + pos.y,
                     TILE_SIZE / 2.0,
                     color
                 );
@@ -142,8 +195,8 @@ impl Renderer {
                 // Draw player name
                 draw_text(
                     &player.name,
-                    cam_x + pos.x as f32 * TILE_SIZE - 20.0,
-                    cam_y + pos.y as f32 * TILE_SIZE - 5.0,
+                    cam_x + pos.x - 20.0,
+                    cam_y + pos.y - TILE_SIZE - 5.0,
                     16.0,
                     WHITE
                 );
@@ -157,8 +210,8 @@ impl Renderer {
                         ResourceType::Batteries => ORANGE,
                     };
                     draw_circle(
-                        cam_x + pos.x as f32 * TILE_SIZE + TILE_SIZE,
-                        cam_y + pos.y as f32 * TILE_SIZE,
+                        cam_x + pos.x + TILE_SIZE,
+                        cam_y + pos.y,
                         TILE_SIZE / 4.0,
                         resource_color
                     );

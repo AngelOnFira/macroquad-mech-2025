@@ -25,7 +25,7 @@ impl InputHandler {
             exit_mech_pressed: false,
         };
 
-        // Movement
+        // Movement - send continuous movement commands while key is held
         if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
             state.direction = Some(Direction::Up);
         } else if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {

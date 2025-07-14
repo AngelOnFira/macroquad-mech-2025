@@ -83,7 +83,7 @@ impl GameState {
     pub fn new() -> Self {
         Self {
             player_id: None,
-            player_location: PlayerLocation::OutsideWorld(TilePos::new(50, 50)),
+            player_location: PlayerLocation::OutsideWorld(WorldPos::new(50.0 * TILE_SIZE, 50.0 * TILE_SIZE)),
             player_team: None,
             players: HashMap::new(),
             mechs: HashMap::new(),
@@ -106,8 +106,8 @@ impl GameState {
         match self.player_location {
             PlayerLocation::OutsideWorld(pos) => {
                 self.camera_offset = (
-                    pos.x as f32 * TILE_SIZE - screen_width() / 2.0,
-                    pos.y as f32 * TILE_SIZE - screen_height() / 2.0,
+                    pos.x - screen_width() / 2.0,
+                    pos.y - screen_height() / 2.0,
                 );
             }
             PlayerLocation::InsideMech { pos, .. } => {
