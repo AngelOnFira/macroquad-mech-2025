@@ -2,11 +2,10 @@ use axum::extract::ws::{Message, WebSocket};
 use futures::{sink::SinkExt, stream::StreamExt};
 use tokio::sync::broadcast;
 use uuid::Uuid;
-use std::collections::HashMap;
 
 use shared::*;
 use shared::types::UpgradeType;
-use crate::{AppState, game::{Game, TileType}};
+use crate::{AppState, game::Game};
 
 pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
@@ -17,7 +16,13 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
         while let Ok((target_id, msg)) = rx.recv().await {
             // Send to all if target is nil, or to specific player
             if target_id == Uuid::nil() || target_id == player_id {
-                let msg_json = serde_json::to_string(&msg).unwrap();
+                let msg_json = match serde_json::to_string(&msg) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        log::error!("Failed to serialize message: {}", e);
+                        break;
+                    }
+                };
                 if sender.send(Message::Text(msg_json)).await.is_err() {
                     break;
                 }
@@ -30,8 +35,22 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
     let game = state.game.clone();
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
-                handle_client_message(player_id, client_msg, &game, &tx).await;
+            match serde_json::from_str::<ClientMessage>(&text) {
+                Ok(client_msg) => {
+                    // Validate the message before processing
+                    if let Err(e) = client_msg.validate() {
+                        log::warn!("Invalid message from player {}: {}", player_id, e);
+                        // Optionally send error back to client
+                        continue;
+                    }
+                    let command = crate::commands::create_command(client_msg);
+                    if let Err(e) = command.execute(&game, player_id, &tx).await {
+                        log::warn!("Command execution failed for player {}: {}", player_id, e);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Failed to parse message from player {}: {}", player_id, e);
+                }
             }
         }
     });
@@ -54,215 +73,17 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
     log::info!("Player {} disconnected", player_id);
 }
 
-async fn handle_client_message(
-    player_id: Uuid,
-    msg: ClientMessage,
-    game: &tokio::sync::RwLock<Game>,
-    tx: &broadcast::Sender<(Uuid, ServerMessage)>,
-) {
-    match msg {
-        ClientMessage::JoinGame { player_name, preferred_team } => {
-            let (team, spawn_pos) = {
-                let mut game = game.write().await;
-                game.add_player(player_id, player_name.clone(), preferred_team)
-            };
 
-            // Send join confirmation
-            let join_msg = ServerMessage::JoinedGame {
-                player_id,
-                team,
-                spawn_position: spawn_pos.to_tile_pos(),
-            };
-            let _ = tx.send((player_id, join_msg));
-
-            // Send full game state
-            let state_msg = {
-                let game = game.read().await;
-                game.get_full_state()
-            };
-            let _ = tx.send((player_id, state_msg));
-
-            log::info!("Player {} joined as {} on team {:?}", player_id, player_name, team);
-        }
-
-        ClientMessage::PlayerInput { direction, action_key_pressed } => {
-            let mut game = game.write().await;
-            
-            // Handle movement
-            if let Some(dir) = direction {
-                handle_player_movement(&mut game, player_id, dir, tx).await;
-            }
-
-            // Handle action key
-            if action_key_pressed {
-                handle_action_key(&mut game, player_id, tx).await;
-            }
-        }
-
-        ClientMessage::StationInput { button_index } => {
-            let mut game = game.write().await;
-            if let Some(player) = game.players.get(&player_id) {
-                if let Some(station_id) = player.operating_station {
-                    // Find the station and handle input
-                    let station_info = {
-                        let mut result = None;
-                        for mech in game.mechs.values() {
-                            if let Some(station) = mech.stations.get(&station_id) {
-                                result = Some((mech.id, station.station_type));
-                                break;
-                            }
-                        }
-                        result
-                    };
-
-                    if let Some((mech_id, station_type)) = station_info {
-                        handle_station_button(&mut game, mech_id, station_type, button_index, tx).await;
-                    }
-                }
-            }
-        }
-
-        ClientMessage::ExitMech => {
-            let mut game = game.write().await;
-            handle_exit_mech(&mut game, player_id, tx).await;
-        }
-
-        ClientMessage::ChatMessage { message } => {
-            if let Some(player) = game.read().await.players.get(&player_id) {
-                let chat_msg = ServerMessage::ChatMessage {
-                    player_id,
-                    player_name: player.name.clone(),
-                    message,
-                    team_only: false,
-                };
-                let _ = tx.send((Uuid::nil(), chat_msg));
-            }
-        }
-    }
-}
-
-async fn handle_player_movement(
+pub async fn handle_player_movement(
     game: &mut Game,
     player_id: Uuid,
-    dir: Direction,
+    movement: (f32, f32),
     tx: &broadcast::Sender<(Uuid, ServerMessage)>,
 ) {
-    // Get player info we need
-    let (current_location, is_carrying_resource, player_team) = {
-        if let Some(player) = game.players.get(&player_id) {
-            (player.location, player.carrying_resource.is_some(), player.team)
-        } else {
-            return;
-        }
-    };
-
-    match current_location {
-        PlayerLocation::OutsideWorld(pos) => {
-            // Use continuous movement
-            let new_pos = pos.move_in_direction(dir, PLAYER_MOVE_SPEED * TILE_SIZE, 0.016); // ~60fps frame time
-            
-            // Check bounds
-            if new_pos.x >= 0.0 && new_pos.x < (ARENA_WIDTH_TILES as f32 * TILE_SIZE) &&
-               new_pos.y >= 0.0 && new_pos.y < (ARENA_HEIGHT_TILES as f32 * TILE_SIZE) {
-                let mut can_move = true;
-                
-                // Check tether distance if carrying resource
-                if is_carrying_resource {
-                    let team_mechs: Vec<_> = game.mechs.values()
-                        .filter(|m| m.team == player_team)
-                        .collect();
-                    
-                    if team_mechs.is_empty() {
-                        // No mechs for this team - allow movement but log warning
-                        log::warn!("Player {} carrying resource but no mechs exist for team {:?}", player_id, player_team);
-                    } else {
-                        let min_dist = team_mechs.iter()
-                            .map(|m| {
-                                let mech_center = WorldPos::new(
-                                    (m.position.x as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
-                                    (m.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE
-                                );
-                                new_pos.distance_to(&mech_center) / TILE_SIZE
-                            })
-                            .min_by(|a, b| a.partial_cmp(b).unwrap())
-                            .unwrap_or(f32::MAX);
-                        
-                        if min_dist >= MAX_DISTANCE_FROM_MECH {
-                            can_move = false;
-                            log::info!("Player {} at tether limit (dist: {:.1}, max: {})", player_id, min_dist, MAX_DISTANCE_FROM_MECH);
-                        }
-                    }
-                }
-
-                if can_move {
-                    // Check collision with mechs (10x10 tiles now)
-                    let mut mech_collision = false;
-                    let player_tile = new_pos.to_tile_pos();
-                    for mech in game.mechs.values() {
-                        // Mech occupies a 10x10 tile area
-                        if player_tile.x >= mech.position.x && player_tile.x < mech.position.x + MECH_SIZE_TILES &&
-                           player_tile.y >= mech.position.y && player_tile.y < mech.position.y + MECH_SIZE_TILES {
-                            mech_collision = true;
-                            break;
-                        }
-                    }
-                    
-                    if !mech_collision {
-                        // Update player location
-                        if let Some(player) = game.players.get_mut(&player_id) {
-                            player.location = PlayerLocation::OutsideWorld(new_pos);
-                            let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
-                                player_id,
-                                location: player.location,
-                            }));
-                        }
-                    }
-                }
-            }
-        }
-        PlayerLocation::InsideMech { mech_id, mut floor, mut pos } => {
-            // Get mech interior info
-            let mech_info = game.mechs.get(&mech_id).map(|m| {
-                m.interior.floors.get(floor as usize).cloned()
-            });
-
-            if let Some(Some(floor_layout)) = mech_info {
-                let (dx, dy) = dir.to_offset();
-                let new_pos = pos.offset(dx, dy);
-                
-                // Check if new position is walkable
-                if new_pos.x >= 0 && new_pos.x < FLOOR_WIDTH_TILES &&
-                   new_pos.y >= 0 && new_pos.y < FLOOR_HEIGHT_TILES {
-                    let tile = floor_layout.tiles[new_pos.y as usize][new_pos.x as usize];
-                    if tile != TileType::Wall && tile != TileType::Empty {
-                        pos = new_pos;
-
-                        // Check for ladder interaction
-                        if tile == TileType::Ladder {
-                            // Move up/down based on direction
-                            match dir {
-                                Direction::Up if floor > 0 => floor -= 1,
-                                Direction::Down if floor < (MECH_FLOORS - 1) as u8 => floor += 1,
-                                _ => {}
-                            }
-                        }
-
-                        let new_location = PlayerLocation::InsideMech { mech_id, floor, pos };
-                        if let Some(player) = game.players.get_mut(&player_id) {
-                            player.location = new_location;
-                            let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
-                                player_id,
-                                location: new_location,
-                            }));
-                        }
-                    }
-                }
-            }
-        }
-    }
+    crate::movement::handle_player_movement(game, player_id, movement, tx).await;
 }
 
-async fn handle_action_key(
+pub async fn handle_action_key(
     game: &mut crate::game::Game,
     player_id: Uuid,
     tx: &broadcast::Sender<(Uuid, ServerMessage)>,
@@ -270,39 +91,19 @@ async fn handle_action_key(
     if let Some(player) = game.players.get(&player_id).cloned() {
         match player.location {
             PlayerLocation::OutsideWorld(pos) => {
-                // Check for mech entry
-                for mech in game.mechs.values() {
-                    if mech.team == player.team {
-                        // Check if player is near mech entrance (left side of mech)
-                        let player_tile = pos.to_tile_pos();
-                        let mech_entrance = mech.position.offset(-1, 0);
-                        if player_tile.distance_to(&mech_entrance) < 2.0 {
-                            // Enter mech
-                            let new_location = PlayerLocation::InsideMech {
-                                mech_id: mech.id,
-                                floor: 0,
-                                pos: TilePos::new(1, FLOOR_HEIGHT_TILES / 2),
-                            };
-                            if let Some(player) = game.players.get_mut(&player_id) {
-                                player.location = new_location;
-                                let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
-                                    player_id,
-                                    location: new_location,
-                                }));
-                            }
-                            return;
-                        }
-                    }
-                }
+                // Mech entry is now automatic by walking into the door, no action key needed
 
                 // Check for resource deposit
                 if player.carrying_resource.is_some() {
                     let player_tile = pos.to_tile_pos();
-                    for mech in game.mechs.values() {
-                        if mech.team == player.team && player_tile.distance_to(&mech.position) < 5.0 {
+                    for mech in game.mechs.values_mut() {
+                        if mech.team == player.team && player_tile.distance_to(mech.position) < MECH_COLLISION_DISTANCE {
                             // Deposit resource at mech
                             if let Some(player) = game.players.get_mut(&player_id) {
                                 if let Some(resource_type) = player.carrying_resource.take() {
+                                    // Add to mech inventory
+                                    *mech.resource_inventory.entry(resource_type).or_insert(0) += 1;
+                                    
                                     let _ = tx.send((Uuid::nil(), ServerMessage::PlayerDroppedResource {
                                         player_id,
                                         resource_type,
@@ -316,10 +117,29 @@ async fn handle_action_key(
                 }
             }
             PlayerLocation::InsideMech { pos, floor, .. } => {
-                // Check for station interaction
+                // First check if player is operating a station and wants to exit
+                if let Some(station_id) = player.operating_station {
+                    // Exit station
+                    for mech in game.mechs.values_mut() {
+                        if let Some(station) = mech.stations.get_mut(&station_id) {
+                            station.operated_by = None;
+                        }
+                    }
+                    if let Some(player) = game.players.get_mut(&player_id) {
+                        player.operating_station = None;
+                    }
+                    let _ = tx.send((Uuid::nil(), ServerMessage::PlayerExitedStation {
+                        player_id,
+                        station_id,
+                    }));
+                    return; // Exit early - don't check for entering another station
+                }
+                
+                // Otherwise check for station to enter
+                let player_tile = pos.to_tile_pos();
                 let station_to_enter = game.mechs.values()
                     .flat_map(|m| m.stations.values())
-                    .find(|s| s.floor == floor && s.position == pos && s.operated_by.is_none())
+                    .find(|s| s.floor == floor && s.position == player_tile && s.operated_by.is_none())
                     .map(|s| s.id);
 
                 if let Some(station_id) = station_to_enter {
@@ -337,27 +157,13 @@ async fn handle_action_key(
                             return;
                         }
                     }
-                } else if let Some(station_id) = player.operating_station {
-                    // Exit station
-                    for mech in game.mechs.values_mut() {
-                        if let Some(station) = mech.stations.get_mut(&station_id) {
-                            station.operated_by = None;
-                        }
-                    }
-                    if let Some(player) = game.players.get_mut(&player_id) {
-                        player.operating_station = None;
-                    }
-                    let _ = tx.send((Uuid::nil(), ServerMessage::PlayerExitedStation {
-                        player_id,
-                        station_id,
-                    }));
                 }
             }
         }
     }
 }
 
-async fn handle_exit_mech(
+pub async fn handle_exit_mech(
     game: &mut Game,
     player_id: Uuid,
     tx: &broadcast::Sender<(Uuid, ServerMessage)>,
@@ -392,7 +198,7 @@ async fn handle_exit_mech(
     }
 }
 
-async fn handle_station_button(
+pub async fn handle_station_button(
     game: &mut Game,
     mech_id: Uuid,
     station_type: StationType,
@@ -403,94 +209,101 @@ async fn handle_station_button(
         StationType::WeaponLaser => {
             if button_index == 0 {
                 // Fire laser - find nearest enemy mech
-                let our_team = game.mechs.get(&mech_id).map(|m| m.team);
-                if let Some(our_team) = our_team {
-                    let target = game.mechs.values()
-                        .filter(|m| m.team != our_team)
-                        .min_by(|a, b| {
-                            let our_pos = game.mechs.get(&mech_id).unwrap().position;
-                            let dist_a = a.position.distance_to(&our_pos);
-                            let dist_b = b.position.distance_to(&our_pos);
-                            dist_a.partial_cmp(&dist_b).unwrap()
-                        });
-
-                    if let Some(target) = target {
-                        let target_id = target.id;
-                        let target_pos = target.position;
-                        let target_health = target.health;
-                        
-                        let _ = tx.send((Uuid::nil(), ServerMessage::WeaponFired {
-                            mech_id,
-                            weapon_type: StationType::WeaponLaser,
-                            target_position: target_pos,
-                            projectile_id: None,
-                        }));
-                        
-                        // Instant damage for laser
-                        let damage = 10 * game.mechs.get(&mech_id).unwrap().upgrades.laser_level as u32;
-                        let new_health = target_health.saturating_sub(damage);
-                        
-                        if let Some(target_mech) = game.mechs.get_mut(&target_id) {
-                            target_mech.health = new_health;
-                        }
-                        
-                        let _ = tx.send((Uuid::nil(), ServerMessage::MechDamaged {
-                            mech_id: target_id,
-                            damage,
-                            health_remaining: new_health,
-                        }));
+                let (our_team, our_pos, laser_level) = match game.mechs.get(&mech_id) {
+                    Some(mech) => (mech.team, mech.position, mech.upgrades.laser_level),
+                    None => {
+                        log::error!("Mech {} not found when firing laser", mech_id);
+                        return;
                     }
+                };
+                
+                let target = game.mechs.values()
+                    .filter(|m| m.team != our_team)
+                    .min_by(|a, b| {
+                        let dist_a = a.position.distance_to(our_pos);
+                        let dist_b = b.position.distance_to(our_pos);
+                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                    });
+
+                if let Some(target) = target {
+                    let target_id = target.id;
+                    let target_pos = target.position;
+                    let target_health = target.health;
+                    
+                    let _ = tx.send((Uuid::nil(), ServerMessage::WeaponFired {
+                        mech_id,
+                        weapon_type: StationType::WeaponLaser,
+                        target_position: target_pos,
+                        projectile_id: None,
+                    }));
+                    
+                    // Instant damage for laser
+                    let damage = LASER_BASE_DAMAGE + (LASER_DAMAGE_PER_LEVEL * (laser_level as u32 - 1));
+                    let new_health = target_health.saturating_sub(damage);
+                    
+                    if let Some(target_mech) = game.mechs.get_mut(&target_id) {
+                        target_mech.health = new_health;
+                    }
+                    
+                    let _ = tx.send((Uuid::nil(), ServerMessage::MechDamaged {
+                        mech_id: target_id,
+                        damage,
+                        health_remaining: new_health,
+                    }));
                 }
             }
         }
         StationType::WeaponProjectile => {
             if button_index == 0 {
                 // Fire projectile
-                let our_team = game.mechs.get(&mech_id).map(|m| m.team);
-                if let Some(our_team) = our_team {
-                    let target = game.mechs.values()
-                        .filter(|m| m.team != our_team)
-                        .min_by(|a, b| {
-                            let our_pos = game.mechs.get(&mech_id).unwrap().position;
-                            let dist_a = a.position.distance_to(&our_pos);
-                            let dist_b = b.position.distance_to(&our_pos);
-                            dist_a.partial_cmp(&dist_b).unwrap()
-                        });
-
-                    if let Some(target) = target {
-                        let projectile_id = Uuid::new_v4();
-                        let target_pos = target.position;
-                        
-                        // Calculate projectile trajectory
-                        let start_pos = game.mechs.get(&mech_id).unwrap().position.to_world_pos();
-                        let target_world = target_pos.to_world_pos();
-                        let dx = target_world.x - start_pos.x;
-                        let dy = target_world.y - start_pos.y;
-                        let dist = (dx * dx + dy * dy).sqrt();
-                        let velocity = if dist > 0.0 {
-                            (dx / dist * 300.0, dy / dist * 300.0)
-                        } else {
-                            (0.0, 0.0)
-                        };
-
-                        let projectile = crate::game::Projectile {
-                            id: projectile_id,
-                            position: start_pos,
-                            velocity,
-                            damage: 15 * game.mechs.get(&mech_id).unwrap().upgrades.projectile_level as u32,
-                            owner_mech_id: mech_id,
-                            lifetime: 5.0,
-                        };
-                        
-                        game.projectiles.insert(projectile_id, projectile);
-
-                        let _ = tx.send((Uuid::nil(), ServerMessage::WeaponFired {
-                            mech_id,
-                            weapon_type: StationType::WeaponProjectile,
-                            target_position: target_pos,
-                            projectile_id: Some(projectile_id),
-                        }));
+                let (our_team, our_pos, projectile_level) = match game.mechs.get(&mech_id) {
+                    Some(mech) => (mech.team, mech.position, mech.upgrades.projectile_level),
+                    None => {
+                        log::error!("Mech {} not found when firing projectile", mech_id);
+                        return;
                     }
+                };
+                
+                let target = game.mechs.values()
+                    .filter(|m| m.team != our_team)
+                    .min_by(|a, b| {
+                        let dist_a = a.position.distance_to(our_pos);
+                        let dist_b = b.position.distance_to(our_pos);
+                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                    });
+
+                if let Some(target) = target {
+                    let target_pos = target.position;
+                    
+                    // Calculate projectile trajectory
+                    let start_pos = our_pos.to_world_pos();
+                    let target_world = target_pos.to_world_pos();
+                    let dx = target_world.x - start_pos.x;
+                    let dy = target_world.y - start_pos.y;
+                    let dist = (dx * dx + dy * dy).sqrt();
+                    let velocity = if dist > 0.0 {
+                        (dx / dist * PROJECTILE_BASE_SPEED, dy / dist * PROJECTILE_BASE_SPEED)
+                    } else {
+                        (0.0, 0.0)
+                    };
+
+                    let damage = PROJECTILE_BASE_DAMAGE + (PROJECTILE_DAMAGE_PER_LEVEL * (projectile_level as u32 - 1));
+                    
+                    // Use the new pooled projectile system
+                    let actual_projectile_id = game.create_projectile(
+                        start_pos,
+                        velocity,
+                        damage,
+                        mech_id,
+                        PROJECTILE_LIFETIME,
+                    );
+
+                    let _ = tx.send((Uuid::nil(), ServerMessage::WeaponFired {
+                        mech_id,
+                        weapon_type: StationType::WeaponProjectile,
+                        target_position: target_pos,
+                        projectile_id: Some(actual_projectile_id),
+                    }));
                 }
             }
         }
@@ -498,7 +311,7 @@ async fn handle_station_button(
             if button_index == 0 {
                 // Activate shield boost
                 if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                    mech.shield = (mech.shield + 10).min(mech.max_shield);
+                    mech.shield = (mech.shield + SHIELD_BOOST_AMOUNT).min(mech.max_shield);
                     let _ = tx.send((Uuid::nil(), ServerMessage::MechShieldChanged {
                         mech_id,
                         shield: mech.shield,
@@ -506,17 +319,18 @@ async fn handle_station_button(
                 }
             }
         }
+        StationType::Engine => {
+            // Engine station now uses WASD controls via EngineControl messages
+            // Station buttons are not used for movement anymore
+        }
         StationType::Upgrade => {
             // Upgrade station - use resources to upgrade mech systems
             match button_index {
                 0 => {
                     // Upgrade laser (costs 2 scrap metal + 1 computer component)
-                    if check_and_consume_resources(game, mech_id, vec![
-                        (ResourceType::ScrapMetal, 2),
-                        (ResourceType::ComputerComponents, 1),
-                    ]) {
+                    if check_and_consume_resources(game, mech_id, upgrade_costs::LASER_UPGRADE.to_vec()) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            mech.upgrades.laser_level = (mech.upgrades.laser_level + 1).min(5);
+                            mech.upgrades.laser_level = (mech.upgrades.laser_level + 1).min(MAX_UPGRADE_LEVEL);
                             let _ = tx.send((Uuid::nil(), ServerMessage::MechUpgraded {
                                 mech_id,
                                 upgrade_type: UpgradeType::Laser,
@@ -527,11 +341,9 @@ async fn handle_station_button(
                 }
                 1 => {
                     // Upgrade projectile (costs 3 scrap metal)
-                    if check_and_consume_resources(game, mech_id, vec![
-                        (ResourceType::ScrapMetal, 3),
-                    ]) {
+                    if check_and_consume_resources(game, mech_id, upgrade_costs::PROJECTILE_UPGRADE.to_vec()) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            mech.upgrades.projectile_level = (mech.upgrades.projectile_level + 1).min(5);
+                            mech.upgrades.projectile_level = (mech.upgrades.projectile_level + 1).min(MAX_UPGRADE_LEVEL);
                             let _ = tx.send((Uuid::nil(), ServerMessage::MechUpgraded {
                                 mech_id,
                                 upgrade_type: UpgradeType::Projectile,
@@ -542,13 +354,10 @@ async fn handle_station_button(
                 }
                 2 => {
                     // Upgrade shields (costs 2 batteries + 1 wiring)
-                    if check_and_consume_resources(game, mech_id, vec![
-                        (ResourceType::Batteries, 2),
-                        (ResourceType::Wiring, 1),
-                    ]) {
+                    if check_and_consume_resources(game, mech_id, upgrade_costs::SHIELD_UPGRADE.to_vec()) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            mech.upgrades.shield_level = (mech.upgrades.shield_level + 1).min(5);
-                            mech.max_shield = 50 + (mech.upgrades.shield_level as u32 - 1) * 25;
+                            mech.upgrades.shield_level = (mech.upgrades.shield_level + 1).min(MAX_UPGRADE_LEVEL);
+                            mech.max_shield = MECH_MAX_SHIELD + (mech.upgrades.shield_level as u32 - 1) * SHIELD_PER_LEVEL;
                             let _ = tx.send((Uuid::nil(), ServerMessage::MechUpgraded {
                                 mech_id,
                                 upgrade_type: UpgradeType::Shield,
@@ -559,12 +368,9 @@ async fn handle_station_button(
                 }
                 3 => {
                     // Upgrade engine (costs 2 computer components + 2 wiring)
-                    if check_and_consume_resources(game, mech_id, vec![
-                        (ResourceType::ComputerComponents, 2),
-                        (ResourceType::Wiring, 2),
-                    ]) {
+                    if check_and_consume_resources(game, mech_id, upgrade_costs::ENGINE_UPGRADE.to_vec()) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            mech.upgrades.engine_level = (mech.upgrades.engine_level + 1).min(5);
+                            mech.upgrades.engine_level = (mech.upgrades.engine_level + 1).min(MAX_UPGRADE_LEVEL);
                             let _ = tx.send((Uuid::nil(), ServerMessage::MechUpgraded {
                                 mech_id,
                                 upgrade_type: UpgradeType::Engine,
@@ -581,13 +387,13 @@ async fn handle_station_button(
                 // Repair mech (costs 1 scrap metal per 20 HP)
                 if let Some(mech) = game.mechs.get(&mech_id) {
                     let damage = mech.max_health.saturating_sub(mech.health);
-                    let scrap_needed = (damage + 19) / 20; // Round up
+                    let scrap_needed = (damage + REPAIR_HP_PER_SCRAP - 1) / REPAIR_HP_PER_SCRAP; // Round up
                     
                     if scrap_needed > 0 && check_and_consume_resources(game, mech_id, vec![
                         (ResourceType::ScrapMetal, scrap_needed as usize),
                     ]) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            let healed = scrap_needed * 20;
+                            let healed = scrap_needed * REPAIR_HP_PER_SCRAP;
                             mech.health = (mech.health + healed).min(mech.max_health);
                             let _ = tx.send((Uuid::nil(), ServerMessage::MechRepaired {
                                 mech_id,
@@ -605,50 +411,69 @@ async fn handle_station_button(
     }
 }
 
+pub async fn handle_engine_control(
+    game: &mut Game,
+    player_id: Uuid,
+    movement: (f32, f32),
+) {
+    // Check if player is operating an engine station
+    let player_station = game.players.get(&player_id)
+        .and_then(|p| p.operating_station);
+    
+    if let Some(station_id) = player_station {
+        // Find which mech contains this station
+        let mech_to_control = game.mechs.values()
+            .find(|m| m.stations.contains_key(&station_id))
+            .map(|m| m.id);
+        
+        if let Some(mech_id) = mech_to_control {
+            // Verify it's an engine station
+            if let Some(mech) = game.mechs.get(&mech_id) {
+                if let Some(station) = mech.stations.get(&station_id) {
+                    if station.station_type == StationType::Engine {
+                        // Update the specific mech's velocity based on WASD input
+                        if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                            let base_speed = MECH_BASE_SPEED + (mech.upgrades.engine_level as f32 - 1.0) * MECH_SPEED_PER_LEVEL;
+                            
+                            // Normalize diagonal movement
+                            let (mut vx, mut vy) = movement;
+                            let magnitude = (vx * vx + vy * vy).sqrt();
+                            if magnitude > 1.0 {
+                                vx /= magnitude;
+                                vy /= magnitude;
+                            }
+                            
+                            // Apply speed to normalized velocity
+                            mech.velocity = (vx * base_speed, vy * base_speed);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn check_and_consume_resources(
     game: &mut Game,
     mech_id: Uuid,
     required: Vec<(ResourceType, usize)>,
 ) -> bool {
-    // First check if mech has all required resources
+    // Check if mech has all required resources in its inventory
     if let Some(mech) = game.mechs.get(&mech_id) {
-        let mut available = HashMap::new();
-        
-        // Count resources deposited at this mech
-        for resource in game.resources.values() {
-            if resource.position.distance_to(&mech.position) < 5.0 {
-                *available.entry(resource.resource_type).or_insert(0) += 1;
-            }
-        }
-        
         // Check if we have enough of each type
         for (resource_type, needed) in &required {
-            if available.get(resource_type).unwrap_or(&0) < needed {
+            let available = mech.resource_inventory.get(resource_type).unwrap_or(&0);
+            if available < &(*needed as u32) {
                 return false;
             }
         }
         
-        // We have enough - consume the resources
-        for (resource_type, needed) in required {
-            let mut consumed = 0;
-            let resources_to_remove: Vec<Uuid> = game.resources.iter()
-                .filter(|(_, r)| {
-                    if consumed >= needed {
-                        return false;
-                    }
-                    if r.resource_type == resource_type && 
-                       r.position.distance_to(&mech.position) < 5.0 {
-                        consumed += 1;
-                        true
-                    } else {
-                        false
-                    }
-                })
-                .map(|(id, _)| *id)
-                .collect();
-                
-            for id in resources_to_remove {
-                game.resources.remove(&id);
+        // We have enough - consume the resources from mech inventory
+        if let Some(mech) = game.mechs.get_mut(&mech_id) {
+            for (resource_type, needed) in required {
+                if let Some(count) = mech.resource_inventory.get_mut(&resource_type) {
+                    *count -= needed as u32;
+                }
             }
         }
         

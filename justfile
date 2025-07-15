@@ -220,3 +220,7 @@ check-ports:
     @echo "Checking ports..."
     @lsof -i :14191 || echo "Game server port (14191) is free"
     @lsof -i :8080 || echo "Web server port (8080) is free"
+# Test AI system by adding AI players
+test-ai:
+    @echo "Testing AI system..."
+    ./test_ai.sh

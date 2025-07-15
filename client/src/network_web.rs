@@ -194,7 +194,7 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
                 mech_id,
                 weapon_type,
                 target: target_position,
-                timer: 1.0,
+                timer: WEAPON_EFFECT_DURATION,
                 projectile_id,
             });
         }

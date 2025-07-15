@@ -93,11 +93,13 @@ impl ClientHandler {
                     let mut mech_state = crate::game_state::MechState {
                         id: mech.id,
                         position: mech.position,
+                        world_position: mech.world_position,
                         team: mech.team,
                         health: mech.health,
                         shield: mech.shield,
                         upgrades: mech.upgrades,
                         floors: vec![],
+                        resource_inventory: mech.resource_inventory,
                     };
 
                     // Build floor layouts
@@ -177,6 +179,13 @@ impl ClientHandler {
                 }
             }
 
+            ServerMessage::MechMoved { mech_id, position, world_position } => {
+                if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                    mech.position = position;
+                    mech.world_position = world_position;
+                }
+            }
+
             ServerMessage::MechDamaged { mech_id, damage: _, health_remaining } => {
                 if let Some(mech) = game.mechs.get_mut(&mech_id) {
                     mech.health = health_remaining;
@@ -195,7 +204,7 @@ impl ClientHandler {
                     mech_id,
                     weapon_type,
                     target: target_position,
-                    timer: 1.0,
+                    timer: WEAPON_EFFECT_DURATION,
                     projectile_id,
                 });
             }
@@ -234,6 +243,17 @@ impl ClientHandler {
                     mech.health = new_health;
                 }
                 // Could add visual effect for repair
+            }
+            
+            ServerMessage::PlayerKilled { player_id, killer: _, respawn_position } => {
+                if player_id == game.player_id.unwrap_or(Uuid::nil()) {
+                    // Player died - respawn them
+                    game.player_location = PlayerLocation::OutsideWorld(respawn_position);
+                }
+                if let Some(player) = game.players.get_mut(&player_id) {
+                    player.location = PlayerLocation::OutsideWorld(respawn_position);
+                    player.carrying_resource = None;
+                }
             }
 
             _ => {

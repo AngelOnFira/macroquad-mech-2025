@@ -1,4 +1,4 @@
-use shared::{types::*, constants::*};
+use shared::{types::*, constants::*, network_constants::*};
 use std::collections::HashMap;
 use uuid::Uuid;
 use macroquad::prelude::*;
@@ -27,11 +27,13 @@ pub struct PlayerData {
 pub struct MechState {
     pub id: Uuid,
     pub position: TilePos,
+    pub world_position: WorldPos,
     pub team: TeamId,
     pub health: u32,
     pub shield: u32,
     pub upgrades: shared::MechUpgrades,
     pub floors: Vec<MechFloor>,
+    pub resource_inventory: HashMap<ResourceType, u32>,
 }
 
 pub struct MechFloor {
@@ -83,7 +85,7 @@ impl GameState {
     pub fn new() -> Self {
         Self {
             player_id: None,
-            player_location: PlayerLocation::OutsideWorld(WorldPos::new(50.0 * TILE_SIZE, 50.0 * TILE_SIZE)),
+            player_location: PlayerLocation::OutsideWorld(WorldPos::new(DEFAULT_SPAWN_CAMERA_MULTIPLIER * TILE_SIZE, DEFAULT_SPAWN_CAMERA_MULTIPLIER * TILE_SIZE)),
             player_team: None,
             players: HashMap::new(),
             mechs: HashMap::new(),
@@ -113,8 +115,8 @@ impl GameState {
             PlayerLocation::InsideMech { pos, .. } => {
                 // Center on the mech interior view
                 self.camera_offset = (
-                    pos.x as f32 * TILE_SIZE - screen_width() / 2.0,
-                    pos.y as f32 * TILE_SIZE - screen_height() / 2.0,
+                    pos.x - screen_width() / 2.0,
+                    pos.y - screen_height() / 2.0,
                 );
             }
         }

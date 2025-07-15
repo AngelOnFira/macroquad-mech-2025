@@ -5,7 +5,6 @@ pub const ARENA_HEIGHT_TILES: i32 = 100;
 pub const MECH_SIZE_TILES: i32 = 10;
 
 // Player settings
-pub const PLAYER_MOVE_SPEED: f32 = 5.0; // tiles per second
 pub const MAX_DISTANCE_FROM_MECH: f32 = 15.0; // tiles
 
 // Mech internals

@@ -140,8 +140,8 @@ impl Renderer {
                                 (b.position.x as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
                                 (b.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE
                             );
-                            let dist_a = pos.distance_to(&mech_center_a);
-                            let dist_b = pos.distance_to(&mech_center_b);
+                            let dist_a = pos.distance_to(mech_center_a);
+                            let dist_b = pos.distance_to(mech_center_b);
                             dist_a.partial_cmp(&dist_b).unwrap()
                         });
                     
@@ -150,7 +150,7 @@ impl Renderer {
                             (mech.position.x as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
                             (mech.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE
                         );
-                        let distance = pos.distance_to(&mech_center) / TILE_SIZE;
+                        let distance = pos.distance_to(mech_center) / TILE_SIZE;
                         
                         // Color based on distance (green to red)
                         let ratio = (distance / MAX_DISTANCE_FROM_MECH).clamp(0.0, 1.0);

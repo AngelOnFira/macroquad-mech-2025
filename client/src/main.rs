@@ -66,7 +66,7 @@ async fn main() {
         });
 
         // Wait a bit for connection
-        thread::sleep(std::time::Duration::from_millis(100));
+        thread::sleep(std::time::Duration::from_millis(CONNECTION_RETRY_DELAY_MS));
         
         network_client = network_client_arc.lock().unwrap().take();
     }
@@ -92,7 +92,7 @@ async fn main() {
 
     // Wait for connection to establish
     let mut connection_wait = 0;
-    while connection_wait < 60 { // Wait up to 2 seconds
+    while connection_wait < MAX_CONNECTION_ATTEMPTS { // Wait up to 2 seconds
         if let Some(ref client) = network_client {
             #[cfg(target_arch = "wasm32")]
             if client.is_connected() {
@@ -108,7 +108,7 @@ async fn main() {
     // Send join request
     if let Some(ref client) = network_client {
         // Generate a random player name for demo
-        let player_name = format!("Player{}", rand::gen_range(1000, 9999));
+        let player_name = format!("Player{}", rand::gen_range(PLAYER_NAME_MIN_ID, PLAYER_NAME_MAX_ID));
         client.send_message(ClientMessage::JoinGame {
             player_name,
             preferred_team: None,
@@ -121,11 +121,34 @@ async fn main() {
         
         // Send input to server
         if let Some(ref client) = network_client {
-            if input.has_input() {
-                client.send_message(ClientMessage::PlayerInput {
-                    direction: input.direction,
-                    action_key_pressed: input.action_pressed,
-                });
+            // Check if we're operating an engine station
+            let operating_engine = {
+                let game = game_state.lock().unwrap();
+                if let Some(player_id) = game.player_id {
+                    game.stations.values().any(|station| {
+                        station.operated_by == Some(player_id) && 
+                        station.station_type == shared::types::StationType::Engine
+                    })
+                } else {
+                    false
+                }
+            };
+            
+            if operating_engine {
+                // Send engine control instead of player movement
+                if input.has_input() {
+                    client.send_message(ClientMessage::EngineControl {
+                        movement: input.movement,
+                    });
+                }
+            } else {
+                // Normal player movement
+                if input.has_input() {
+                    client.send_message(ClientMessage::PlayerInput {
+                        movement: input.movement,
+                        action_key_pressed: input.action_pressed,
+                    });
+                }
             }
 
             if input.exit_mech_pressed {
@@ -172,7 +195,7 @@ async fn main() {
         
         // Draw connection status
         if network_client.is_none() {
-            draw_text("Connecting to server...", 10.0, 30.0, 30.0, WHITE);
+            draw_text("Connecting to server...", CONNECTION_MESSAGE_X, CONNECTION_MESSAGE_Y, CONNECTION_STATUS_FONT_SIZE, WHITE);
         }
 
         next_frame().await

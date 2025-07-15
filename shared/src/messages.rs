@@ -12,11 +12,14 @@ pub enum ClientMessage {
         preferred_team: Option<TeamId>,
     },
     PlayerInput {
-        direction: Option<Direction>,
+        movement: (f32, f32), // normalized x, y velocity
         action_key_pressed: bool,
     },
     StationInput {
         button_index: u8,
+    },
+    EngineControl {
+        movement: (f32, f32), // normalized x, y velocity for mech movement
     },
     ExitMech,
     ChatMessage {
@@ -74,6 +77,7 @@ pub enum ServerMessage {
     MechMoved {
         mech_id: Uuid,
         position: TilePos,
+        world_position: WorldPos,
     },
     MechDamaged {
         mech_id: Uuid,
@@ -107,6 +111,18 @@ pub enum ServerMessage {
         hit_mech_id: Option<Uuid>,
         damage_dealt: u32,
     },
+    ProjectileExpired {
+        projectile_id: Uuid,
+    },
+    EffectCreated {
+        effect_id: Uuid,
+        effect_type: String,
+        position: WorldPos,
+        duration: f32,
+    },
+    EffectExpired {
+        effect_id: Uuid,
+    },
     
     // Resources
     ResourceSpawned {
@@ -125,6 +141,13 @@ pub enum ServerMessage {
         player_name: String,
         message: String,
         team_only: bool,
+    },
+    
+    // Player death
+    PlayerKilled {
+        player_id: Uuid,
+        killer: Option<Uuid>, // None if killed by environment (like being run over)
+        respawn_position: WorldPos,
     },
     
     // Errors
@@ -149,10 +172,12 @@ pub struct MechState {
     pub id: Uuid,
     pub team: TeamId,
     pub position: TilePos,
+    pub world_position: WorldPos,
     pub health: u32,
     pub shield: u32,
     pub upgrades: MechUpgrades,
     pub stations: Vec<StationState>,
+    pub resource_inventory: HashMap<ResourceType, u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

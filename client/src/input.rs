@@ -1,12 +1,11 @@
 use macroquad::prelude::*;
-use shared::types::Direction;
 
 pub struct InputHandler {
     last_action_pressed: bool,
 }
 
 pub struct InputState {
-    pub direction: Option<Direction>,
+    pub movement: (f32, f32), // x, y velocity (-1.0 to 1.0)
     pub action_pressed: bool,
     pub exit_mech_pressed: bool,
 }
@@ -20,21 +19,36 @@ impl InputHandler {
 
     pub fn update(&mut self) -> InputState {
         let mut state = InputState {
-            direction: None,
+            movement: (0.0, 0.0),
             action_pressed: false,
             exit_mech_pressed: false,
         };
 
-        // Movement - send continuous movement commands while key is held
+        // Movement - combine multiple directions for diagonal movement
+        let mut movement_x = 0.0;
+        let mut movement_y = 0.0;
+        
         if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
-            state.direction = Some(Direction::Up);
-        } else if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
-            state.direction = Some(Direction::Down);
-        } else if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
-            state.direction = Some(Direction::Left);
-        } else if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
-            state.direction = Some(Direction::Right);
+            movement_y -= 1.0;
         }
+        if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
+            movement_y += 1.0;
+        }
+        if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
+            movement_x -= 1.0;
+        }
+        if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
+            movement_x += 1.0;
+        }
+        
+        // Normalize diagonal movement
+        if movement_x != 0.0 || movement_y != 0.0 {
+            let magnitude = ((movement_x * movement_x + movement_y * movement_y) as f32).sqrt();
+            movement_x /= magnitude;
+            movement_y /= magnitude;
+        }
+        
+        state.movement = (movement_x, movement_y);
 
         // Action key (Space) - detect press, not hold
         let action_down = is_key_down(KeyCode::Space);
@@ -50,6 +64,6 @@ impl InputHandler {
 
 impl InputState {
     pub fn has_input(&self) -> bool {
-        self.direction.is_some() || self.action_pressed
+        self.movement.0 != 0.0 || self.movement.1 != 0.0 || self.action_pressed
     }
 }

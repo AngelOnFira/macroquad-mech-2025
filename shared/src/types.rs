@@ -1,67 +1,88 @@
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TilePos {
-    pub x: i32,
-    pub y: i32,
+// Re-export the unified coordinate types for backward compatibility
+pub use crate::coordinates::{WorldPos, TilePos, ScreenPos, GridPos, NDC};
+
+// Add serde support to the coordinate types
+impl Serialize for WorldPos {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("WorldPos", 2)?;
+        state.serialize_field("x", &self.x)?;
+        state.serialize_field("y", &self.y)?;
+        state.end()
+    }
 }
 
-impl TilePos {
-    pub fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
-
-    pub fn to_world_pos(&self) -> WorldPos {
-        WorldPos {
-            x: self.x as f32 * crate::TILE_SIZE,
-            y: self.y as f32 * crate::TILE_SIZE,
+impl<'de> Deserialize<'de> for WorldPos {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct WorldPosHelper {
+            x: f32,
+            y: f32,
         }
+        
+        let helper = WorldPosHelper::deserialize(deserializer)?;
+        Ok(WorldPos::new(helper.x, helper.y))
     }
+}
 
-    pub fn distance_to(&self, other: &TilePos) -> f32 {
-        let dx = (self.x - other.x) as f32;
-        let dy = (self.y - other.y) as f32;
-        (dx * dx + dy * dy).sqrt()
+impl Serialize for TilePos {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("TilePos", 2)?;
+        state.serialize_field("x", &self.x)?;
+        state.serialize_field("y", &self.y)?;
+        state.end()
     }
+}
 
-    pub fn offset(&self, dx: i32, dy: i32) -> Self {
-        Self {
-            x: self.x + dx,
-            y: self.y + dy,
+impl<'de> Deserialize<'de> for TilePos {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct TilePosHelper {
+            x: i32,
+            y: i32,
         }
+        
+        let helper = TilePosHelper::deserialize(deserializer)?;
+        Ok(TilePos::new(helper.x, helper.y))
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct WorldPos {
-    pub x: f32,
-    pub y: f32,
-}
-
+// Add backward compatibility methods
 impl WorldPos {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
-    
+    /// Legacy method for backward compatibility
     pub fn to_tile_pos(&self) -> TilePos {
-        TilePos {
-            x: (self.x / crate::TILE_SIZE).floor() as i32,
-            y: (self.y / crate::TILE_SIZE).floor() as i32,
-        }
+        self.to_tile()
     }
     
-    pub fn distance_to(&self, other: &WorldPos) -> f32 {
-        let dx = self.x - other.x;
-        let dy = self.y - other.y;
-        (dx * dx + dy * dy).sqrt()
-    }
-    
+    /// Legacy method for backward compatibility
     pub fn move_in_direction(&self, direction: Direction, speed: f32, delta_time: f32) -> Self {
         let (dx, dy) = direction.to_velocity();
         Self {
             x: self.x + dx * speed * delta_time,
             y: self.y + dy * speed * delta_time,
         }
+    }
+}
+
+impl TilePos {
+    /// Legacy method for backward compatibility
+    pub fn to_world_pos(&self) -> WorldPos {
+        self.to_world()
     }
 }
 
@@ -109,7 +130,7 @@ pub enum UpgradeType {
     Engine,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum StationType {
     WeaponLaser,
     WeaponProjectile,
@@ -123,7 +144,7 @@ pub enum StationType {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum PlayerLocation {
     OutsideWorld(WorldPos),
-    InsideMech { mech_id: uuid::Uuid, floor: u8, pos: TilePos },
+    InsideMech { mech_id: uuid::Uuid, floor: u8, pos: WorldPos },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

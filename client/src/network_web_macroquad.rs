@@ -38,7 +38,7 @@ impl NetworkClient {
         Ok(NetworkClient {
             socket_id,
             game_state,
-            message_buffer: vec![0u8; 65536], // 64KB buffer for messages
+            message_buffer: vec![0u8; MESSAGE_BUFFER_SIZE], // Message buffer
         })
     }
     
@@ -116,11 +116,13 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
                 let mut mech_state = crate::game_state::MechState {
                     id: mech.id,
                     position: mech.position,
+                    world_position: mech.world_position,
                     team: mech.team,
                     health: mech.health,
                     shield: mech.shield,
                     upgrades: mech.upgrades,
                     floors: vec![],
+                    resource_inventory: mech.resource_inventory,
                 };
 
                 // Build floor layouts
@@ -199,6 +201,13 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             }
         }
 
+        ServerMessage::MechMoved { mech_id, position, world_position } => {
+            if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                mech.position = position;
+                mech.world_position = world_position;
+            }
+        }
+
         ServerMessage::MechDamaged { mech_id, damage: _, health_remaining } => {
             if let Some(mech) = game.mechs.get_mut(&mech_id) {
                 mech.health = health_remaining;
@@ -217,7 +226,7 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
                 mech_id,
                 weapon_type,
                 target: target_position,
-                timer: 1.0,
+                timer: WEAPON_EFFECT_DURATION,
                 projectile_id,
             });
         }
@@ -252,6 +261,17 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
         ServerMessage::MechRepaired { mech_id, health_restored: _, new_health } => {
             if let Some(mech) = game.mechs.get_mut(&mech_id) {
                 mech.health = new_health;
+            }
+        }
+        
+        ServerMessage::PlayerKilled { player_id, killer: _, respawn_position } => {
+            if player_id == game.player_id.unwrap_or(Uuid::nil()) {
+                // Player died - respawn them
+                game.player_location = PlayerLocation::OutsideWorld(respawn_position);
+            }
+            if let Some(player) = game.players.get_mut(&player_id) {
+                player.location = PlayerLocation::OutsideWorld(respawn_position);
+                player.carrying_resource = None;
             }
         }
 

@@ -1,8 +1,8 @@
 use axum::{
-    extract::{ws::WebSocket, State, WebSocketUpgrade},
+    extract::{ws::WebSocket, State, WebSocketUpgrade, Query},
     response::IntoResponse,
-    routing::get,
-    Router,
+    routing::{get, post},
+    Router, Json,
 };
 use std::{
     net::SocketAddr,
@@ -11,12 +11,18 @@ use std::{
 use tokio::sync::{broadcast, RwLock};
 use tower::ServiceBuilder;
 use uuid::Uuid;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use shared::*;
 
 mod game;
 mod client;
 mod physics;
+mod commands;
+mod movement;
+mod spatial_collision;
+mod systems;
 
 use game::Game;
 use client::handle_client;
@@ -27,12 +33,25 @@ pub struct AppState {
     pub tx: broadcast::Sender<(Uuid, ServerMessage)>,
 }
 
+#[derive(Debug, Deserialize)]
+struct AddAIRequest {
+    difficulty: Option<f32>,
+    personality: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct AddAIResponse {
+    ai_id: Uuid,
+    name: String,
+    team: TeamId,
+}
+
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     env_logger::init();
 
     // Create broadcast channel for game messages
-    let (tx, _) = broadcast::channel(1000);
+    let (tx, _) = broadcast::channel(BROADCAST_CHANNEL_SIZE);
 
     // Initialize game state
     let game = Arc::new(RwLock::new(Game::new()));
@@ -60,6 +79,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(index))
         .route("/ws", get(websocket_handler))
+        .route("/ai/add", post(add_ai_player))
         .layer(
             ServiceBuilder::new()
                 .layer(axum::middleware::from_fn(cors_layer))
@@ -71,8 +91,9 @@ async fn main() {
     let addr = SocketAddr::from(([127, 0, 0, 1], SERVER_PORT));
     log::info!("Server listening on {}", addr);
     
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
 async fn index() -> &'static str {
@@ -91,6 +112,48 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     handle_client(socket, player_id, state).await;
 }
 
+async fn add_ai_player(
+    State(state): State<AppState>,
+    Json(request): Json<AddAIRequest>,
+) -> Result<Json<AddAIResponse>, &'static str> {
+    let difficulty = request.difficulty.unwrap_or(0.5).clamp(0.0, 1.0);
+    
+    // Parse personality
+    let personality = request.personality.as_ref().and_then(|p| {
+        match p.to_lowercase().as_str() {
+            "aggressive" => Some(ai::Personality::Aggressive),
+            "defensive" => Some(ai::Personality::Defensive),
+            "support" => Some(ai::Personality::Support),
+            "balanced" => Some(ai::Personality::Balanced),
+            _ => None,
+        }
+    });
+    
+    // Add AI player to the game
+    let mut game = state.game.write().await;
+    
+    if let Some(ai_id) = game.add_ai_player(difficulty, personality) {
+        // Get player info for response
+        if let Some(player) = game.players.get(&ai_id) {
+            let response = AddAIResponse {
+                ai_id,
+                name: player.name.clone(),
+                team: player.team,
+            };
+            
+            // Broadcast game state update
+            let game_state = game.get_full_state();
+            let _ = state.tx.send((Uuid::nil(), game_state));
+            
+            Ok(Json(response))
+        } else {
+            Err("Failed to retrieve AI player info")
+        }
+    } else {
+        Err("Failed to add AI player")
+    }
+}
+
 // Simple CORS middleware
 async fn cors_layer(
     req: axum::http::Request<axum::body::Body>,
@@ -99,15 +162,33 @@ async fn cors_layer(
     let mut response = next.run(req).await;
     response.headers_mut().insert(
         "Access-Control-Allow-Origin",
-        "*".parse().unwrap(),
+        match "*".parse() {
+            Ok(val) => val,
+            Err(e) => {
+                log::error!("Failed to parse CORS origin header: {}", e);
+                return response;
+            }
+        },
     );
     response.headers_mut().insert(
         "Access-Control-Allow-Methods",
-        "GET, POST, OPTIONS".parse().unwrap(),
+        match "GET, POST, OPTIONS".parse() {
+            Ok(val) => val,
+            Err(e) => {
+                log::error!("Failed to parse CORS methods header: {}", e);
+                return response;
+            }
+        },
     );
     response.headers_mut().insert(
         "Access-Control-Allow-Headers",
-        "Content-Type, Upgrade, Connection".parse().unwrap(),
+        match "Content-Type, Upgrade, Connection".parse() {
+            Ok(val) => val,
+            Err(e) => {
+                log::error!("Failed to parse CORS headers header: {}", e);
+                return response;
+            }
+        },
     );
     response
 }
@@ -121,7 +202,7 @@ mod game_loop {
         game: Arc<RwLock<Game>>,
         tx: broadcast::Sender<(Uuid, ServerMessage)>,
     ) {
-        let mut interval = time::interval(Duration::from_millis(33)); // ~30 FPS
+        let mut interval = time::interval(Duration::from_millis(FRAME_DURATION_MS)); // ~30 FPS
 
         loop {
             interval.tick().await;
@@ -129,17 +210,23 @@ mod game_loop {
             let mut game = game.write().await;
             
             // Update physics
-            game.update_physics(0.033);
+            game.update_physics(FRAME_DELTA_SECONDS);
 
             // Check collisions
             game.check_resource_pickups(&tx);
             game.check_mech_entries(&tx);
 
             // Update projectiles
-            game.update_projectiles(0.033, &tx);
+            game.update_projectiles(FRAME_DELTA_SECONDS, &tx);
+            
+            // Update mechs and check for player deaths
+            let messages = game.update(FRAME_DELTA_SECONDS);
+            for msg in messages {
+                let _ = tx.send((Uuid::nil(), msg));
+            }
 
             // Send periodic full state updates
-            if game.tick_count % 30 == 0 { // Every second
+            if game.tick_count % STATE_UPDATE_INTERVAL == 0 { // Every second
                 let state_msg = game.get_full_state();
                 let _ = tx.send((Uuid::nil(), state_msg));
             }
