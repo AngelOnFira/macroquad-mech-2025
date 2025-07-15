@@ -17,20 +17,21 @@ shared = { path = "../shared" }
 macroquad = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-uuid = { workspace = true }
 log = { workspace = true }
-ws = { version = "0.9", optional = true }
 url = "2.5"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+uuid = { workspace = true }
+ws = { version = "0.9" }
 env_logger = { workspace = true }
 
 # WebAssembly dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1.10", features = ["serde", "v4", "js"] }
 # console_log = "1.0"
 # console_error_panic_hook = "0.1"
 
 [features]
 default = ["native"]
-native = ["ws"]
+native = []
 web = []

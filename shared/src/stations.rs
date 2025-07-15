@@ -56,6 +56,15 @@ pub enum StationAction {
     UpgradeMech {
         upgrade_type: MechUpgradeType,
     },
+    /// Charge energy reserves
+    ChargeEnergy {
+        energy_per_tick: u32,
+    },
+    /// Trigger a temporary effect
+    TriggerEffect {
+        effect: String, // We'll use String for now instead of EffectType
+        duration: f32,
+    },
     /// No action (placeholder)
     None,
 }
@@ -142,6 +151,17 @@ pub enum StationEffect {
     VisualEffect {
         effect_type: String,
         position: crate::WorldPos,
+        duration: f32,
+    },
+    /// Energy charge
+    EnergyCharge {
+        target_id: Uuid,
+        amount: u32,
+    },
+    /// Temporary buff applied
+    TemporaryBuff {
+        target_id: Uuid,
+        buff_type: String,
         duration: f32,
     },
 }
@@ -319,6 +339,27 @@ impl StationRegistry {
                         success = false;
                         message = format!("{:?} already at maximum level", upgrade_type);
                     }
+                }
+            }
+            
+            StationAction::ChargeEnergy { energy_per_tick } => {
+                if let Some(mech_id) = context.mech_id {
+                    effects.push(StationEffect::EnergyCharge {
+                        target_id: mech_id,
+                        amount: *energy_per_tick,
+                    });
+                    message = format!("Charging energy: +{}", energy_per_tick);
+                }
+            }
+            
+            StationAction::TriggerEffect { effect, duration } => {
+                if let Some(mech_id) = context.mech_id {
+                    effects.push(StationEffect::TemporaryBuff {
+                        target_id: mech_id,
+                        buff_type: effect.clone(),
+                        duration: *duration,
+                    });
+                    message = format!("Activated {} for {}s", effect, duration);
                 }
             }
             
@@ -555,6 +596,51 @@ impl StationRegistry {
             upgrade_requirements: HashMap::new(),
             allowed_floors: vec![0],
             max_per_mech: 1,
+            size: (1, 1),
+        });
+        
+        // Electrical station
+        self.register_station(StationDefinition {
+            station_type: StationType::Electrical,
+            name: "Power Management".to_string(),
+            description: "Manages mech power systems and energy distribution".to_string(),
+            button_count: 2,
+            button_definitions: vec![
+                ButtonDefinition {
+                    index: 0,
+                    label: "Recharge".to_string(),
+                    description: "Recharge energy reserves".to_string(),
+                    action: StationAction::ChargeEnergy {
+                        energy_per_tick: 10,
+                    },
+                    cooldown_seconds: 0.5,
+                    resource_cost: HashMap::from([
+                        (ResourceType::Batteries, 1),
+                    ]),
+                },
+                ButtonDefinition {
+                    index: 1,
+                    label: "Boost Systems".to_string(),
+                    description: "Temporarily boost all systems".to_string(),
+                    action: StationAction::TriggerEffect { 
+                        effect: "EnergyBoost".to_string(),
+                        duration: 10.0,
+                    },
+                    cooldown_seconds: 30.0,
+                    resource_cost: HashMap::from([
+                        (ResourceType::Batteries, 2),
+                        (ResourceType::Wiring, 1),
+                    ]),
+                },
+            ],
+            cooldown_seconds: 0.5,
+            resource_requirements: HashMap::new(),
+            upgrade_requirements: HashMap::from([
+                (ResourceType::Wiring, 2),
+                (ResourceType::Batteries, 1),
+            ]),
+            allowed_floors: vec![1, 2],
+            max_per_mech: 2,
             size: (1, 1),
         });
     }

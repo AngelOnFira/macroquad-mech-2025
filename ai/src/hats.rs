@@ -153,7 +153,12 @@ impl HatManager {
     /// Update hat based on perception
     pub fn update_hat(&mut self, perception: &Perception) {
         // Check for reactive hats first
+        let old_reactive = self.reactive_hat;
         self.reactive_hat = self.check_reactive_conditions(perception);
+        
+        if self.reactive_hat.is_some() && old_reactive != self.reactive_hat {
+            log::debug!("Switching to reactive hat: {:?} -> {:?}", old_reactive, self.reactive_hat);
+        }
         
         // If no reactive hat, evaluate primary hats
         if self.reactive_hat.is_none() {
@@ -164,6 +169,7 @@ impl HatManager {
                 .max_by(|a, b| a.1.partial_cmp(b.1).unwrap()) 
             {
                 if *score > self.hat_scores.get(&self.current_hat).unwrap_or(&0.0) + 0.2 {
+                    log::debug!("Switching primary hat: {:?} -> {:?} (score: {})", self.current_hat, best_hat, score);
                     self.current_hat = *best_hat;
                 }
             }
@@ -218,8 +224,9 @@ impl HatManager {
             return Some(Hat::EmergencyRepair);
         }
         
-        // Resource rush if critically low
-        if perception.team_state.resource_status.scarcity_level > 0.8 {
+        // Resource rush if critically low (temporarily lowered threshold for testing)
+        if perception.team_state.resource_status.scarcity_level > 0.99 {
+            log::debug!("ResourceRush triggered: scarcity_level = {}", perception.team_state.resource_status.scarcity_level);
             return Some(Hat::ResourceRush);
         }
         
@@ -494,7 +501,202 @@ impl HatManager {
             },
         ]);
         
-        // Add more task definitions for other hats...
+        // Emergency Repair tasks
+        self.available_tasks.insert(Hat::EmergencyRepair, vec![
+            Task {
+                name: "Emergency Repair".to_string(),
+                priority: 1.0,
+                action: TaskAction::OperateStation { station_type: StationType::Repair },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::InsideMech),
+                    not_operating: true,
+                    ..Default::default()
+                },
+            },
+            Task {
+                name: "Rush to Repair Station".to_string(),
+                priority: 0.9,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated to repair station
+                    reason: "Getting to repair station urgently".to_string(),
+                },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::Outside),
+                    ..Default::default()
+                },
+            },
+        ]);
+        
+        // Resource Rush tasks
+        self.available_tasks.insert(Hat::ResourceRush, vec![
+            Task {
+                name: "Collect Critical Resource".to_string(),
+                priority: 0.9,
+                action: TaskAction::CollectResource { resource_type: None },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::Outside),
+                    carrying: Some(CarryingRequirement::Nothing),
+                    ..Default::default()
+                },
+            },
+            Task {
+                name: "Rush Deliver Resource".to_string(),
+                priority: 1.0,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated to mech position
+                    reason: "Urgently delivering resource".to_string(),
+                },
+                requirements: TaskRequirements {
+                    carrying: Some(CarryingRequirement::Resource(None)),
+                    ..Default::default()
+                },
+            },
+        ]);
+        
+        // Retreating tasks
+        self.available_tasks.insert(Hat::Retreating, vec![
+            Task {
+                name: "Retreat to Safe Distance".to_string(),
+                priority: 1.0,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated away from threats
+                    reason: "Retreating from danger".to_string(),
+                },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::Outside),
+                    ..Default::default()
+                },
+            },
+        ]);
+        
+        // Pursuing tasks
+        self.available_tasks.insert(Hat::Pursuing, vec![
+            Task {
+                name: "Chase Enemy".to_string(),
+                priority: 0.8,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated to enemy position
+                    reason: "Pursuing enemy".to_string(),
+                },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::Outside),
+                    ..Default::default()
+                },
+            },
+            Task {
+                name: "Fire at Enemy".to_string(),
+                priority: 0.9,
+                action: TaskAction::OperateStation { station_type: StationType::WeaponLaser },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::InsideMech),
+                    ..Default::default()
+                },
+            },
+        ]);
+        
+        // Defender tasks
+        self.available_tasks.insert(Hat::Defender, vec![
+            Task {
+                name: "Activate Shield".to_string(),
+                priority: 0.8,
+                action: TaskAction::OperateStation { station_type: StationType::Shield },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::InsideMech),
+                    not_operating: true,
+                    ..Default::default()
+                },
+            },
+            Task {
+                name: "Defend Position".to_string(),
+                priority: 0.6,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated to defensive position
+                    reason: "Moving to defensive position".to_string(),
+                },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::Outside),
+                    ..Default::default()
+                },
+            },
+        ]);
+        
+        // Captain tasks
+        self.available_tasks.insert(Hat::Captain, vec![
+            Task {
+                name: "Coordinate Team".to_string(),
+                priority: 0.5,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated to central position
+                    reason: "Coordinating team from central position".to_string(),
+                },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::Outside),
+                    ..Default::default()
+                },
+            },
+            Task {
+                name: "Pilot Mech".to_string(),
+                priority: 0.7,
+                action: TaskAction::OperateStation { station_type: StationType::Engine },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::InsideMech),
+                    not_operating: true,
+                    ..Default::default()
+                },
+            },
+        ]);
+        
+        // Support tasks
+        self.available_tasks.insert(Hat::Support, vec![
+            Task {
+                name: "Assist Teammate".to_string(),
+                priority: 0.6,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated to teammate position
+                    reason: "Moving to assist teammate".to_string(),
+                },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::Outside),
+                    ..Default::default()
+                },
+            },
+            Task {
+                name: "Provide Backup".to_string(),
+                priority: 0.5,
+                action: TaskAction::OperateStation { station_type: StationType::WeaponLaser },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::InsideMech),
+                    ..Default::default()
+                },
+            },
+        ]);
+        
+        // Idle tasks
+        self.available_tasks.insert(Hat::Idle, vec![
+            Task {
+                name: "Patrol Area".to_string(),
+                priority: 0.3,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated to patrol point
+                    reason: "Patrolling area".to_string(),
+                },
+                requirements: TaskRequirements {
+                    location: Some(LocationRequirement::Outside),
+                    ..Default::default()
+                },
+            },
+            Task {
+                name: "Stand By".to_string(),
+                priority: 0.1,
+                action: TaskAction::MoveToPosition {
+                    target: WorldPos::new(0.0, 0.0), // Will be calculated to safe position
+                    reason: "Standing by for orders".to_string(),
+                },
+                requirements: TaskRequirements {
+                    ..Default::default()
+                },
+            },
+        ]);
     }
 }
 

@@ -24,6 +24,11 @@ impl AISystem {
         }
     }
     
+    /// Get debug info for a specific AI
+    pub fn get_ai_debug_info(&self, ai_id: Uuid) -> Option<ai::AIDebugInfo> {
+        self.ai_manager.get_debug_info(ai_id)
+    }
+    
     /// Add an AI player to the manager
     pub fn add_ai_player(&mut self, difficulty: f32, personality: Option<ai::Personality>, red_count: usize, blue_count: usize) -> (Uuid, crate::game::Player) {
         let personality = personality.unwrap_or(ai::Personality::Balanced);

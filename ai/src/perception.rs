@@ -369,7 +369,9 @@ fn analyze_team_state(game_view: &GameView, ai_id: Uuid) -> TeamState {
     resource_needs.insert(ResourceType::Wiring, 4);
     
     let total_resources = game_view.team_info.total_resources.values().sum::<u32>();
-    let scarcity_level = 1.0 - (total_resources as f32 / 20.0).min(1.0);
+    let world_resources = game_view.resources.len() as u32;
+    let available_resources = total_resources + world_resources;
+    let scarcity_level = 1.0 - (available_resources as f32 / 20.0).min(1.0);
     
     let resource_status = ResourceStatus {
         total_resources: game_view.team_info.total_resources.clone(),

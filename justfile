@@ -20,7 +20,7 @@ build-web:
     #!/bin/bash
     echo "Building WebAssembly client (debug)..."
     mkdir -p web_build
-    cd client && cargo build --target wasm32-unknown-unknown --no-default-features --features web
+    cd client && cargo build --target wasm32-unknown-unknown --no-default-features
     cp ../target/wasm32-unknown-unknown/debug/client.wasm ../web_build/mech-battle-arena.wasm
     cd ..
     # Download miniquad JS bundle if not present
@@ -103,6 +103,21 @@ test-multiplayer:
 check:
     cargo check --workspace
     cargo clippy --workspace -- -D warnings
+
+# Check if everything compiles without running
+check-all:
+    @echo "Checking all crates..."
+    cargo check --workspace --all-targets
+
+# Check WASM build specifically
+check-wasm:
+    @echo "Checking WASM build..."
+    cargo build -p client --target wasm32-unknown-unknown
+
+# Fix auto-fixable warnings
+fix-warnings:
+    @echo "Fixing auto-fixable warnings..."
+    cargo fix --workspace --allow-dirty
 
 # Run tests
 test:
@@ -224,3 +239,8 @@ check-ports:
 test-ai:
     @echo "Testing AI system..."
     ./test_ai.sh
+
+# Run the AI debug client
+debug-ai:
+    @echo "Starting AI debug client..."
+    cargo run -p debug-client

@@ -33,14 +33,20 @@ struct DecisionSummary {
 impl DecisionLogger {
     pub fn new(enabled: bool) -> Self {
         let log_file = if enabled {
-            let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
-            let filename = format!("ai_decisions_{}.log", timestamp);
+            // Use a daily log file instead of per-second
+            let today = Utc::now().format("%Y%m%d");
+            let filename = format!("ai_decisions_{}.log", today);
             let path = PathBuf::from("logs").join(filename);
             
             // Create logs directory if it doesn't exist
             std::fs::create_dir_all("logs").ok();
             
-            File::create(path).ok()
+            // Use append mode to keep writing to the same file
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .ok()
         } else {
             None
         };
@@ -145,7 +151,7 @@ impl DecisionLogger {
 }
 
 /// Performance metrics for AI system
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AIMetrics {
     pub total_decisions: u64,
     pub average_decision_time_ms: f32,
@@ -178,7 +184,7 @@ impl AIMetrics {
 }
 
 /// Debug visualization data for egui client
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AIVisualizationData {
     pub ai_states: Vec<AIStateSnapshot>,
     pub communication_graph: CommunicationGraph,
@@ -186,7 +192,7 @@ pub struct AIVisualizationData {
     pub performance_metrics: AIMetrics,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AIStateSnapshot {
     pub ai_id: Uuid,
     pub position: (f32, f32),
@@ -198,34 +204,34 @@ pub struct AIStateSnapshot {
     pub known_opportunities: Vec<OpportunityInfo>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ThreatInfo {
     pub threat_type: String,
     pub position: (f32, f32),
     pub severity: f32,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpportunityInfo {
     pub opportunity_type: String,
     pub position: (f32, f32),
     pub value: f32,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CommunicationGraph {
     pub nodes: Vec<CommNode>,
     pub edges: Vec<CommEdge>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CommNode {
     pub ai_id: Uuid,
     pub is_captain: bool,
     pub message_count: u32,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CommEdge {
     pub from: Uuid,
     pub to: Uuid,
@@ -233,7 +239,7 @@ pub struct CommEdge {
     pub last_message_type: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DecisionEvent {
     pub timestamp: String,
     pub ai_id: Uuid,

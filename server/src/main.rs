@@ -1,5 +1,5 @@
 use axum::{
-    extract::{ws::WebSocket, State, WebSocketUpgrade, Query},
+    extract::{ws::WebSocket, State, WebSocketUpgrade, Query, Path},
     response::IntoResponse,
     routing::{get, post},
     Router, Json,
@@ -13,6 +13,7 @@ use tower::ServiceBuilder;
 use uuid::Uuid;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use futures::{SinkExt, StreamExt};
 
 use shared::*;
 
@@ -80,6 +81,8 @@ async fn main() -> Result<()> {
         .route("/", get(index))
         .route("/ws", get(websocket_handler))
         .route("/ai/add", post(add_ai_player))
+        .route("/debug", get(debug_websocket_handler))
+        .route("/debug/ai/:id", get(get_ai_debug_info))
         .layer(
             ServiceBuilder::new()
                 .layer(axum::middleware::from_fn(cors_layer))
@@ -234,4 +237,57 @@ mod game_loop {
             game.tick_count += 1;
         }
     }
+}
+async fn debug_websocket_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_debug_socket(socket, state))
+}
+
+async fn handle_debug_socket(mut socket: WebSocket, state: AppState) {
+    use axum::extract::ws::Message;
+    use futures::{SinkExt, StreamExt};
+    
+    // For now, just send periodic game state updates
+    let mut rx = state.tx.subscribe();
+    
+    let (mut sender, mut receiver) = socket.split();
+    
+    // Spawn task to handle incoming debug commands
+    let game = state.game.clone();
+    tokio::spawn(async move {
+        while let Some(Ok(msg)) = receiver.next().await {
+            if let Ok(text) = msg.to_text() {
+                // Handle debug commands
+                log::debug!("Debug command: {}", text);
+            }
+        }
+    });
+    
+    // Send game updates to debug client
+    while let Ok((_, msg)) = rx.recv().await {
+        if let Ok(json) = serde_json::to_string(&msg) {
+            if sender.send(Message::Text(json)).await.is_err() {
+                break;
+            }
+        }
+    }
+}
+
+async fn get_ai_debug_info(
+    Path(ai_id): Path<Uuid>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, &'static str> {
+    let game = state.game.read().await;
+    
+    // Check if AI exists
+    if !game.get_ai_players().contains(&ai_id) {
+        return Err("AI not found");
+    }
+    
+    Ok(Json(serde_json::json!({
+        "ai_id": ai_id,
+        "message": "Debug info would go here",
+    })))
 }
