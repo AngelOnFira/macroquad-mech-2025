@@ -1,0 +1,59 @@
+{
+    "name": "Mech Battle Arena Dev Container",
+    "dockerFile": "Dockerfile",
+    
+    // Use the custom image we're building
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+
+    // Features to add to the dev container
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": true,
+            "configureZshAsDefaultShell": true,
+            "installOhMyZsh": true,
+            "username": "vscode",
+            "userUid": "1000",
+            "userGid": "1000"
+        }
+    },
+
+    // Configure the container
+    "overrideCommand": false,
+    "remoteUser": "vscode",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "workspaceFolder": "/workspace",
+
+    // Forward ports for the game
+    "forwardPorts": [14191, 8080],
+
+    // Run Xvfb in the background for headless browser support
+    "postStartCommand": "Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &",
+
+    // Environment variables
+    "containerEnv": {
+        "DISPLAY": ":99",
+        "RUST_LOG": "info"
+    },
+
+    // VS Code extensions to install
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "tamasfe.even-better-toml",
+                "serayuzgur.crates",
+                "vadimcn.vscode-lldb"
+            ]
+        }
+    },
+
+    // Mount the MCP config from host if it exists
+    "mounts": [
+        "source=${localEnv:HOME}/.config/claude,target=/home/vscode/.config/claude,type=bind,consistency=cached"
+    ],
+
+    // Post-create setup script
+    "postCreateCommand": "bash -c 'if [ ! -f /home/vscode/.config/claude/config.json ]; then mkdir -p /home/vscode/.config/claude && echo \"Claude CLI config not found. Run: claude login\" > /home/vscode/.config/claude/README.txt; fi'"
+}

@@ -6,14 +6,16 @@ edition = "2021"
 [dependencies]
 shared = { path = "../shared" }
 ai = { path = "../ai" }
-tokio = { workspace = true }
-axum = { workspace = true }
-tower = { workspace = true }
+# Server-specific dependencies
+tokio = { version = "1.40", features = ["full"] }
+axum = { version = "0.7", features = ["ws"] }
+tower = "0.5"
+env_logger = "0.11"
+# Workspace dependencies
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { version = "1.10", features = ["v4", "serde"] }
 log = { workspace = true }
-env_logger = { workspace = true }
 futures = "0.3"
 anyhow = { workspace = true }
 thiserror = { workspace = true }

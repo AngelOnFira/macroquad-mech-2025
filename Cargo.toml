@@ -3,14 +3,10 @@ members = ["ai", "client", "server", "shared", "debug-client"]
 resolver = "2"
 
 [workspace.dependencies]
-macroquad = "0.4"
+# Only truly shared dependencies
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
-env_logger = "0.11"
-tokio = { version = "1.40", features = ["full"] }
-axum = { version = "0.7", features = ["ws"] }
-tower = "0.5"
-uuid = { version = "1.10", features = ["serde", "v4"] }
+uuid = { version = "1.10", features = ["serde"] }  # No "v4" feature - let each crate add what it needs
 thiserror = "1.0"
 anyhow = "1.0"

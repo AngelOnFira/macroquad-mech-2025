@@ -1,0 +1,8 @@
+[build]
+target = "index.html"
+dist = "../dist"
+# Disable default features for WASM build
+no_default_features = true
+
+[[proxy]]
+backend = "ws://127.0.0.1:14191/ws"

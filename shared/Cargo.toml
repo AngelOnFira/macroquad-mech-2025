@@ -6,11 +6,13 @@ edition = "2021"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-macroquad = { workspace = true }
+macroquad = "0.4"
 thiserror = { workspace = true }
 
+# Native builds need v4 for UUID generation
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-uuid = { workspace = true }
+uuid = { version = "1.10", features = ["serde", "v4"] }
 
+# WASM builds only need serde for UUID deserialization
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-uuid = { version = "1.10", features = ["serde", "v4", "js"] }
+uuid = { version = "1.10", features = ["serde"] }

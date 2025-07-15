@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use uuid::Uuid;
 use crate::{WorldPos, TILE_SIZE, ARENA_WIDTH_TILES, ARENA_HEIGHT_TILES};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::uuid_gen::new_uuid;
 
 /// Spatial partitioning system for efficient collision detection
 pub struct SpatialGrid<T> {
@@ -316,7 +318,7 @@ mod tests {
         let mut grid: SpatialGrid<String> = SpatialGrid::new(100.0, 1000.0, 1000.0);
         
         let entity = SpatialEntity::new(
-            Uuid::new_v4(),
+            new_uuid(),
             WorldPos::new(150.0, 150.0),
             10.0,
             "test".to_string(),
@@ -334,7 +336,7 @@ mod tests {
         let mut grid: SpatialGrid<String> = SpatialGrid::new(100.0, 1000.0, 1000.0);
         
         let entity = SpatialEntity::new(
-            Uuid::new_v4(),
+            new_uuid(),
             WorldPos::new(150.0, 150.0),
             10.0,
             "test".to_string(),

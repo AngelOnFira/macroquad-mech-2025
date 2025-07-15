@@ -834,6 +834,7 @@ name = "client"
 version = "0.1.0"
 dependencies = [
  "env_logger",
+ "js-sys",
  "log",
  "macroquad",
  "serde",
@@ -841,6 +842,8 @@ dependencies = [
  "shared",
  "url",
  "uuid",
+ "wasm-bindgen",
+ "web-sys",
  "ws",
 ]
 

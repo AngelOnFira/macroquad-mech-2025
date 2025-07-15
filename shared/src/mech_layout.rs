@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use uuid::Uuid;
-use crate::{TilePos, StationType, FLOOR_WIDTH_TILES, FLOOR_HEIGHT_TILES, MECH_FLOORS};
+use crate::{TilePos, StationType, FLOOR_WIDTH_TILES, FLOOR_HEIGHT_TILES, MECH_FLOORS, uuid_gen::new_uuid};
 use crate::balance::STATION_POSITIONS;
 
 /// Tile types for mech interiors
@@ -99,7 +99,7 @@ impl MechLayoutGenerator {
         for (pos, station_type) in floor_stations {
             tiles[pos.y as usize][pos.x as usize] = TileType::Station(station_type);
             let station = MechStation {
-                id: Uuid::new_v4(),
+                id: new_uuid(),
                 station_type,
                 floor: floor_idx as u8,
                 position: pos,
@@ -155,7 +155,7 @@ impl MechLayoutGenerator {
             if pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height {
                 tiles[pos.y as usize][pos.x as usize] = TileType::Station(station_type);
                 let station = MechStation {
-                    id: Uuid::new_v4(),
+                    id: new_uuid(),
                     station_type,
                     floor: 0,
                     position: pos,

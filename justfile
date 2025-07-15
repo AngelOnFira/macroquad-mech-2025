@@ -5,7 +5,8 @@ default:
     @just --list
 
 # Build all components
-build: build-server build-client build-web
+build: build-server build-client
+    @echo "Note: Run 'just release-web' to build WASM client"
 
 # Build the server
 build-server:
@@ -15,24 +16,9 @@ build-server:
 build-client:
     cargo build --bin client
 
-# Build the WebAssembly client (debug mode)
+# Build with Trunk (handled automatically by trunk serve)
 build-web:
-    #!/bin/bash
-    echo "Building WebAssembly client (debug)..."
-    mkdir -p web_build
-    cd client && cargo build --target wasm32-unknown-unknown --no-default-features
-    cp ../target/wasm32-unknown-unknown/debug/client.wasm ../web_build/mech-battle-arena.wasm
-    cd ..
-    # Download miniquad JS bundle if not present
-    if [ ! -f web_build/mq_js_bundle.js ]; then
-        echo "Downloading miniquad JS bundle..."
-        curl -o web_build/mq_js_bundle.js https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js
-    fi
-    # Ensure HTML exists
-    if [ ! -f web_build/index.html ]; then
-        ./build_web_macroquad.sh
-    fi
-    echo "WASM debug build complete!"
+    @echo "Use 'just trunk' to build and serve the web client"
 
 # Run the server
 server:
@@ -46,18 +32,18 @@ client:
 test-client name="TestPlayer":
     cargo run --bin test_client {{name}}
 
-# Start web server for WASM client
-web-server:
-    cd web_build && python3 serve.py
+# Start Trunk development server
+trunk:
+    cd client && trunk serve --open
 
-# Full development setup - server + web
-dev: build-web
+# Full development setup - server + trunk
+dev:
     #!/bin/bash
     echo "Starting development environment..."
     
     # Kill any existing servers
     pkill -f "target/debug/server" || true
-    pkill -f "serve.py" || true
+    pkill -f "trunk" || true
     sleep 1
     
     # Start game server
@@ -68,20 +54,20 @@ dev: build-web
     # Wait for server to start
     sleep 2
     
-    # Start web server
-    echo "Starting web server..."
-    cd web_build && python3 serve.py &
-    WEB_PID=$!
+    # Start Trunk
+    echo "Starting Trunk development server..."
+    cd client && trunk serve --open &
+    TRUNK_PID=$!
     
     echo ""
     echo "🎮 Development environment ready!"
     echo "Game server: ws://127.0.0.1:14191/ws (PID: $SERVER_PID)"
-    echo "Web server: http://localhost:8080 (PID: $WEB_PID)"
+    echo "Trunk server: http://localhost:8080 (PID: $TRUNK_PID)"
     echo ""
     echo "Press Ctrl+C to stop all servers"
     
     # Wait for interrupt
-    trap "kill $SERVER_PID $WEB_PID 2>/dev/null; exit" INT
+    trap "kill $SERVER_PID $TRUNK_PID 2>/dev/null; exit" INT
     wait
 
 # Run two native clients for testing
@@ -108,11 +94,13 @@ check:
 check-all:
     @echo "Checking all crates..."
     cargo check --workspace --all-targets
+    @echo "Checking WASM build..."
+    cd client && cargo check --target wasm32-unknown-unknown --no-default-features
 
 # Check WASM build specifically
 check-wasm:
     @echo "Checking WASM build..."
-    cargo build -p client --target wasm32-unknown-unknown
+    cd client && cargo check --target wasm32-unknown-unknown --no-default-features
 
 # Fix auto-fixable warnings
 fix-warnings:
@@ -130,15 +118,15 @@ fmt:
 # Clean build artifacts
 clean:
     cargo clean
-    rm -rf web_build/*.wasm
+    rm -rf dist/
 
 # Full clean including logs
 clean-all: clean
     rm -f server.log nohup.out
-    rm -rf web_build/web_server.log
+    rm -rf logs/
 
 # Create release builds
-release: release-server release-client release-web
+release: release-server release-client
 
 release-server:
     cargo build --bin server --release
@@ -148,21 +136,20 @@ release-client:
 
 release-web:
     #!/bin/bash
-    echo "Building WebAssembly client (release)..."
-    mkdir -p web_build
-    cd client && cargo build --target wasm32-unknown-unknown --release --no-default-features --features web
-    cp ../target/wasm32-unknown-unknown/release/client.wasm ../web_build/mech-battle-arena.wasm
-    cd ..
-    # Download miniquad JS bundle if not present
-    if [ ! -f web_build/mq_js_bundle.js ]; then
-        echo "Downloading miniquad JS bundle..."
-        curl -o web_build/mq_js_bundle.js https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js
+    echo "Building WASM release..."
+    # First ensure WASM target is installed
+    if ! rustup target list | grep -q "wasm32-unknown-unknown (installed)"; then
+        echo "Installing WASM target..."
+        rustup target add wasm32-unknown-unknown
     fi
-    # Ensure HTML file exists
-    if [ ! -f web_build/index.html ]; then
-        ./build_web_macroquad.sh
+    # Build with Trunk if available, otherwise use cargo
+    if command -v trunk &> /dev/null; then
+        cd client && trunk build --release
+    else
+        echo "Trunk not found, using cargo build..."
+        cd client && cargo build --target wasm32-unknown-unknown --release --no-default-features
+        echo "Note: Install Trunk for automatic bundling: cargo install trunk"
     fi
-    echo "Release WASM build complete! (1.3MB vs 23MB debug)"
 
 # Watch for changes and rebuild
 watch:
@@ -186,18 +173,15 @@ stats:
     @echo -n "Dependencies: "
     @cargo tree | wc -l
 
-# Initialize web build directory with HTML files
-init-web:
-    #!/bin/bash
-    mkdir -p web_build
-    echo "Web build directory initialized!"
-    # HTML and Python files are already created by build_web.sh
+# Install Trunk if not already installed
+install-trunk:
+    @which trunk > /dev/null || cargo install trunk
 
 # Quick start for development
-quick-start: init-web build-web dev
+quick-start: install-trunk dev
 
 # CI/CD pipeline simulation
-ci: fmt check test build
+ci: fmt check-all test build
 
 # Help with common issues
 troubleshoot:
@@ -220,9 +204,7 @@ kill-servers:
     #!/bin/bash
     echo "Stopping all servers..."
     pkill -f "target/debug/server" || true
-    pkill -f "serve.py" || true
-    pkill -f "python.*serve" || true
-    pkill -f "python3.*8080" || true
+    pkill -f "trunk" || true
     pkill -f "test_client" || true
     # Also try to kill by port
     lsof -ti:8080 | xargs kill -9 2>/dev/null || true

@@ -1,5 +1,6 @@
 use macroquad::prelude::*;
 use std::sync::{Arc, Mutex};
+use log::{info, error};
 
 use shared::*;
 
@@ -10,7 +11,7 @@ mod input;
 #[cfg(not(target_arch = "wasm32"))]
 mod network;
 #[cfg(target_arch = "wasm32")]
-mod network_web_macroquad;
+mod network_web;
 
 use game_state::GameState;
 use rendering::Renderer;
@@ -19,7 +20,7 @@ use input::InputHandler;
 #[cfg(not(target_arch = "wasm32"))]
 use network::NetworkClient;
 #[cfg(target_arch = "wasm32")]
-use network_web_macroquad::NetworkClient;
+use network_web::NetworkClient;
 
 #[macroquad::main("Mech Battle Arena")]
 async fn main() {

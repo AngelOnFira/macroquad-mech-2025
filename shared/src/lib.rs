@@ -11,6 +11,10 @@ pub mod mech_layout;
 pub mod spatial;
 pub mod coordinates;
 pub mod stations;
+pub mod uuid_gen;
+
+// Object pool is only needed server-side (uses Uuid::new_v4)
+#[cfg(not(target_arch = "wasm32"))]
 pub mod object_pool;
 
 pub use messages::*;
@@ -26,4 +30,7 @@ pub use mech_layout::*;
 pub use spatial::*;
 pub use coordinates::*;
 pub use stations::*;
+
+// Only export object_pool for non-WASM targets
+#[cfg(not(target_arch = "wasm32"))]
 pub use object_pool::*;

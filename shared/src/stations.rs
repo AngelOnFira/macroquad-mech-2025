@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use uuid::Uuid;
-use crate::{StationType, TilePos, ResourceType, GameResult, GameError};
+use crate::{StationType, TilePos, ResourceType, GameResult, GameError, uuid_gen::new_uuid};
 
 /// Registry pattern for managing station types and their behaviors
 pub struct StationRegistry {
@@ -198,7 +198,7 @@ impl StationRegistry {
             .ok_or_else(|| GameError::invalid_input(format!("Unknown station type: {:?}", station_type)))?;
         
         Ok(Station {
-            id: Uuid::new_v4(),
+            id: new_uuid(),
             station_type,
             floor,
             position,
@@ -275,7 +275,7 @@ impl StationRegistry {
                         }
                         Some(projectile_speed) => {
                             // Projectile weapon
-                            let projectile_id = Uuid::new_v4();
+                            let projectile_id = new_uuid();
                             effects.push(StationEffect::ProjectileCreated {
                                 projectile_id,
                                 position: context.station_world_pos,
@@ -720,7 +720,7 @@ mod tests {
         
         let context = StationActionContext {
             current_time: 0.0,
-            mech_id: Some(Uuid::new_v4()),
+            mech_id: Some(new_uuid()),
             station_world_pos: crate::WorldPos::new(160.0, 160.0),
             available_resources: HashMap::from([
                 (ResourceType::Batteries, 5),

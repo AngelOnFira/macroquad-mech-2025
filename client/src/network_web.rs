@@ -62,6 +62,12 @@ impl NetworkClient {
     pub fn is_connected(&self) -> bool {
         self.socket.ready_state() == WebSocket::OPEN
     }
+    
+    // Update method for WASM - no-op since WebSocket events are handled via callbacks
+    pub fn update(&mut self) {
+        // In WASM, WebSocket messages are handled asynchronously via callbacks
+        // so there's nothing to poll here
+    }
 }
 
 fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>) {
@@ -93,10 +99,12 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
                 let mut mech_state = crate::game_state::MechState {
                     id: mech.id,
                     position: mech.position,
+                    world_position: mech.world_position,
                     team: mech.team,
                     health: mech.health,
                     shield: mech.shield,
                     upgrades: mech.upgrades,
+                    resource_inventory: mech.resource_inventory.clone(),
                     floors: vec![],
                 };
 
