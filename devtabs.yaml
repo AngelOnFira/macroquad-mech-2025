@@ -6,11 +6,17 @@ processes:
       RUST_LOG=info cargo run --bin server
     color: "green"
 
-  - name: "trunk-serve"
+  - name: "web-server"
     runner: "shell"
     command: |
-      cd client && trunk serve --open
+      cd dist && python3 -m http.server 8080
     color: "yellow"
+
+  - name: "wasm-builder"
+    runner: "shell"
+    command: |
+      cd client && ./build-wasm.sh
+    color: "blue"
 
 mcp:
   enabled: true
