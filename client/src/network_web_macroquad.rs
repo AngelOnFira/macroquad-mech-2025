@@ -169,6 +169,9 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
         }
 
         ServerMessage::PlayerMoved { player_id, location } => {
+            if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
+                game.player_location = location;
+            }
             if let Some(player_data) = game.players.get_mut(&player_id) {
                 player_data.location = location;
             }
@@ -236,6 +239,9 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
         }
 
         ServerMessage::PlayerKilled { player_id, killer: _, respawn_position } => {
+            if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
+                game.player_location = PlayerLocation::OutsideWorld(respawn_position);
+            }
             if let Some(player_data) = game.players.get_mut(&player_id) {
                 player_data.location = PlayerLocation::OutsideWorld(respawn_position);
             }
