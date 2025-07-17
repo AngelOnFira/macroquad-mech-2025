@@ -11,7 +11,7 @@ mod input;
 #[cfg(not(target_arch = "wasm32"))]
 mod network;
 #[cfg(target_arch = "wasm32")]
-mod network_web;
+mod network_web_macroquad;
 
 use game_state::GameState;
 use rendering::Renderer;
@@ -20,7 +20,7 @@ use input::InputHandler;
 #[cfg(not(target_arch = "wasm32"))]
 use network::NetworkClient;
 #[cfg(target_arch = "wasm32")]
-use network_web::NetworkClient;
+use network_web_macroquad::NetworkClient;
 
 #[macroquad::main("Mech Battle Arena")]
 async fn main() {

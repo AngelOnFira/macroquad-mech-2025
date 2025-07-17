@@ -15,7 +15,7 @@ processes:
   - name: "wasm-builder"
     runner: "shell"
     command: |
-      cd client && ./build-wasm.sh
+      cd client && ./build-simple.sh
     color: "blue"
 
 mcp:

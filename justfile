@@ -16,9 +16,9 @@ build-server:
 build-client:
     cargo build --bin client
 
-# Build with Trunk (handled automatically by trunk serve)
+# Build WebAssembly client
 build-web:
-    @echo "Use 'just trunk' to build and serve the web client"
+    cd client && ./build-simple.sh
 
 # Run the server
 server:
@@ -32,19 +32,26 @@ client:
 test-client name="TestPlayer":
     cargo run --bin test_client {{name}}
 
-# Start Trunk development server
-trunk:
-    cd client && trunk serve --open
+# Start web development server
+web-dev:
+    #!/bin/bash
+    just build-web
+    cd dist && python3 -m http.server 8080
 
-# Full development setup - server + trunk
+# Full development setup - server + web
 dev:
     #!/bin/bash
     echo "Starting development environment..."
     
     # Kill any existing servers
     pkill -f "target/debug/server" || true
-    pkill -f "trunk" || true
+    pkill -f "python.*8080" || true
     sleep 1
+    
+    # Build WASM
+    echo "Building WASM client..."
+    cd client && ./build-simple.sh
+    cd ..
     
     # Start game server
     echo "Starting game server..."
@@ -54,20 +61,20 @@ dev:
     # Wait for server to start
     sleep 2
     
-    # Start Trunk
-    echo "Starting Trunk development server..."
-    cd client && trunk serve --open &
-    TRUNK_PID=$!
+    # Start web server
+    echo "Starting web server..."
+    cd dist && python3 -m http.server 8080 &
+    WEB_PID=$!
     
     echo ""
     echo "🎮 Development environment ready!"
     echo "Game server: ws://127.0.0.1:14191/ws (PID: $SERVER_PID)"
-    echo "Trunk server: http://localhost:8080 (PID: $TRUNK_PID)"
+    echo "Web server: http://localhost:8080 (PID: $WEB_PID)"
     echo ""
     echo "Press Ctrl+C to stop all servers"
     
     # Wait for interrupt
-    trap "kill $SERVER_PID $TRUNK_PID 2>/dev/null; exit" INT
+    trap "kill $SERVER_PID $WEB_PID 2>/dev/null; exit" INT
     wait
 
 # Run two native clients for testing
@@ -135,21 +142,7 @@ release-client:
     cargo build --bin client --release
 
 release-web:
-    #!/bin/bash
-    echo "Building WASM release..."
-    # First ensure WASM target is installed
-    if ! rustup target list | grep -q "wasm32-unknown-unknown (installed)"; then
-        echo "Installing WASM target..."
-        rustup target add wasm32-unknown-unknown
-    fi
-    # Build with Trunk if available, otherwise use cargo
-    if command -v trunk &> /dev/null; then
-        cd client && trunk build --release
-    else
-        echo "Trunk not found, using cargo build..."
-        cd client && cargo build --target wasm32-unknown-unknown --release --no-default-features
-        echo "Note: Install Trunk for automatic bundling: cargo install trunk"
-    fi
+    cd client && ./build-simple.sh --release
 
 # Watch for changes and rebuild
 watch:
@@ -173,12 +166,12 @@ stats:
     @echo -n "Dependencies: "
     @cargo tree | wc -l
 
-# Install Trunk if not already installed
-install-trunk:
-    @which trunk > /dev/null || cargo install trunk
+# Check WASM target is installed
+install-wasm-target:
+    @rustup target add wasm32-unknown-unknown
 
 # Quick start for development
-quick-start: install-trunk dev
+quick-start: install-wasm-target dev
 
 # CI/CD pipeline simulation
 ci: fmt check-all test build
