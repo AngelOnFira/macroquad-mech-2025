@@ -1,4 +1,5 @@
 use serde::{Serialize, Deserialize};
+use uuid::Uuid;
 
 // Re-export the unified coordinate types for backward compatibility
 pub use crate::coordinates::{WorldPos, TilePos, ScreenPos, GridPos, NDC};
@@ -139,16 +140,130 @@ pub enum StationType {
     Repair,
     Electrical,
     Upgrade,
+    Pilot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum PlayerLocation {
     OutsideWorld(WorldPos),
-    InsideMech { mech_id: uuid::Uuid, floor: u8, pos: WorldPos },
+    InsideMech { mech_id: Uuid, floor: u8, pos: WorldPos },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TeamId {
     Red,
     Blue,
+}
+
+// Tile interaction system
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TileProperties {
+    pub walkable: bool,
+    pub blocks_projectiles: bool,
+    pub interaction: TileInteraction,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TileInteraction {
+    None,
+    EnterMech { mech_id: Uuid },
+    ExitMech { exit_position: TilePos },
+    DropResource { mech_id: Uuid },
+    OperateStation { station_id: Uuid },
+    ChangeFloor { direction: i8 }, // -1 for down, +1 for up
+}
+
+// World tiles (outside of mechs)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum WorldTile {
+    Grass,
+    MechDoor { mech_id: Uuid },
+    ResourceDropoff { mech_id: Uuid },
+    Wall,
+    Empty, // Out of bounds or uninitialized
+}
+
+impl WorldTile {
+    pub fn properties(&self) -> TileProperties {
+        match self {
+            WorldTile::Grass => TileProperties {
+                walkable: true,
+                blocks_projectiles: false,
+                interaction: TileInteraction::None,
+            },
+            WorldTile::MechDoor { mech_id, .. } => TileProperties {
+                walkable: true,
+                blocks_projectiles: false,
+                interaction: TileInteraction::EnterMech { mech_id: *mech_id },
+            },
+            WorldTile::ResourceDropoff { mech_id } => TileProperties {
+                walkable: true,
+                blocks_projectiles: false,
+                interaction: TileInteraction::DropResource { mech_id: *mech_id },
+            },
+            WorldTile::Wall => TileProperties {
+                walkable: false,
+                blocks_projectiles: true,
+                interaction: TileInteraction::None,
+            },
+            WorldTile::Empty => TileProperties {
+                walkable: false,
+                blocks_projectiles: false,
+                interaction: TileInteraction::None,
+            },
+        }
+    }
+}
+
+// Interior mech tiles
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum MechInteriorTile {
+    Empty,
+    Floor,
+    Wall,
+    Station(StationType),
+    Ladder,
+    ExitDoor { exit_position: TilePos }, // Door to exit the mech
+}
+
+impl MechInteriorTile {
+    pub fn properties(&self, station_id: Option<Uuid>) -> TileProperties {
+        match self {
+            MechInteriorTile::Empty => TileProperties {
+                walkable: false,
+                blocks_projectiles: false,
+                interaction: TileInteraction::None,
+            },
+            MechInteriorTile::Floor => TileProperties {
+                walkable: true,
+                blocks_projectiles: false,
+                interaction: TileInteraction::None,
+            },
+            MechInteriorTile::Wall => TileProperties {
+                walkable: false,
+                blocks_projectiles: true,
+                interaction: TileInteraction::None,
+            },
+            MechInteriorTile::Station(_) => TileProperties {
+                walkable: true,
+                blocks_projectiles: false,
+                interaction: if let Some(id) = station_id {
+                    TileInteraction::OperateStation { station_id: id }
+                } else {
+                    TileInteraction::None
+                },
+            },
+            MechInteriorTile::Ladder => TileProperties {
+                walkable: true,
+                blocks_projectiles: false,
+                interaction: TileInteraction::ChangeFloor { direction: 0 }, // Direction determined by context
+            },
+            MechInteriorTile::ExitDoor { exit_position } => TileProperties {
+                walkable: true,
+                blocks_projectiles: false,
+                interaction: TileInteraction::ExitMech { exit_position: *exit_position },
+            },
+        }
+    }
 }

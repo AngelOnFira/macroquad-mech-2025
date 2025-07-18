@@ -643,6 +643,24 @@ impl StationRegistry {
             max_per_mech: 2,
             size: (1, 1),
         });
+        
+        // Pilot station
+        self.register_station(StationDefinition {
+            station_type: StationType::Pilot,
+            name: "Pilot Control".to_string(),
+            description: "Command center for controlling mech movement and systems".to_string(),
+            button_count: 0, // Uses WASD controls and special UI
+            button_definitions: vec![],
+            cooldown_seconds: 0.0,
+            resource_requirements: HashMap::new(),
+            upgrade_requirements: HashMap::from([
+                (ResourceType::ComputerComponents, 3),
+                (ResourceType::Wiring, 2),
+            ]),
+            allowed_floors: vec![2], // Top floor only
+            max_per_mech: 1,
+            size: (1, 1),
+        });
     }
 }
 

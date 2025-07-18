@@ -170,6 +170,27 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
 
         ServerMessage::PlayerMoved { player_id, location } => {
             if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
+                // Check if we're transitioning between outside and inside mech
+                let should_transition = match (&game.player_location, &location) {
+                    (PlayerLocation::OutsideWorld(_), PlayerLocation::InsideMech { .. }) => {
+                        Some(crate::game_state::TransitionType::EnteringMech)
+                    }
+                    (PlayerLocation::InsideMech { .. }, PlayerLocation::OutsideWorld(_)) => {
+                        Some(crate::game_state::TransitionType::ExitingMech)
+                    }
+                    _ => None,
+                };
+
+                if let Some(transition_type) = should_transition {
+                    game.transition = Some(crate::game_state::TransitionState {
+                        active: true,
+                        transition_type,
+                        progress: 0.0,
+                        from_location: game.player_location,
+                        to_location: location,
+                    });
+                }
+
                 game.player_location = location;
             }
             if let Some(player_data) = game.players.get_mut(&player_id) {
@@ -244,6 +265,43 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             }
             if let Some(player_data) = game.players.get_mut(&player_id) {
                 player_data.location = PlayerLocation::OutsideWorld(respawn_position);
+            }
+        }
+
+        ServerMessage::PlayerEnteredStation { player_id, station_id } => {
+            if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
+                // Check if it's a pilot station
+                let pilot_station_info = game.stations.get(&station_id)
+                    .filter(|s| s.station_type == StationType::Pilot)
+                    .map(|s| s.mech_id);
+                
+                if let Some(mech_id) = pilot_station_info {
+                    // Open pilot window
+                    game.ui_state.pilot_station_open = true;
+                    game.ui_state.pilot_station_id = Some(station_id);
+                    game.ui_state.operating_mech_id = Some(mech_id);
+                }
+            }
+            // Update station state
+            if let Some(station) = game.stations.get_mut(&station_id) {
+                station.operated_by = Some(player_id);
+                station.occupied = true;
+            }
+        }
+
+        ServerMessage::PlayerExitedStation { player_id, station_id } => {
+            if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
+                // Close pilot window if it was open
+                if game.ui_state.pilot_station_id == Some(station_id) {
+                    game.ui_state.pilot_station_open = false;
+                    game.ui_state.pilot_station_id = None;
+                    game.ui_state.operating_mech_id = None;
+                }
+            }
+            // Update station state
+            if let Some(station) = game.stations.get_mut(&station_id) {
+                station.operated_by = None;
+                station.occupied = false;
             }
         }
 

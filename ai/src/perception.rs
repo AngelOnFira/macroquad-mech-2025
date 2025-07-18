@@ -336,6 +336,7 @@ fn calculate_station_value(station_type: StationType) -> f32 {
         StationType::Repair => 0.6,
         StationType::Upgrade => 0.5,
         StationType::Electrical => 0.4,
+        StationType::Pilot => 0.85, // High value for strategic control
     }
 }
 

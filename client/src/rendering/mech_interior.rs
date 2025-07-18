@@ -43,6 +43,17 @@ fn render_tile(x: usize, y: usize, tile: &TileType, cam_x: f32, cam_y: f32) {
             draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, DARKGRAY);
             draw_text("↕", tile_x + 5.0, tile_y + TILE_SIZE - 5.0, 30.0, YELLOW);
         }
+        TileType::ExitDoor { .. } => {
+            draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, DARKGRAY);
+            draw_rectangle(
+                tile_x + TILE_SIZE * 0.1,
+                tile_y + TILE_SIZE * 0.1,
+                TILE_SIZE * 0.8,
+                TILE_SIZE * 0.8,
+                Color::new(0.4, 0.2, 0.2, 1.0)
+            );
+            draw_text("EXIT", tile_x + 2.0, tile_y + TILE_SIZE - 5.0, 14.0, WHITE);
+        }
     }
 }
 
@@ -67,6 +78,7 @@ fn get_station_label(station_type: StationType) -> &'static str {
         StationType::Repair => "REPAIR",
         StationType::Electrical => "ELEC",
         StationType::Upgrade => "UPGRADE",
+        StationType::Pilot => "PILOT",
     }
 }
 

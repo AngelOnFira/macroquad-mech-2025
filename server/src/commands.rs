@@ -166,6 +166,23 @@ impl Command for ExitMechCommand {
     }
 }
 
+/// Exit station command
+pub struct ExitStationCommand;
+
+#[async_trait]
+impl Command for ExitStationCommand {
+    async fn execute(
+        &self,
+        game: &tokio::sync::RwLock<Game>,
+        player_id: Uuid,
+        tx: &broadcast::Sender<(Uuid, ServerMessage)>,
+    ) -> GameResult<()> {
+        let mut game = game.write().await;
+        super::client::handle_exit_station(&mut game, player_id, tx).await;
+        Ok(())
+    }
+}
+
 /// Chat message command
 pub struct ChatMessageCommand {
     pub message: String,
@@ -213,6 +230,9 @@ pub fn create_command(msg: ClientMessage) -> Box<dyn Command> {
         }
         ClientMessage::ExitMech => {
             Box::new(ExitMechCommand)
+        }
+        ClientMessage::ExitStation => {
+            Box::new(ExitStationCommand)
         }
         ClientMessage::ChatMessage { message } => {
             Box::new(ChatMessageCommand { message })

@@ -198,6 +198,28 @@ pub async fn handle_exit_mech(
     }
 }
 
+pub async fn handle_exit_station(
+    game: &mut Game,
+    player_id: Uuid,
+    tx: &broadcast::Sender<(Uuid, ServerMessage)>,
+) {
+    if let Some(player) = game.players.get_mut(&player_id) {
+        if let Some(station_id) = player.operating_station.take() {
+            // Find and update the station
+            for mech in game.mechs.values_mut() {
+                if let Some(station) = mech.stations.get_mut(&station_id) {
+                    station.operated_by = None;
+                    let _ = tx.send((Uuid::nil(), ServerMessage::PlayerExitedStation {
+                        player_id,
+                        station_id,
+                    }));
+                    break;
+                }
+            }
+        }
+    }
+}
+
 pub async fn handle_station_button(
     game: &mut Game,
     mech_id: Uuid,

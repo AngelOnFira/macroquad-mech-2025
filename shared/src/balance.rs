@@ -33,7 +33,7 @@ pub const SHIELD_PER_LEVEL: u32 = 25;
 pub const MECH_BASE_SPEED: f32 = 2.0; // tiles per second
 pub const MECH_SPEED_PER_LEVEL: f32 = 0.5; // additional tiles per second
 pub const CONTINUOUS_MOVEMENT_DELTA: f32 = 0.016; // ~60fps frame time
-pub const PLAYER_MOVE_SPEED: f32 = 3.0; // tiles per second
+pub const PLAYER_MOVE_SPEED: f32 = 4.5; // tiles per second
 
 // ===== Collision Radii =====
 pub const PLAYER_COLLISION_RADIUS: f32 = 0.4; // tiles

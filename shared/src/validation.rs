@@ -34,6 +34,8 @@ impl Validate for ClientMessage {
             
             ClientMessage::ExitMech => Ok(()),
             
+            ClientMessage::ExitStation => Ok(()),
+            
             ClientMessage::ChatMessage { message } => {
                 validate_chat_message(message)?;
                 Ok(())

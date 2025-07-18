@@ -22,6 +22,7 @@ pub enum ClientMessage {
         movement: (f32, f32), // normalized x, y velocity for mech movement
     },
     ExitMech,
+    ExitStation,
     ChatMessage {
         message: String,
     },

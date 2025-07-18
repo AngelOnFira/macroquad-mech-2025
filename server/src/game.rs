@@ -20,6 +20,7 @@ pub struct Game {
     pub station_registry: StationRegistry,
     pub pool_manager: PoolManager,
     pub system_manager: SystemManager,
+    pub world_tiles: Vec<Vec<WorldTile>>, // Grid of world tiles
 }
 
 pub struct Player {
@@ -72,7 +73,10 @@ pub struct Resource {
 
 impl Game {
     pub fn new() -> Self {
-        Self {
+        // Initialize world tiles with grass
+        let mut world_tiles = vec![vec![WorldTile::Grass; ARENA_WIDTH_TILES as usize]; ARENA_HEIGHT_TILES as usize];
+        
+        let mut game = Self {
             players: HashMap::new(),
             mechs: HashMap::new(),
             resources: HashMap::new(),
@@ -83,7 +87,13 @@ impl Game {
             station_registry: StationRegistry::new(),
             pool_manager: PoolManager::new(),
             system_manager: SystemManager::new(),
-        }
+            world_tiles,
+        };
+        
+        // Initialize mechs and update world tiles
+        game.create_initial_mechs();
+        
+        game
     }
     
     /// Add an AI player to the game
@@ -134,11 +144,17 @@ impl Game {
     pub fn create_initial_mechs(&mut self) {
         // Red team mech
         let red_mech = self.create_mech(TilePos::new(RED_MECH_SPAWN.0, RED_MECH_SPAWN.1), TeamId::Red);
+        let red_mech_id = red_mech.id;
         self.mechs.insert(red_mech.id, red_mech);
 
         // Blue team mech
         let blue_mech = self.create_mech(TilePos::new(BLUE_MECH_SPAWN.0, BLUE_MECH_SPAWN.1), TeamId::Blue);
+        let blue_mech_id = blue_mech.id;
         self.mechs.insert(blue_mech.id, blue_mech);
+        
+        // Update world tiles with mech door tiles and resource drop-off zones
+        self.update_mech_tiles(red_mech_id, TilePos::new(RED_MECH_SPAWN.0, RED_MECH_SPAWN.1));
+        self.update_mech_tiles(blue_mech_id, TilePos::new(BLUE_MECH_SPAWN.0, BLUE_MECH_SPAWN.1));
     }
 
     fn create_mech(&self, position: TilePos, team: TeamId) -> Mech {
@@ -176,6 +192,49 @@ impl Game {
             resource_inventory: HashMap::new(),
             velocity: (0.0, 0.0),
             world_position: position.to_world_pos(),
+        }
+    }
+    
+    fn update_mech_tiles(&mut self, mech_id: Uuid, mech_pos: TilePos) {
+        // Add door tiles at the bottom center of the mech - 2 blocks wide
+        let door_x1 = mech_pos.x + (MECH_SIZE_TILES / 2) - 1;
+        let door_x2 = mech_pos.x + (MECH_SIZE_TILES / 2);
+        let door_y = mech_pos.y + MECH_SIZE_TILES - 1;
+        
+        if let Some(tile) = self.get_world_tile_mut(door_x1, door_y) {
+            *tile = WorldTile::MechDoor { mech_id };
+        }
+        if let Some(tile) = self.get_world_tile_mut(door_x2, door_y) {
+            *tile = WorldTile::MechDoor { mech_id };
+        }
+        
+        // Add resource drop-off zone on top of the mech (roof area)
+        // Create a 3x3 drop-off zone in the center of the mech roof
+        let dropoff_x = mech_pos.x + (MECH_SIZE_TILES / 2) - 1;
+        let dropoff_y = mech_pos.y;
+        
+        for dy in 0..3 {
+            for dx in 0..3 {
+                if let Some(tile) = self.get_world_tile_mut(dropoff_x + dx, dropoff_y + dy) {
+                    *tile = WorldTile::ResourceDropoff { mech_id };
+                }
+            }
+        }
+    }
+    
+    fn get_world_tile_mut(&mut self, x: i32, y: i32) -> Option<&mut WorldTile> {
+        if x >= 0 && y >= 0 && x < ARENA_WIDTH_TILES && y < ARENA_HEIGHT_TILES {
+            Some(&mut self.world_tiles[y as usize][x as usize])
+        } else {
+            None
+        }
+    }
+    
+    pub fn get_world_tile(&self, x: i32, y: i32) -> Option<&WorldTile> {
+        if x >= 0 && y >= 0 && x < ARENA_WIDTH_TILES && y < ARENA_HEIGHT_TILES {
+            Some(&self.world_tiles[y as usize][x as usize])
+        } else {
+            None
         }
     }
 

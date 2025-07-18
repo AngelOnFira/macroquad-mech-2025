@@ -39,6 +39,7 @@ pub fn get_station_color(station_type: StationType) -> Color {
         StationType::Repair => GREEN,
         StationType::Electrical => YELLOW,
         StationType::Upgrade => PURPLE,
+        StationType::Pilot => Color::new(0.5, 0.8, 0.5, 1.0), // Light green
     }
 }
 

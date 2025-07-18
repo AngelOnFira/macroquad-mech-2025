@@ -7,9 +7,37 @@ pub fn render_world_view(game_state: &GameState, cam_x: f32, cam_y: f32) {
     render_grass_background(cam_x, cam_y);
     render_arena_boundaries(cam_x, cam_y);
     render_mechs(game_state, cam_x, cam_y);
+    render_world_tiles(game_state, cam_x, cam_y);
     render_resources(game_state, cam_x, cam_y);
     render_projectiles(game_state, cam_x, cam_y);
     render_players_in_world(game_state, cam_x, cam_y);
+    
+    // Debug info
+    draw_text(
+        &format!("Camera: ({:.1}, {:.1})", -cam_x, -cam_y),
+        10.0,
+        30.0,
+        20.0,
+        WHITE
+    );
+    draw_text(
+        &format!("Mechs: {}, Players: {}", game_state.mechs.len(), game_state.players.len()),
+        10.0,
+        50.0,
+        20.0,
+        WHITE
+    );
+    if let Some(player_id) = game_state.player_id {
+        if let PlayerLocation::OutsideWorld(pos) = game_state.player_location {
+            draw_text(
+                &format!("Player pos: ({:.1}, {:.1})", pos.x, pos.y),
+                10.0,
+                70.0,
+                20.0,
+                WHITE
+            );
+        }
+    }
 }
 
 fn render_grass_background(cam_x: f32, cam_y: f32) {
@@ -19,10 +47,10 @@ fn render_grass_background(cam_x: f32, cam_y: f32) {
     // Calculate visible area with some padding
     let screen_w = screen_width();
     let screen_h = screen_height();
-    let start_x = ((-cam_x / grass_tile_size).floor() * grass_tile_size) as i32;
-    let start_y = ((-cam_y / grass_tile_size).floor() * grass_tile_size) as i32;
-    let end_x = start_x + (screen_w / grass_tile_size) as i32 + 2;
-    let end_y = start_y + (screen_h / grass_tile_size) as i32 + 2;
+    let start_x = ((-cam_x / grass_tile_size).floor()) as i32 - 1;
+    let start_y = ((-cam_y / grass_tile_size).floor()) as i32 - 1;
+    let end_x = ((-cam_x + screen_w) / grass_tile_size).ceil() as i32 + 1;
+    let end_y = ((-cam_y + screen_h) / grass_tile_size).ceil() as i32 + 1;
     
     for ty in start_y..end_y {
         for tx in start_x..end_x {
@@ -75,56 +103,87 @@ fn render_mechs(game_state: &GameState, cam_x: f32, cam_y: f32) {
         draw_rectangle(mech_x, mech_y, mech_size, mech_size, color);
         draw_rectangle_lines(mech_x, mech_y, mech_size, mech_size, 2.0, WHITE);
         
-        // Entry door
-        render_mech_entry_door(mech_x, mech_y, mech_size, color);
-        
-        // Resource drop-off zone
-        render_resource_dropoff_zone(mech_x, mech_y, mech_size, color);
     }
 }
 
-fn render_mech_entry_door(mech_x: f32, mech_y: f32, mech_size: f32, mech_color: Color) {
-    let door_width = TILE_SIZE * 1.5;
-    let door_height = TILE_SIZE * 0.8;
-    let door_x = mech_x + (mech_size - door_width) / 2.0;
-    let door_y = mech_y + mech_size - door_height;
+fn render_world_tiles(game_state: &GameState, cam_x: f32, cam_y: f32) {
+    // Only render special tiles (doors, drop-offs, etc.)
+    // The server needs to send us the world tile data for this to work properly
+    
+    // For now, we'll render based on known mech positions
+    for mech in game_state.mechs.values() {
+        let team_color = get_team_color(mech.team);
+        
+        // Render door tiles at bottom center of mech - 2 blocks wide
+        let door_x1 = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
+        let door_x2 = mech.position.x + (MECH_SIZE_TILES / 2);
+        let door_y = mech.position.y + MECH_SIZE_TILES - 1;
+        render_door_tile(door_x1, door_y, team_color, cam_x, cam_y);
+        render_door_tile(door_x2, door_y, team_color, cam_x, cam_y);
+        
+        // Render resource drop-off tiles on top of the mech
+        let dropoff_x = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
+        let dropoff_y = mech.position.y;
+        
+        // 3x3 drop-off zone on the roof
+        for dy in 0..3 {
+            for dx in 0..3 {
+                let is_center = dx == 1 && dy == 1;
+                render_dropoff_tile(dropoff_x + dx, dropoff_y + dy, team_color, is_center, cam_x, cam_y);
+            }
+        }
+    }
+}
+
+fn render_door_tile(x: i32, y: i32, team_color: Color, cam_x: f32, cam_y: f32) {
+    let tile_x = cam_x + x as f32 * TILE_SIZE;
+    let tile_y = cam_y + y as f32 * TILE_SIZE;
     
     // Door background (darker than mech)
     draw_rectangle(
-        door_x,
-        door_y,
-        door_width,
-        door_height,
-        Color::new(mech_color.r * 0.3, mech_color.g * 0.3, mech_color.b * 0.3, 1.0)
+        tile_x,
+        tile_y,
+        TILE_SIZE,
+        TILE_SIZE,
+        Color::new(team_color.r * 0.3, team_color.g * 0.3, team_color.b * 0.3, 1.0)
     );
     
-    draw_rectangle_lines(door_x, door_y, door_width, door_height, 2.0, WHITE);
+    // Door outline
+    draw_rectangle_lines(tile_x, tile_y, TILE_SIZE, TILE_SIZE, 2.0, WHITE);
     
+    // Entry indicator
     draw_text(
         "ENTER",
-        door_x + door_width / 2.0 - 20.0,
-        door_y + door_height / 2.0 + 6.0,
-        14.0,
+        tile_x + TILE_SIZE / 2.0 - 20.0,
+        tile_y + TILE_SIZE / 2.0 + 6.0,
+        12.0,
         WHITE
     );
 }
 
-fn render_resource_dropoff_zone(mech_x: f32, mech_y: f32, mech_size: f32, mech_color: Color) {
-    let dropoff_width = TILE_SIZE * 2.0;
-    let dropoff_height = TILE_SIZE * 2.0;
-    let dropoff_x = mech_x + mech_size + TILE_SIZE * 0.5;
-    let dropoff_y = mech_y + (mech_size - dropoff_height) / 2.0;
+fn render_dropoff_tile(x: i32, y: i32, team_color: Color, is_center: bool, cam_x: f32, cam_y: f32) {
+    let tile_x = cam_x + x as f32 * TILE_SIZE;
+    let tile_y = cam_y + y as f32 * TILE_SIZE;
     
-    // Drop-off zone background
-    let dropoff_color = Color::new(mech_color.r * 0.5, mech_color.g * 0.5, mech_color.b * 0.5, 0.3);
-    draw_rectangle(dropoff_x, dropoff_y, dropoff_width, dropoff_height, dropoff_color);
+    // Drop-off zone background (roof-like color)
+    let dropoff_color = Color::new(team_color.r * 0.7, team_color.g * 0.7, team_color.b * 0.7, 0.8);
+    draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, dropoff_color);
     
-    // Dashed outline
-    draw_dashed_rectangle_lines(dropoff_x, dropoff_y, dropoff_width, dropoff_height, 8.0, 4.0, 2.0, WHITE);
+    // Add a cross pattern for visual clarity
+    let cross_color = Color::new(1.0, 1.0, 1.0, 0.3);
+    draw_line(tile_x, tile_y + TILE_SIZE / 2.0, tile_x + TILE_SIZE, tile_y + TILE_SIZE / 2.0, 2.0, cross_color);
+    draw_line(tile_x + TILE_SIZE / 2.0, tile_y, tile_x + TILE_SIZE / 2.0, tile_y + TILE_SIZE, 2.0, cross_color);
     
-    // Text
-    draw_text("DROP", dropoff_x + dropoff_width / 2.0 - 16.0, dropoff_y + dropoff_height / 2.0 - 8.0, 12.0, WHITE);
-    draw_text("RESOURCES", dropoff_x + dropoff_width / 2.0 - 35.0, dropoff_y + dropoff_height / 2.0 + 8.0, 12.0, WHITE);
+    // Drop indicator (only on center tile)
+    if is_center {
+        draw_text(
+            "DROP",
+            tile_x + TILE_SIZE / 2.0 - 16.0,
+            tile_y + TILE_SIZE / 2.0 + 5.0,
+            12.0,
+            WHITE
+        );
+    }
 }
 
 fn render_resources(game_state: &GameState, cam_x: f32, cam_y: f32) {

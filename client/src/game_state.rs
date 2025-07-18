@@ -14,6 +14,28 @@ pub struct GameState {
     pub projectiles: Vec<ProjectileData>,
     pub weapon_effects: Vec<WeaponEffect>,
     pub camera_offset: (f32, f32),
+    pub ui_state: UIState,
+    pub transition: Option<TransitionState>,
+}
+
+pub struct UIState {
+    pub pilot_station_open: bool,
+    pub pilot_station_id: Option<Uuid>,
+    pub operating_mech_id: Option<Uuid>,
+}
+
+pub struct TransitionState {
+    pub active: bool,
+    pub transition_type: TransitionType,
+    pub progress: f32, // 0.0 to 1.0
+    pub from_location: PlayerLocation,
+    pub to_location: PlayerLocation,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum TransitionType {
+    EnteringMech,
+    ExitingMech,
 }
 
 pub struct PlayerData {
@@ -42,14 +64,8 @@ pub struct MechFloor {
     pub ladder_positions: Vec<TilePos>, // Positions where you can move between floors
 }
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum TileType {
-    Empty,
-    Floor,
-    Wall,
-    Station(StationType),
-    Ladder,
-}
+// TileType is now MechInteriorTile from shared
+pub use shared::MechInteriorTile as TileType;
 
 pub struct StationState {
     pub id: Uuid,
@@ -94,6 +110,12 @@ impl GameState {
             projectiles: Vec::new(),
             weapon_effects: Vec::new(),
             camera_offset: (0.0, 0.0),
+            ui_state: UIState {
+                pilot_station_open: false,
+                pilot_station_id: None,
+                operating_mech_id: None,
+            },
+            transition: None,
         }
     }
 
@@ -104,8 +126,23 @@ impl GameState {
             effect.timer > 0.0
         });
 
+        // Update transition
+        if let Some(transition) = &mut self.transition {
+            transition.progress += delta * 2.0; // 0.5 second transition
+            if transition.progress >= 1.0 {
+                self.transition = None;
+            }
+        }
+
         // Update camera to follow player
-        match self.player_location {
+        let target_location = if let Some(transition) = &self.transition {
+            // During transition, use target location for camera
+            &transition.to_location
+        } else {
+            &self.player_location
+        };
+
+        match target_location {
             PlayerLocation::OutsideWorld(pos) => {
                 self.camera_offset = (
                     pos.x - screen_width() / 2.0,
