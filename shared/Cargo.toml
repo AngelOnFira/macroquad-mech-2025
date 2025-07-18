@@ -16,3 +16,7 @@ uuid = { version = "1.10", features = ["serde", "v4"] }
 # WASM builds only need serde for UUID deserialization
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 uuid = { version = "1.10", features = ["serde"] }
+
+[[example]]
+name = "hybrid_demo"
+path = "../examples/hybrid_demo.rs"

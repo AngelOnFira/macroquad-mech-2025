@@ -51,22 +51,3 @@ pub fn get_mech_center(mech: &MechState) -> WorldPos {
     )
 }
 
-/// Draw a dashed rectangle outline
-pub fn draw_dashed_rectangle_lines(x: f32, y: f32, width: f32, height: f32, dash_size: f32, gap_size: f32, thickness: f32, color: Color) {
-    let num_dashes_x = (width / (dash_size + gap_size)) as i32;
-    let num_dashes_y = (height / (dash_size + gap_size)) as i32;
-    
-    // Top and bottom edges
-    for i in 0..num_dashes_x {
-        let dash_x = x + i as f32 * (dash_size + gap_size);
-        draw_rectangle(dash_x, y, dash_size, thickness, color);
-        draw_rectangle(dash_x, y + height - thickness, dash_size, thickness, color);
-    }
-    
-    // Left and right edges
-    for i in 0..num_dashes_y {
-        let dash_y = y + i as f32 * (dash_size + gap_size);
-        draw_rectangle(x, dash_y, thickness, dash_size, color);
-        draw_rectangle(x + width - thickness, dash_y, thickness, dash_size, color);
-    }
-}

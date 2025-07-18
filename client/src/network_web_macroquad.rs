@@ -104,7 +104,7 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             game.players.clear();
             for (id, player) in players {
                 game.players.insert(id, crate::game_state::PlayerData {
-                    id: player.id,
+                    _id: player.id,
                     name: player.name,
                     team: player.team,
                     location: player.location,
@@ -122,7 +122,7 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
                     health: mech.health,
                     shield: mech.shield,
                     upgrades: mech.upgrades,
-                    resource_inventory: mech.resource_inventory.clone(),
+                    _resource_inventory: mech.resource_inventory.clone(),
                     floors: vec![],
                 };
 
@@ -134,7 +134,7 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
                 // Update stations
                 for station in &mech.stations {
                     game.stations.insert(station.id, crate::game_state::StationState {
-                        id: station.id,
+                        _id: station.id,
                         station_type: station.station_type,
                         mech_id: mech.id,
                         operated_by: station.operated_by,
@@ -163,7 +163,7 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
                 game.projectiles.push(crate::game_state::ProjectileData {
                     id: projectile.id,
                     position: projectile.position,
-                    velocity: projectile.velocity,
+                    _velocity: projectile.velocity,
                 });
             }
         }
@@ -183,7 +183,7 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
 
                 if let Some(transition_type) = should_transition {
                     game.transition = Some(crate::game_state::TransitionState {
-                        active: true,
+                        _active: true,
                         transition_type,
                         progress: 0.0,
                         from_location: game.player_location,
@@ -246,7 +246,7 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
                     target: target_position,
                     weapon_type,
                     timer: 0.0,
-                    projectile_id: None,
+                    _projectile_id: None,
                 });
             }
         }

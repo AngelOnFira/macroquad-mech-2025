@@ -90,7 +90,7 @@ pub enum MechUpgradeType {
 
 /// Station instance in a mech
 #[derive(Debug, Clone)]
-pub struct Station {
+pub struct StationInstance {
     pub id: Uuid,
     pub station_type: StationType,
     pub floor: u8,
@@ -193,11 +193,11 @@ impl StationRegistry {
     }
     
     /// Create a new station instance
-    pub fn create_station(&self, station_type: StationType, floor: u8, position: TilePos) -> GameResult<Station> {
-        let definition = self.get_definition(station_type)
+    pub fn create_station(&self, station_type: StationType, floor: u8, position: TilePos) -> GameResult<StationInstance> {
+        let _definition = self.get_definition(station_type)
             .ok_or_else(|| GameError::invalid_input(format!("Unknown station type: {:?}", station_type)))?;
         
-        Ok(Station {
+        Ok(StationInstance {
             id: new_uuid(),
             station_type,
             floor,
@@ -213,7 +213,7 @@ impl StationRegistry {
     /// Execute a button press on a station
     pub fn execute_button_action(
         &self,
-        station: &mut Station,
+        station: &mut StationInstance,
         button_index: u8,
         context: &StationActionContext,
     ) -> GameResult<StationActionResult> {
@@ -261,7 +261,7 @@ impl StationRegistry {
         let mut message = "Action executed successfully".to_string();
         
         match &button.action {
-            StationAction::FireWeapon { weapon_type, damage, range, speed } => {
+            StationAction::FireWeapon { weapon_type, damage, range: _, speed } => {
                 if let Some(target_id) = context.nearest_enemy {
                     let actual_damage = damage + (station.upgrade_level as u32 - 1) * 10; // Damage scales with upgrade
                     
@@ -273,7 +273,7 @@ impl StationRegistry {
                                 amount: actual_damage,
                             });
                         }
-                        Some(projectile_speed) => {
+                        Some(_projectile_speed) => {
                             // Projectile weapon
                             let projectile_id = new_uuid();
                             effects.push(StationEffect::ProjectileCreated {
@@ -682,9 +682,9 @@ impl Default for StationRegistry {
     }
 }
 
-impl Station {
+impl StationInstance {
     /// Check if this station can be operated
-    pub fn can_operate(&self, current_time: f32) -> bool {
+    pub fn can_operate(&self, _current_time: f32) -> bool {
         self.operated_by.is_none() && self.health > 0
     }
     

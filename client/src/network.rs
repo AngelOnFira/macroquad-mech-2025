@@ -80,7 +80,7 @@ impl ClientHandler {
                 game.players.clear();
                 for (id, player) in players {
                     game.players.insert(id, crate::game_state::PlayerData {
-                        id: player.id,
+                        _id: player.id,
                         name: player.name,
                         team: player.team,
                         location: player.location,
@@ -99,7 +99,7 @@ impl ClientHandler {
                         shield: mech.shield,
                         upgrades: mech.upgrades,
                         floors: vec![],
-                        resource_inventory: mech.resource_inventory,
+                        _resource_inventory: mech.resource_inventory,
                     };
 
                     // Build floor layouts
@@ -110,7 +110,7 @@ impl ClientHandler {
                     // Update stations
                     for station in mech.stations {
                         game.stations.insert(station.id, crate::game_state::StationState {
-                            id: station.id,
+                            _id: station.id,
                             mech_id: mech.id,
                             floor: station.floor,
                             position: station.position,
@@ -137,7 +137,7 @@ impl ClientHandler {
                     game.projectiles.push(crate::game_state::ProjectileData {
                         id: proj.id,
                         position: proj.position,
-                        velocity: proj.velocity,
+                        _velocity: proj.velocity,
                     });
                 }
             }
@@ -157,7 +157,7 @@ impl ClientHandler {
 
                     if let Some(transition_type) = should_transition {
                         game.transition = Some(crate::game_state::TransitionState {
-                            active: true,
+                            _active: true,
                             transition_type,
                             progress: 0.0,
                             from_location: game.player_location,
@@ -249,7 +249,7 @@ impl ClientHandler {
                     weapon_type,
                     target: target_position,
                     timer: WEAPON_EFFECT_DURATION,
-                    projectile_id,
+                    _projectile_id: projectile_id,
                 });
             }
 

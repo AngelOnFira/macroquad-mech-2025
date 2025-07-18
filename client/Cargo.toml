@@ -12,6 +12,10 @@ name = "test_client"
 path = "src/bin/test_client.rs"
 required-features = ["native"]
 
+[[bin]]
+name = "demo"
+path = "src/bin/demo.rs"
+
 [dependencies]
 shared = { path = "../shared" }
 macroquad = "0.4"

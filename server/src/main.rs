@@ -24,6 +24,8 @@ mod commands;
 mod movement;
 mod spatial_collision;
 mod systems;
+mod entity_storage;
+mod hybrid_integration;
 
 use game::Game;
 use client::handle_client;

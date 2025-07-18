@@ -41,7 +41,7 @@ pub struct Mech {
     pub shield: u32,
     pub max_shield: u32,
     pub upgrades: MechUpgrades,
-    pub stations: HashMap<Uuid, Station>,
+    pub stations: HashMap<Uuid, StationInstance>,
     pub interior: MechInterior,
     pub resource_inventory: HashMap<ResourceType, u32>,
     pub velocity: (f32, f32), // tiles per second

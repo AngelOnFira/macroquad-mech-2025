@@ -46,33 +46,6 @@ Mechs are moving fortresses that players can enter and operate from within. The 
 - Electrical/system routing (inspired by Barotrauma)
 - Damage states affecting interior tiles
 
-## Tile System Architecture
-
-### Unified Tile Abstraction
-
-```rust
-pub trait Tile {
-    // Rendering
-    fn render(&self, context: &RenderContext) -> RenderCommand;
-    fn get_visibility(&self) -> Visibility;
-    fn affects_light(&self) -> bool;
-    
-    // Interaction
-    fn can_walk_through(&self) -> bool;
-    fn on_enter(&mut self, entity: EntityId) -> Vec<GameEvent>;
-    fn on_exit(&mut self, entity: EntityId) -> Vec<GameEvent>;
-    fn on_interact(&mut self, entity: EntityId) -> Vec<GameEvent>;
-    
-    // Physics
-    fn blocks_projectiles(&self) -> bool;
-    fn has_collision(&self) -> bool;
-    
-    // Relationships
-    fn affects_neighbors(&self) -> bool;
-    fn on_neighbor_change(&mut self, direction: Direction, neighbor: &TileType);
-}
-```
-
 ### Tile Types
 
 1. **Structural Tiles**
@@ -96,29 +69,6 @@ pub trait Tile {
    - Grass (basic terrain)
    - Rock (obstacles)
    - Empty (void/out of bounds)
-
-### Coordinate Systems
-
-```rust
-pub struct WorldPos {
-    x: f32,
-    y: f32,
-}
-
-pub struct MechRelativePos {
-    mech_id: Uuid,
-    local_x: f32,  // Relative to mech origin
-    local_y: f32,
-    floor: u8,
-}
-
-impl MechRelativePos {
-    fn to_world_pos(&self, mech_position: WorldPos, mech_rotation: f32) -> WorldPos {
-        // Transform relative coordinates to world space
-        // Account for mech position and rotation
-    }
-}
-```
 
 ## Visibility System
 

@@ -7,6 +7,7 @@ use shared::*;
 mod game_state;
 mod rendering;
 mod input;
+mod demo_mode;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod network;
@@ -117,6 +118,14 @@ async fn main() {
     }
 
     loop {
+        // Check for demo mode
+        if is_key_pressed(KeyCode::D) && is_key_down(KeyCode::LeftControl) {
+            info!("Entering demo mode...");
+            let mut demo = demo_mode::DemoMode::new();
+            demo.run().await;
+            info!("Exited demo mode");
+        }
+        
         // Handle input
         let input = input_handler.update();
         

@@ -25,7 +25,7 @@ pub struct UIState {
 }
 
 pub struct TransitionState {
-    pub active: bool,
+    pub _active: bool,
     pub transition_type: TransitionType,
     pub progress: f32, // 0.0 to 1.0
     pub from_location: PlayerLocation,
@@ -39,7 +39,7 @@ pub enum TransitionType {
 }
 
 pub struct PlayerData {
-    pub id: Uuid,
+    pub _id: Uuid,
     pub name: String,
     pub team: TeamId,
     pub location: PlayerLocation,
@@ -55,20 +55,20 @@ pub struct MechState {
     pub shield: u32,
     pub upgrades: shared::MechUpgrades,
     pub floors: Vec<MechFloor>,
-    pub resource_inventory: HashMap<ResourceType, u32>,
+    pub _resource_inventory: HashMap<ResourceType, u32>,
 }
 
 pub struct MechFloor {
-    pub level: u8,
+    pub _level: u8,
     pub tiles: Vec<Vec<TileType>>,
-    pub ladder_positions: Vec<TilePos>, // Positions where you can move between floors
+    pub _ladder_positions: Vec<TilePos>, // Positions where you can move between floors
 }
 
 // TileType is now MechInteriorTile from shared
 pub use shared::MechInteriorTile as TileType;
 
 pub struct StationState {
-    pub id: Uuid,
+    pub _id: Uuid,
     pub mech_id: Uuid,
     pub floor: u8,
     pub position: TilePos,
@@ -86,7 +86,7 @@ pub struct ResourceState {
 pub struct ProjectileData {
     pub id: Uuid,
     pub position: WorldPos,
-    pub velocity: (f32, f32),
+    pub _velocity: (f32, f32),
 }
 
 pub struct WeaponEffect {
@@ -94,7 +94,7 @@ pub struct WeaponEffect {
     pub weapon_type: StationType,
     pub target: TilePos,
     pub timer: f32,
-    pub projectile_id: Option<Uuid>,
+    pub _projectile_id: Option<Uuid>,
 }
 
 impl GameState {
@@ -209,9 +209,9 @@ impl MechFloor {
         }
         
         Self {
-            level,
+            _level: level,
             tiles,
-            ladder_positions,
+            _ladder_positions: ladder_positions,
         }
     }
 }

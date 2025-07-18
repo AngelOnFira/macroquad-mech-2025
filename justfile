@@ -38,6 +38,39 @@ web-dev:
     just build-web
     cd dist && python3 -m http.server 8080
 
+# Build and run the hybrid tile demo
+build-demo:
+    cd client && ./build-demo.sh
+
+# Run demo in web browser
+dev-demo:
+    #!/bin/bash
+    echo "Starting demo environment..."
+    
+    # Kill any existing web server
+    pkill -f "python.*8080" || true
+    sleep 1
+    
+    # Build demo WASM
+    echo "Building demo..."
+    cd client && ./build-demo.sh
+    cd ..
+    
+    # Start web server
+    echo "Starting web server..."
+    cd dist && python -m http.server 8080 > /dev/null 2>&1 &
+    WEB_PID=$!
+    
+    echo ""
+    echo "🎮 Demo ready!"
+    echo "Open: http://localhost:8080/demo.html"
+    echo ""
+    echo "Press Ctrl+C to stop"
+    
+    # Wait for interrupt
+    trap "kill $WEB_PID 2>/dev/null; exit" INT
+    wait
+
 # Full development setup - server + web
 dev:
     #!/bin/bash

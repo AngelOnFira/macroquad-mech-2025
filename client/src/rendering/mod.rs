@@ -4,6 +4,7 @@ mod effects;
 mod mech_interior;
 mod ui;
 mod pilot_station;
+pub mod hybrid_tiles;
 
 use crate::game_state::*;
 use shared::types::*;
