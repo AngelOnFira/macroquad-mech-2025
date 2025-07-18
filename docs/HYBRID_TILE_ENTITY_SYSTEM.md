@@ -1,49 +1,65 @@
-# Hybrid Tile-Entity System Design
+# Hybrid Tile-Entity System - Implementation Guide
 
 ## Overview
 
-This document describes a hybrid approach that combines simple tile enums for basic world elements with an Entity Component System (ECS) for complex interactive objects. This design provides a fast path to a working game while maintaining extensibility for advanced features like modding, wiring systems, and dynamic object placement.
+This document describes the implemented hybrid tile-entity system that combines simple tile enums for basic world elements (walls, floors) with an Entity Component System (ECS) for complex interactive objects (stations, turrets). This design provides performance for static geometry while maintaining flexibility for dynamic objects.
+
+## Current Implementation Status
+
+### ✅ Implemented
+- Core tile system with `TileContent` enum
+- Static tiles for walls, floors, windows, transitions
+- Entity-based stations and turrets
+- Raycasting vision system with window mechanics
+- Layered floor system (Dwarf Fortress style)
+- Continuous movement over tiles
+- Client-server tile visual protocol
+- Demo showcasing all features
+
+### 🚧 In Progress
+- Full server integration
+- Unified world space coordinates
+- Mech movement with interior
+
+### 📋 Future
+- Power/wiring systems
+- Breakable tiles
+- Atmospheric simulation
+- Modding support
 
 ## Core Architecture
 
 ### Tile Map Structure
 
+Located in `shared/src/tile_entity.rs`:
+
 ```rust
 pub struct TileMap {
-    // Simple tiles indexed by position
-    static_tiles: HashMap<TilePos, StaticTile>,
-    
-    // Entity references for complex tiles
-    entity_tiles: HashMap<TilePos, EntityId>,
-    
-    // Spatial index for fast lookups
-    spatial_index: SpatialIndex,
-    
-    // Mech-relative tiles
-    mech_tiles: HashMap<Uuid, MechTileMap>,
+    tiles: HashMap<TilePos, TileContent>,
+    mechs: HashMap<Uuid, MechTileMap>,
 }
 
 pub struct MechTileMap {
     floors: Vec<FloorMap>,
-    mech_entity: EntityId,  // The mech itself is an entity
+    position: TilePos,  // World position of mech
 }
 
 pub struct FloorMap {
-    static_tiles: HashMap<TilePos, StaticTile>,
-    entity_tiles: HashMap<TilePos, EntityId>,
+    tiles: HashMap<TilePos, TileContent>,
 }
-```
 
-### Content Types
-
-```rust
 pub enum TileContent {
     Empty,
     Static(StaticTile),
-    Entity(EntityId),
+    Entity(Uuid),  // Reference to entity in storage
 }
+```
 
-// Simple tiles that don't need complex behavior
+### Static Tiles
+
+Simple tiles that don't need complex behavior:
+
+```rust
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum StaticTile {
     // Floors
@@ -65,25 +81,18 @@ pub enum StaticTile {
     PowerConduit,
     DataCable,
 }
-
-#[derive(Clone, Copy, Debug)]
-pub enum TransitionType {
-    MechEntrance { stage: u8 },  // 0 = first tile, 1 = second tile
-    StairUp { stage: u8 },
-    StairDown { stage: u8 },
-    Ladder,
-}
 ```
 
-### Entity Components for Complex Objects
+### Entity Components
+
+Located in `shared/src/components.rs`:
 
 ```rust
-// Core components that tiles might have
 #[derive(Component)]
 pub struct Position {
     pub tile: TilePos,
     pub world: WorldPos,
-    pub floor: Option<u8>,  // None = outside, Some(n) = mech floor
+    pub floor: Option<u8>,
     pub mech_id: Option<Uuid>,
 }
 
@@ -100,205 +109,81 @@ pub struct Turret {
     pub damage: f32,
     pub fire_rate: f32,
     pub range: f32,
-    pub ammo: u32,
-    pub target_mode: TargetMode,
-    pub current_target: Option<EntityId>,
-}
-
-#[derive(Component)]
-pub struct PowerNode {
-    pub max_throughput: f32,
-    pub current_load: f32,
-    pub connections: Vec<EntityId>,
-    pub network_id: Uuid,
-}
-
-#[derive(Component)]
-pub struct Breakable {
-    pub health: f32,
-    pub max_health: f32,
-    pub armor: f32,
-    pub break_effects: Vec<BreakEffect>,
-}
-
-#[derive(Component)]
-pub struct Renderable {
-    pub sprite: SpriteId,
-    pub layer: RenderLayer,
-    pub color_modulation: Color,
-    pub animation_state: Option<AnimationState>,
-}
-
-// For moddable content
-#[derive(Component)]
-pub struct Scriptable {
-    pub script_id: String,
-    pub state: HashMap<String, Value>,
+    pub facing: Direction,
 }
 ```
 
-## Static Tile Behaviors
+## Vision System
 
-Simple tiles have fixed behaviors defined in code:
+The vision system (`shared/src/vision.rs`) implements proper raycasting with line-of-sight:
 
 ```rust
-impl StaticTile {
-    pub fn is_walkable(&self) -> bool {
-        match self {
-            StaticTile::MetalFloor | StaticTile::CargoFloor { .. } => true,
-            StaticTile::TransitionZone { .. } => true,
-            StaticTile::PowerConduit | StaticTile::DataCable => true,
-            _ => false,
-        }
-    }
-    
-    pub fn blocks_vision(&self) -> bool {
-        match self {
-            StaticTile::MetalWall | StaticTile::ReinforcedWall => true,
-            _ => false,
-        }
-    }
-    
-    pub fn vision_attenuation(&self) -> f32 {
-        match self {
-            StaticTile::Window { .. } => 0.2,
-            StaticTile::ReinforcedWindow { .. } => 0.3,
-            StaticTile::MetalWall | StaticTile::ReinforcedWall => 1.0,
-            _ => 0.0,
-        }
-    }
-    
-    pub fn on_enter(&self, actor: EntityId) -> Option<TileEvent> {
-        match self {
-            StaticTile::TransitionZone { zone_id, transition_type } => {
-                Some(TileEvent::BeginTransition {
-                    actor,
-                    zone_id: *zone_id,
-                    transition_type: *transition_type,
-                })
-            }
-            _ => None,
-        }
+pub struct VisionSystem {
+    cache: HashMap<(Uuid, u64), VisibilityData>,
+}
+
+impl VisionSystem {
+    pub fn calculate_visibility<S: ComponentStorage>(
+        &mut self,
+        viewer_id: Uuid,
+        viewer_pos: WorldPos,
+        max_range: f32,
+        tile_map: &TileMap,
+        storage: &S,
+    ) -> &VisibilityData {
+        // Performs raycasting to determine visible tiles
+        // Windows provide extended vision cones
+        // Mech interiors are dark by default
     }
 }
 ```
 
-## System Integration
+### Key Features:
+- **Raycasting**: True line-of-sight calculation
+- **Window Mechanics**: Windows extend vision in directional cones
+- **Dark Interiors**: Mech interiors require line-of-sight to see
+- **Performance**: Caches visibility calculations per tick
 
-### Movement System
+## Layered Floor System
 
+Inspired by Dwarf Fortress, floors are rendered as layers:
+
+- **Ground Level (Z=0)**: The outside world
+- **Mech Floors (Z=1,2,3)**: Interior floors of mechs
+- **Same XY Coordinates**: All floors exist at same world position
+- **Layer Transitions**: Smooth fades between floors
+
+Example from the demo:
 ```rust
-pub fn handle_movement(
-    world: &World,
-    tile_map: &TileMap,
-    entity: EntityId,
-    new_pos: WorldPos,
-) -> Result<(), MovementError> {
-    // Check static tile at destination
-    let tile_pos = new_pos.to_tile_pos();
-    if let Some(static_tile) = tile_map.get_static_at(tile_pos) {
-        if !static_tile.is_walkable() {
-            return Err(MovementError::Blocked);
-        }
-    }
-    
-    // Check entities at destination
-    if let Some(entity_id) = tile_map.get_entity_at(tile_pos) {
-        // Query entity components
-        if world.get::<Solid>(entity_id).is_some() {
-            return Err(MovementError::Blocked);
-        }
-    }
-    
-    Ok(())
+enum LayerType {
+    Ground,         // The world outside
+    MechFloor(u8),  // Floor 0, 1, 2 of a mech
 }
 ```
 
-### Vision System
+## Movement System
+
+Movement is continuous over tiles, not discrete:
 
 ```rust
-pub fn calculate_vision(
-    world: &World,
-    tile_map: &TileMap,
-    viewer_pos: WorldPos,
-    max_range: f32,
-) -> VisibilityMap {
-    let mut visible = HashSet::new();
-    
-    // Raycast implementation
-    for angle in 0..360 {
-        let mut ray = Ray::new(viewer_pos, angle as f32);
-        let mut attenuation = 0.0;
-        
-        while ray.length < max_range && attenuation < 1.0 {
-            let check_pos = ray.current_pos();
-            let tile_pos = check_pos.to_tile_pos();
-            
-            // Check static tiles
-            if let Some(static_tile) = tile_map.get_static_at(tile_pos) {
-                attenuation += static_tile.vision_attenuation();
-                if static_tile.blocks_vision() {
-                    break;
-                }
-            }
-            
-            // Check entity tiles
-            if let Some(entity_id) = tile_map.get_entity_at(tile_pos) {
-                if let Some(opaque) = world.get::<Opaque>(entity_id) {
-                    attenuation += opaque.attenuation;
-                    if opaque.blocks_completely {
-                        break;
-                    }
-                }
-            }
-            
-            if attenuation < 1.0 {
-                visible.insert(tile_pos);
-            }
-            
-            ray.advance(0.5);
-        }
-    }
-    
-    VisibilityMap { visible_tiles: visible }
-}
+// Player position is in world coordinates (pixels)
+player_x: f32,
+player_y: f32,
+
+// Movement is smooth
+player_x += velocity_x * delta_time;
+player_y += velocity_y * delta_time;
+
+// Collision checks against tile grid
+let tile_x = (player_x / TILE_SIZE).floor() as i32;
+let tile_y = (player_y / TILE_SIZE).floor() as i32;
 ```
 
-## Client-Server Communication
+## Client-Server Protocol
 
-### Server Authority
-
-```rust
-// Server has full tile and entity data
-pub struct ServerWorld {
-    tile_map: TileMap,
-    ecs: World,  // Full ECS with all components
-}
-
-// Server sends updates
-pub enum TileUpdate {
-    StaticTileChanged {
-        pos: TilePos,
-        new_tile: Option<StaticTile>,
-    },
-    EntityTileChanged {
-        pos: TilePos,
-        entity_id: Option<EntityId>,
-        visual: Option<EntityVisual>,
-    },
-}
-```
-
-### Client Representation
+The server sends simplified tile visuals to clients:
 
 ```rust
-// Client receives simplified view
-#[derive(Serialize, Deserialize)]
-pub struct ClientTile {
-    pub visual: TileVisual,
-    pub walkable: bool,  // For prediction
-}
-
 #[derive(Serialize, Deserialize)]
 pub enum TileVisual {
     // Static visuals
@@ -315,98 +200,103 @@ pub enum TileVisual {
 }
 ```
 
-## Modding Support
+## Entity Storage System
 
-### Entity Definitions
-
-```json
-{
-  "entity_templates": {
-    "plasma_turret": {
-      "components": {
-        "Turret": {
-          "damage": 50,
-          "fire_rate": 0.5,
-          "range": 15,
-          "ammo": 100
-        },
-        "PowerConsumer": {
-          "idle_draw": 10,
-          "active_draw": 100
-        },
-        "Scriptable": {
-          "script_id": "plasma_turret_ai"
-        }
-      }
-    }
-  }
-}
-```
-
-### Script Interface
+Located in `server/src/entity_storage.rs`:
 
 ```rust
-pub trait ModScript {
-    fn on_spawn(&mut self, entity: EntityId, world: &World);
-    fn on_update(&mut self, entity: EntityId, world: &World, dt: f32);
-    fn on_interact(&mut self, entity: EntityId, actor: EntityId, world: &World);
+pub struct EntityStorage {
+    // Component storage
+    positions: HashMap<Uuid, Position>,
+    stations: HashMap<Uuid, Station>,
+    turrets: HashMap<Uuid, Turret>,
+    
+    // Spatial indexing for performance
+    entities_by_position: HashMap<TilePos, Vec<Uuid>>,
+    entities_by_mech: HashMap<Uuid, Vec<Uuid>>,
 }
 ```
 
-## Migration Path
+## Integration Example
 
-### Phase 1: Current Prototype
-- Use `StaticTile` for walls, floors, windows
-- Stations are entities with `Station` component
-- Basic movement and vision with static tiles
-
-### Phase 2: Enhanced Stations
-- Add `PowerNode` components to stations
-- Implement basic wiring with entity connections
-- Add turrets as entities
-
-### Phase 3: Full Modding
-- Implement `Scriptable` component
-- Load entity definitions from JSON
-- Add component reflection for dynamic properties
-
-### Phase 4: Advanced Features
-- Complex damage model with `Breakable`
-- Atmospheric simulation
-- Full electrical/fluid networks
-
-## Example: Adding a New Station Type
-
-With this hybrid system, adding a new station is straightforward:
+Creating a mech with stations:
 
 ```rust
-// 1. Add to StationType enum (if hardcoded)
-pub enum StationType {
-    // ... existing types ...
-    OxygenGenerator,  // New!
+// Create mech tile map
+let mut mech_map = MechTileMap::new(position);
+
+// Add static tiles (walls, floors)
+for floor in 0..3 {
+    mech_map.floors[floor].set_static_tile(
+        TilePos::new(0, 0), 
+        StaticTile::MetalWall
+    );
 }
 
-// 2. Create entity with components
-let oxygen_gen = world.spawn((
-    Position { tile: pos, floor: Some(1), mech_id: Some(mech_id) },
-    Station { 
-        station_type: StationType::OxygenGenerator,
-        power_required: 50.0,
-        operating: false,
-    },
-    PowerConsumer { draw: 50.0 },
-    OxygenProducer { rate: 10.0 },  // Custom component
-    Renderable { sprite: SpriteId::OxygenGen, layer: RenderLayer::Stations },
-));
+// Create station entity
+let station_id = Uuid::new_v4();
+entities.spawn_station(
+    station_id,
+    Position { tile: TilePos::new(5, 5), floor: Some(0), mech_id: Some(mech_id) },
+    Station { station_type: StationType::Engine, operating: false, ... }
+);
 
-// 3. No other code changes needed!
+// Link entity to tile
+mech_map.floors[0].set_entity_tile(TilePos::new(5, 5), station_id);
 ```
 
-## Benefits of This Approach
+## Performance Benefits
 
-1. **Simple Things Stay Simple**: Walls and floors don't need entity overhead
-2. **Complex Things Are Flexible**: Stations, turrets use full ECS
-3. **Gradual Complexity**: Can start simple and add components as needed
-4. **Modder Friendly**: New entity types don't require core changes
-5. **Performance**: Static tiles are fast to query and render
-6. **Network Efficient**: Only send what changed, not full entity state
+1. **Static Tiles Are Fast**: Simple enum comparisons for walls/floors
+2. **Spatial Indexing**: O(1) entity lookups by position
+3. **Vision Caching**: Visibility only recalculated when needed
+4. **Minimal Network Traffic**: Only changed tiles sent to clients
+
+## Demo
+
+Run the interactive demo to see the system in action:
+
+```bash
+just dev-demo
+# Open http://localhost:8080/demo.html
+```
+
+Features demonstrated:
+- Layered floors with transitions
+- Continuous movement
+- Raycasting vision with darkness
+- Window vision mechanics
+- Station and turret entities
+
+## Future Enhancements
+
+### Power System
+```rust
+#[derive(Component)]
+pub struct PowerNode {
+    pub connections: Vec<Uuid>,
+    pub flow: f32,
+}
+```
+
+### Breakable Tiles
+```rust
+#[derive(Component)]
+pub struct Breakable {
+    pub health: f32,
+    pub break_effects: Vec<BreakEffect>,
+}
+```
+
+### Modding Support
+- Entity templates loaded from JSON
+- Scriptable component for custom behavior
+- Dynamic component registration
+
+## Migration Notes
+
+When migrating old code:
+1. Replace `WorldTile`/`MechInteriorTile` with `TileContent`
+2. Move complex tiles (stations) to entities
+3. Use `TileVisual` for client rendering
+4. Update movement to use continuous positions

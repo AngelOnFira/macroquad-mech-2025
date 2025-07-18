@@ -1,5 +1,11 @@
 # Mech Interior System Design Document
 
+## Current Implementation Status
+
+✅ **Implemented**: Layered floor system, raycasting vision, continuous movement, window mechanics, dark interiors
+🚧 **In Progress**: Server integration, mech movement with interior
+📋 **Future**: Power systems, damage states, atmospheric simulation
+
 ## Vision Statement
 
 Mechs are moving fortresses that players can enter and operate from within. The interior exists in world space, moving with the mech, creating a seamless experience where players feel like they're inside a vehicle traveling through the world rather than being teleported to a separate dimension.
@@ -20,25 +26,33 @@ Mechs are moving fortresses that players can enter and operate from within. The 
 - Strategic gameplay: players can hide inside mechs
 
 ### 3. Seamless Transitions
-- 2-tile transition zones for entrances and stairs
-- First tile initiates fade, second tile completes transition
-- Smooth visual blend between exterior/interior views
+- Smooth fading between floors when using stairs/ladders
+- Continuous movement system (not tile-to-tile jumping)
+- Layer-based rendering with Z-level management
 - No jarring teleportation feeling
 
-## Mech Layout
+## Mech Layout (As Implemented)
 
-### Ground Floor (Cargo Bay)
-- 10x10 tile space matching exterior footprint
-- Entry area with 2-tile wide door at bottom center
-- Walled-off resource acceptance area
-- Stairs (2-tile transition) leading to upper floor
-- Mostly open space for future cargo/equipment
+### Layered Floor System
+- All floors exist at same X,Y coordinates (Dwarf Fortress style)
+- Z-levels: Ground (0), Mech Floor 0 (1), Mech Floor 1 (2), Mech Floor 2 (3)
+- Smooth transitions between floors with alpha fading
 
-### Upper Floor (Command Deck)
-- Station positions around the perimeter
-- Windows providing outside visibility
-- Central area for movement
-- Pilot station with enhanced viewing capabilities
+### Ground Floor (Floor 0)
+- 30x20 tile space (FLOOR_WIDTH_TILES x FLOOR_HEIGHT_TILES)
+- Entrance door at center bottom
+- Ladders connecting to upper floors
+- Station positions for basic operations
+
+### Middle Floor (Floor 1)
+- Engineering and support stations
+- Windows providing directional outside visibility
+- Connected via ladders to floors above and below
+
+### Upper Floor (Floor 2)
+- Command deck with pilot station
+- Turret control stations
+- Strategic window placement for visibility
 
 ### Future Considerations
 - Loadable mech layouts from definition files
@@ -46,99 +60,152 @@ Mechs are moving fortresses that players can enter and operate from within. The 
 - Electrical/system routing (inspired by Barotrauma)
 - Damage states affecting interior tiles
 
-### Tile Types
+### Tile Types (Hybrid System)
 
-1. **Structural Tiles**
-   - Wall (opaque, blocks movement/projectiles)
-   - Window (transparent, blocks movement, allows vision)
-   - Floor (walkable base tile)
-   - Door (state-based: open/closed)
+#### Static Tiles (Simple Enums)
+1. **Structural**
+   - `MetalWall` - Blocks movement and vision
+   - `MetalFloor` - Basic walkable surface
+   - `Window { facing: Direction }` - Allows vision in specific direction
+   - `Door` - Can be opened/closed
 
-2. **Transition Tiles**
-   - Entrance (2-tile sequence, triggers interior/exterior transition)
-   - Stairs (2-tile sequence, triggers floor transition)
-   - Ladder (single tile, manual floor change)
+2. **Transitions**
+   - `Ladder` - Connects floors vertically
+   - `TransitionZone` - Entry/exit points
 
-3. **Functional Tiles**
-   - Station (interactive, tied to ship systems)
-   - Resource Dropoff (accepts carried resources)
-   - Power Conduit (future: electrical routing)
-   - Vent (future: atmosphere management)
+3. **Infrastructure**
+   - `PowerConduit` - Future power routing
+   - `DataCable` - Future data connections
 
-4. **World Tiles**
-   - Grass (basic terrain)
-   - Rock (obstacles)
-   - Empty (void/out of bounds)
+#### Entity-Based Tiles (Complex Objects)
+1. **Stations**
+   - Engine Control
+   - Weapon Systems
+   - Shield Generator
+   - Navigation
+   - Turret Control
 
-## Visibility System
+2. **Turrets**
+   - Directional weapons
+   - Damage and fire rate stats
+   - Range limitations
 
-### Raycasting for Line of Sight
-- Cast rays from player position to determine visible tiles
-- Windows allow rays to pass through with attenuation
-- Walls block rays completely
-- Dynamic visibility updates as player moves
+## Visibility System (Implemented)
 
-### Window Vision Mechanics
-- Base visibility radius when inside (e.g., 5 tiles)
-- Extended visibility through windows (e.g., +10 tiles in direction)
-- Visibility cone based on window facing and player angle
-- Multiple windows can overlap visibility areas
+### Raycasting Engine
+```rust
+// From shared/src/vision.rs
+pub fn cast_ray(start: WorldPos, end: WorldPos, tile_map: &TileMap) -> Vec<TilePos>
+```
+- True line-of-sight calculation using DDA algorithm
+- Mech interiors are dark by default (no ambient light)
+- Only tiles with direct line-of-sight are visible
+- Performance optimized with visibility caching
 
-### Rendering Layers
-1. **Base World Layer**: Terrain and exterior tiles
-2. **Mech Exterior Layer**: Mech hulls and external features
-3. **Mech Interior Layer**: Interior tiles (only visible when conditions met)
-4. **Entity Layer**: Players, resources, effects
-5. **UI Layer**: Station interfaces, pilot controls
+### Window Vision Mechanics (Implemented)
+- Windows only provide vision when you can see the window itself
+- Directional cone extends vision outside based on window facing
+- Cone angle: 60 degrees centered on window direction
+- Extended range: 150 units beyond normal vision
+- Multiple windows create overlapping vision areas
 
-## Implementation Phases
+### Vision Constants
+- `BASE_VISION_RANGE`: 100.0 units
+- `WINDOW_VISION_EXTENSION`: 150.0 units
+- `WINDOW_CONE_ANGLE`: 60 degrees
 
-### Phase 1: Unified Tile System
-- Merge WorldTile and MechInteriorTile into single trait-based system
-- Implement basic tile properties and interactions
-- Set up coordinate transformation system
+### Rendering System (As Implemented)
 
-### Phase 2: Basic Interior Navigation
-- Implement mech-relative positioning
-- Add entrance/exit transitions
-- Basic floor switching with stairs
+#### Layer Management
+```rust
+enum LayerType {
+    Ground,         // Z=0: The world outside
+    MechFloor(u8),  // Z=1,2,3: Interior floors
+}
+```
 
-### Phase 3: Visibility System
-- Implement raycasting for interior visibility
-- Add window tiles with vision cones
-- Black fog for non-visible areas
+#### Rendering Order
+1. **Tile Rendering**: Based on current layer with alpha transitions
+2. **Vision Overlay**: Dark tiles outside line-of-sight
+3. **Entity Rendering**: Players, stations, turrets
+4. **UI Elements**: Debug info, controls
 
-### Phase 4: Enhanced Interactions
-- Smooth transition effects
-- Advanced station interactions
-- Resource management improvements
+#### Transition Effects
+- Smooth alpha fade between floors (300ms)
+- Current floor at 100% opacity
+- Other floors fade out based on distance
 
-### Phase 5: Advanced Features
+## Implementation Status
+
+### ✅ Phase 1: Hybrid Tile System (COMPLETE)
+- Implemented `TileContent` enum with Static/Entity variants
+- Basic tile properties working
+- Coordinate systems established
+
+### ✅ Phase 2: Interior Navigation (COMPLETE)
+- Layered floor system implemented
+- Ladder-based floor transitions
+- Continuous movement over tiles
+
+### ✅ Phase 3: Visibility System (COMPLETE)
+- Full raycasting implementation
+- Window vision cones working
+- Dark interiors with proper line-of-sight
+
+### 🚧 Phase 4: Server Integration (IN PROGRESS)
+- Need to integrate with game server
+- Synchronize mech positions
+- Handle multiplayer visibility
+
+### 📋 Phase 5: Advanced Features (FUTURE)
+- Power and wiring systems
+- Damage states
+- Atmospheric simulation
 - Loadable mech layouts
-- Damage and atmosphere systems
-- Electrical routing
 
-## Technical Considerations
+## Technical Implementation Details
 
-### Performance
-- Efficient tile lookup with spatial indexing
-- Visibility calculation caching
-- Only render visible tiles
-- LOD system for distant mechs
+### Performance Optimizations
+- HashMap-based tile storage for O(1) lookups
+- Visibility caching per frame/tick
+- Spatial indexing for entity queries
+- Only visible tiles sent to renderer
 
-### Networking
-- Sync mech positions and interior states
-- Efficient visibility updates
-- Handle player state transitions
+### Key Code Locations
+- **Tile System**: `shared/src/tile_entity.rs`
+- **Vision System**: `shared/src/vision.rs`
+- **Components**: `shared/src/components.rs`
+- **Demo**: `client/src/bin/demo.rs`
+- **Entity Storage**: `server/src/entity_storage.rs`
 
-### Future Extensibility
-- Plugin system for custom tile types
-- Moddable mech layouts
-- Scriptable tile behaviors
-- Integration with damage/atmosphere systems
+### Coordinate Systems
+```rust
+// Tile coordinates (grid-based)
+pub struct TilePos { pub x: i32, pub y: i32 }
 
-## Inspiration Sources
+// World coordinates (pixel-based)
+pub struct WorldPos { pub x: f32, pub y: f32 }
+
+// Conversion
+const TILE_SIZE: f32 = 16.0;
+```
+
+## Running the Demo
+
+```bash
+# Build and run the hybrid tile system demo
+just dev-demo
+# Then open http://localhost:8080/demo.html
+```
+
+### Demo Controls
+- **WASD**: Move player
+- **1/2/3**: Switch between floors
+- **V**: Toggle vision system
+- **Tab**: Cycle current mech layer
+
+## Design Inspirations
+- **Dwarf Fortress**: Z-level layering system
 - **Barotrauma**: Submarine interiors with complex systems
 - **FTL**: Ship management and combat
 - **Space Station 13**: Detailed interior simulation
-- **Lovers in a Dangerous Spacetime**: Cooperative ship operation

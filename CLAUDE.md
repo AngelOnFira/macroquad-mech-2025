@@ -37,6 +37,20 @@ just web-server     # Start web server (in another terminal)
 
 Then open http://localhost:8080 in multiple browser tabs to test multiplayer.
 
+### Hybrid Tile System Demo
+```bash
+# Run the interactive demo showcasing the hybrid tile-entity system
+just dev-demo
+# Then open http://localhost:8080/demo.html
+
+# Demo features:
+# - Layered floor system (1/2/3 keys to switch)
+# - Raycasting vision (V to toggle)
+# - Window mechanics
+# - Station entities
+# - Continuous movement (WASD)
+```
+
 ## Common Development Tasks
 
 ### Using Just Commands
@@ -88,17 +102,26 @@ npm test               # or yarn test / pnpm test
 - `server/` - Axum WebSocket server, authoritative game state
 - `client/` - Macroquad game client (native and WASM)
 - `shared/` - Protocol definitions and shared types
+- `docs/` - Design documents and architecture guides
 
 ### Key Technologies
 - **Networking**: WebSockets (native: `ws`, web: `web-sys`)
 - **Graphics**: Macroquad (works in both native and WASM)
 - **Serialization**: JSON via serde_json
 - **Server**: Axum with tokio async runtime
+- **Tile System**: Hybrid tile-entity approach (see below)
 
 ### Network Protocol
 All messages are JSON-serialized enums defined in `shared/src/messages.rs`:
 - `ClientMessage`: Player inputs, join requests, station controls
 - `ServerMessage`: State updates, events, confirmations
+
+### Hybrid Tile-Entity System
+The game uses a hybrid approach for world representation:
+- **Static Tiles**: Simple enums for walls, floors, windows (90% of tiles)
+- **Entity References**: Complex objects (stations, turrets) use ECS with UUID references
+- **Benefits**: Fast performance for simple tiles, flexibility for complex objects
+- See `docs/HYBRID_TILE_ENTITY_SYSTEM.md` for full details
 
 ## Development Workflow
 
@@ -123,10 +146,16 @@ All messages are JSON-serialized enums defined in `shared/src/messages.rs`:
 - `justfile` - All development commands
 - `shared/src/messages.rs` - Network protocol
 - `shared/src/types.rs` - Game types
+- `shared/src/tile_entity.rs` - Hybrid tile system core
+- `shared/src/vision.rs` - Raycasting vision system
+- `shared/src/components.rs` - ECS components for entities
 - `server/src/game.rs` - Core game logic
+- `server/src/entity_storage.rs` - Entity management system
 - `client/src/main.rs` - Client entry point
 - `client/src/network_web.rs` - WebSocket for browsers
-- `tests/` - Playwright test suite (if exists)
+- `client/src/bin/demo.rs` - Interactive hybrid system demo
+- `docs/HYBRID_TILE_ENTITY_SYSTEM.md` - Tile system documentation
+- `docs/MECH_INTERIOR_DESIGN.md` - Mech interior implementation
 
 ## Debugging Tips
 
@@ -149,11 +178,13 @@ tail -f server.log    # Watch server logs
 
 ## Key Game Mechanics
 
-- **Movement**: WASD keys, grid-based
-- **Mechs**: 3 floors, multiple stations, team-owned
+- **Movement**: WASD keys, continuous movement over tiles
+- **Mechs**: 3 floors (layered Z-levels), multiple stations, team-owned
+- **Vision**: Raycasting with line-of-sight, dark interiors, window mechanics
 - **Resources**: 4 types, used for upgrades/repairs
 - **Combat**: Laser (instant) and projectile weapons
 - **Upgrades**: Improve weapons, shields, engines
+- **Tiles**: Hybrid system with static tiles and entity-based objects
 
 ## WebAssembly Specifics
 
