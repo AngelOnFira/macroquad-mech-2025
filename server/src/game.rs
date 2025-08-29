@@ -497,7 +497,7 @@ impl Game {
             range: 16.0, // 1 tile
             conditions: vec![
                 InteractionCondition::PlayerOnTeam(team),
-                InteractionCondition::PlayerCarrying(ResourceType::Minerals), // Example - could be any
+                InteractionCondition::PlayerCarrying(ResourceType::ScrapMetal), // Example - could be any
             ],
         });
         

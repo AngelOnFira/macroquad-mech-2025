@@ -277,7 +277,7 @@ impl GameSystem for TileBehaviorSystem {
                             // Remove resource from world
                             game.resources.remove(&resource_entity);
                             
-                            messages.push(ServerMessage::ResourcePickedUp {
+                            messages.push(ServerMessage::PlayerPickedUpResource {
                                 player_id: actor,
                                 resource_id: resource_entity,
                                 resource_type,

@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Sender as MpscSender, Receiver};
 use ws::{connect, Handler, Sender as WsSender, Result as WsResult, Message, CloseCode, Handshake};
 use serde_json;
 
@@ -76,7 +76,7 @@ impl DebugConnection {
 
 struct ClientHandler {
     out: WsSender,
-    tx: Sender<DebugMessage>,
+    tx: MpscSender<DebugMessage>,
     connected: Arc<Mutex<bool>>,
 }
 
