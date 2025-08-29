@@ -15,7 +15,7 @@ pub enum TileContent {
 }
 
 // Simple tiles that don't need complex behavior
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum StaticTile {
     // World tiles
     Grass,
@@ -41,14 +41,14 @@ pub enum StaticTile {
     DataCable,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum WindowTint {
     Clear,
     Tinted,
     Darkened,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TransitionType {
     MechEntrance { stage: u8 }, // 0 = first tile, 1 = second tile
     StairUp { stage: u8 },
@@ -175,6 +175,42 @@ pub enum TileEvent {
         pos: TilePos,
         old_tile: TileContent,
         new_tile: TileContent,
+    },
+    // New behavior events
+    ProximityTriggered {
+        entity: Uuid,
+        actor: Uuid,
+        distance: f32,
+    },
+    ResourcePickedUp {
+        resource_entity: Uuid,
+        actor: Uuid,
+        resource_type: crate::ResourceType,
+    },
+    InteractionStarted {
+        entity: Uuid,
+        actor: Uuid,
+        interaction_type: String,
+    },
+    ShowInteractionPrompt {
+        entity: Uuid,
+        actor: Uuid,
+        prompt: String,
+    },
+    AutoInteractionTriggered {
+        entity: Uuid,
+        actor: Uuid,
+        action: crate::components::AutoInteractionType,
+    },
+    MechEntered {
+        mech_id: Uuid,
+        actor: Uuid,
+        floor: u8,
+    },
+    ResourceDropped {
+        actor: Uuid,
+        resource_type: crate::ResourceType,
+        position: TilePos,
     },
 }
 

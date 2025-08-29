@@ -3,6 +3,7 @@ pub mod combat;
 pub mod resource;
 pub mod networking;
 pub mod ai;
+pub mod tile_behavior;
 
 use crate::game::Game;
 use shared::ServerMessage;
@@ -42,6 +43,7 @@ impl SystemManager {
         };
         
         // Register default systems in order of execution
+        manager.register_system(Box::new(tile_behavior::TileBehaviorSystem::new()));
         manager.register_system(Box::new(physics::PhysicsSystem::new()));
         manager.register_system(Box::new(combat::CombatSystem::new()));
         manager.register_system(Box::new(resource::ResourceSystem::new()));

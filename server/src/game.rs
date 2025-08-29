@@ -398,8 +398,114 @@ impl Game {
         }
     }
     
+    pub fn spawn_resource_with_behavior(&mut self, position: TilePos, resource_type: ResourceType) -> Uuid {
+        use shared::components::*;
+        
+        // Create the entity
+        let entity_id = self.entity_storage.create_entity(format!("Resource_{:?}", resource_type));
+        
+        // Add position
+        self.entity_storage.add_position(entity_id, Position {
+            tile: position,
+            world: position.to_world_pos(),
+            floor: None,
+            mech_id: None,
+        });
+        
+        // Add resource pickup behavior
+        self.entity_storage.resource_pickups.insert(entity_id, ResourcePickup {
+            resource_type,
+            auto_pickup: true,
+            pickup_range: 24.0, // 1.5 tiles
+            respawn_time: Some(30.0), // Respawn after 30 seconds
+        });
+        
+        // Add proximity trigger for visual feedback
+        self.entity_storage.proximity_triggers.insert(entity_id, ProximityTrigger {
+            range: 32.0, // 2 tiles
+            trigger_for_teams: None, // All teams
+            cooldown: 0.5,
+            last_triggered: HashMap::new(),
+        });
+        
+        // Add to tile map
+        self.tile_map.set_entity_tile(position, entity_id);
+        
+        // Also add to legacy resource system for now
+        self.resources.insert(entity_id, Resource {
+            id: entity_id,
+            position,
+            resource_type,
+        });
+        
+        entity_id
+    }
     
-
+    pub fn spawn_mech_entrance(&mut self, position: TilePos, mech_id: Uuid, team: TeamId) -> Uuid {
+        use shared::components::*;
+        
+        // Create the entity
+        let entity_id = self.entity_storage.create_entity("MechEntrance".to_string());
+        
+        // Add position
+        self.entity_storage.add_position(entity_id, Position {
+            tile: position,
+            world: position.to_world_pos(),
+            floor: None,
+            mech_id: None,
+        });
+        
+        // Add mech entrance behavior
+        self.entity_storage.mech_entrances.insert(entity_id, MechEntrance {
+            mech_id,
+            target_floor: 0,
+            entry_position: WorldPos::new(24.0, 40.0), // Center of first floor
+            team_restricted: Some(team),
+        });
+        
+        // Add proximity trigger for UI prompt
+        self.entity_storage.proximity_triggers.insert(entity_id, ProximityTrigger {
+            range: 16.0, // 1 tile
+            trigger_for_teams: Some(vec![team]),
+            cooldown: 0.1,
+            last_triggered: HashMap::new(),
+        });
+        
+        // Add to tile map
+        self.tile_map.set_entity_tile(position, entity_id);
+        
+        entity_id
+    }
+    
+    pub fn spawn_resource_dropoff(&mut self, position: TilePos, mech_id: Uuid, team: TeamId) -> Uuid {
+        use shared::components::*;
+        
+        // Create the entity
+        let entity_id = self.entity_storage.create_entity("ResourceDropoff".to_string());
+        
+        // Add position
+        self.entity_storage.add_position(entity_id, Position {
+            tile: position,
+            world: position.to_world_pos(),
+            floor: None,
+            mech_id: None,
+        });
+        
+        // Add auto-interact for resource dropping
+        self.entity_storage.auto_interacts.insert(entity_id, AutoInteract {
+            interaction_type: AutoInteractionType::DropResource,
+            range: 16.0, // 1 tile
+            conditions: vec![
+                InteractionCondition::PlayerOnTeam(team),
+                InteractionCondition::PlayerCarrying(ResourceType::Minerals), // Example - could be any
+            ],
+        });
+        
+        // Add to tile map
+        self.tile_map.set_entity_tile(position, entity_id);
+        
+        entity_id
+    }
 
     pub fn spawn_initial_resources(&mut self) {
         let resource_spawns = vec![

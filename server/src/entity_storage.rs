@@ -23,6 +23,12 @@ pub struct EntityStorage {
     resource_storages: HashMap<Uuid, ResourceStorage>,
     scriptables: HashMap<Uuid, Scriptable>,
     
+    // Tile behavior components
+    pub proximity_triggers: HashMap<Uuid, ProximityTrigger>,
+    pub resource_pickups: HashMap<Uuid, ResourcePickup>,
+    pub mech_entrances: HashMap<Uuid, MechEntrance>,
+    pub auto_interacts: HashMap<Uuid, AutoInteract>,
+    
     // Entity tracking
     entities: HashMap<Uuid, EntityInfo>,
     
@@ -55,6 +61,10 @@ impl EntityStorage {
             oxygen_producers: HashMap::new(),
             resource_storages: HashMap::new(),
             scriptables: HashMap::new(),
+            proximity_triggers: HashMap::new(),
+            resource_pickups: HashMap::new(),
+            mech_entrances: HashMap::new(),
+            auto_interacts: HashMap::new(),
             entities: HashMap::new(),
             entities_by_position: HashMap::new(),
             entities_by_mech: HashMap::new(),
@@ -121,6 +131,18 @@ impl EntityStorage {
         if let Some(scriptable) = &template.components.scriptable {
             self.scriptables.insert(entity_id, scriptable.clone());
         }
+        if let Some(proximity_trigger) = &template.components.proximity_trigger {
+            self.proximity_triggers.insert(entity_id, proximity_trigger.clone());
+        }
+        if let Some(resource_pickup) = &template.components.resource_pickup {
+            self.resource_pickups.insert(entity_id, resource_pickup.clone());
+        }
+        if let Some(mech_entrance) = &template.components.mech_entrance {
+            self.mech_entrances.insert(entity_id, mech_entrance.clone());
+        }
+        if let Some(auto_interact) = &template.components.auto_interact {
+            self.auto_interacts.insert(entity_id, auto_interact.clone());
+        }
         
         entity_id
     }
@@ -152,6 +174,10 @@ impl EntityStorage {
         self.oxygen_producers.remove(&entity_id);
         self.resource_storages.remove(&entity_id);
         self.scriptables.remove(&entity_id);
+        self.proximity_triggers.remove(&entity_id);
+        self.resource_pickups.remove(&entity_id);
+        self.mech_entrances.remove(&entity_id);
+        self.auto_interacts.remove(&entity_id);
         
         self.entities.remove(&entity_id);
     }
@@ -160,7 +186,7 @@ impl EntityStorage {
     // Position Management with Spatial Indexing
     // =============================================================================
     
-    fn add_position(&mut self, entity_id: Uuid, position: Position) {
+    pub fn add_position(&mut self, entity_id: Uuid, position: Position) {
         // Update spatial indices
         self.entities_by_position
             .entry(position.tile)

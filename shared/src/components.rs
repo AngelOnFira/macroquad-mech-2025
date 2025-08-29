@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use crate::{TilePos, WorldPos, StationType, ResourceType};
+use crate::{TilePos, WorldPos, StationType, ResourceType, TeamId};
 
 // =============================================================================
 // Position and Spatial Components
@@ -185,6 +185,57 @@ pub struct Scriptable {
 }
 
 // =============================================================================
+// Tile Behavior Components
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProximityTrigger {
+    pub range: f32,
+    pub trigger_for_teams: Option<Vec<TeamId>>,
+    pub cooldown: f32,
+    pub last_triggered: HashMap<Uuid, f32>, // actor_id -> last trigger time
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourcePickup {
+    pub resource_type: ResourceType,
+    pub auto_pickup: bool,
+    pub pickup_range: f32,
+    pub respawn_time: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MechEntrance {
+    pub mech_id: Uuid,
+    pub target_floor: u8,
+    pub entry_position: WorldPos,
+    pub team_restricted: Option<TeamId>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoInteract {
+    pub interaction_type: AutoInteractionType,
+    pub range: f32,
+    pub conditions: Vec<InteractionCondition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AutoInteractionType {
+    PickupResource,
+    EnterMech,
+    ActivateStation,
+    DropResource,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum InteractionCondition {
+    PlayerNotCarrying,
+    PlayerCarrying(ResourceType),
+    PlayerOnTeam(TeamId),
+    PlayerOperatingStation(bool),
+}
+
+// =============================================================================
 // Entity Definition for Spawning
 // =============================================================================
 
@@ -210,6 +261,11 @@ pub struct EntityComponents {
     pub oxygen_producer: Option<OxygenProducer>,
     pub resource_storage: Option<ResourceStorage>,
     pub scriptable: Option<Scriptable>,
+    // Tile behavior components
+    pub proximity_trigger: Option<ProximityTrigger>,
+    pub resource_pickup: Option<ResourcePickup>,
+    pub mech_entrance: Option<MechEntrance>,
+    pub auto_interact: Option<AutoInteract>,
 }
 
 // =============================================================================
