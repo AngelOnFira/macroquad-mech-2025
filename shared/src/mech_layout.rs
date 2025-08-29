@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use uuid::Uuid;
-use crate::{TilePos, StationType, MechInteriorTile, FLOOR_WIDTH_TILES, FLOOR_HEIGHT_TILES, MECH_FLOORS, uuid_gen::new_uuid};
+use crate::{TilePos, StationType, FLOOR_WIDTH_TILES, FLOOR_HEIGHT_TILES, MECH_FLOORS, uuid_gen::new_uuid};
 use crate::balance::STATION_POSITIONS;
+use crate::tile_entity::{TileContent, StaticTile};
 
 /// Layout of a single floor in a mech
 #[derive(Clone, Debug)]
 pub struct FloorLayout {
-    pub tiles: Vec<Vec<MechInteriorTile>>,
+    pub tiles: Vec<Vec<TileContent>>,
     pub ladders: Vec<TilePos>,
 }
 
@@ -35,7 +36,7 @@ impl MechLayoutGenerator {
         let mut floors = Vec::new();
 
         for floor_idx in 0..MECH_FLOORS {
-            let mut tiles = vec![vec![MechInteriorTile::Empty; FLOOR_WIDTH_TILES as usize]; FLOOR_HEIGHT_TILES as usize];
+            let mut tiles = vec![vec![TileContent::Empty; FLOOR_WIDTH_TILES as usize]; FLOOR_HEIGHT_TILES as usize];
             let mut ladders = Vec::new();
 
             // Create walls and floors
@@ -56,38 +57,45 @@ impl MechLayoutGenerator {
     }
     
     /// Generate basic floor layout with walls and floors
-    fn generate_basic_floor_layout(tiles: &mut Vec<Vec<MechInteriorTile>>) {
+    fn generate_basic_floor_layout(tiles: &mut Vec<Vec<TileContent>>) {
         for y in 0..FLOOR_HEIGHT_TILES {
             for x in 0..FLOOR_WIDTH_TILES {
                 if x == 0 || x == FLOOR_WIDTH_TILES - 1 || y == 0 || y == FLOOR_HEIGHT_TILES - 1 {
-                    tiles[y as usize][x as usize] = MechInteriorTile::Wall;
+                    tiles[y as usize][x as usize] = TileContent::Static(StaticTile::MetalWall);
                 } else {
-                    tiles[y as usize][x as usize] = MechInteriorTile::Floor;
+                    tiles[y as usize][x as usize] = TileContent::Static(StaticTile::MetalFloor);
                 }
             }
         }
     }
     
     /// Add ladders to connect floors
-    fn add_ladders_to_floor(tiles: &mut Vec<Vec<MechInteriorTile>>, ladders: &mut Vec<TilePos>) {
+    fn add_ladders_to_floor(tiles: &mut Vec<Vec<TileContent>>, ladders: &mut Vec<TilePos>) {
         let ladder1 = TilePos::new(2, 2);
         let ladder2 = TilePos::new(FLOOR_WIDTH_TILES - 3, FLOOR_HEIGHT_TILES - 3);
-        tiles[ladder1.y as usize][ladder1.x as usize] = MechInteriorTile::Ladder;
-        tiles[ladder2.y as usize][ladder2.x as usize] = MechInteriorTile::Ladder;
+        tiles[ladder1.y as usize][ladder1.x as usize] = TileContent::Static(StaticTile::TransitionZone {
+            zone_id: 0,
+            transition_type: crate::tile_entity::TransitionType::Ladder,
+        });
+        tiles[ladder2.y as usize][ladder2.x as usize] = TileContent::Static(StaticTile::TransitionZone {
+            zone_id: 1,
+            transition_type: crate::tile_entity::TransitionType::Ladder,
+        });
         ladders.push(ladder1);
         ladders.push(ladder2);
     }
     
     /// Add stations to a specific floor
     fn add_stations_to_floor(
-        tiles: &mut Vec<Vec<MechInteriorTile>>, 
+        tiles: &mut Vec<Vec<TileContent>>, 
         stations: &mut HashMap<Uuid, MechStation>, 
         floor_idx: usize
     ) {
         let floor_stations = Self::get_stations_for_floor(floor_idx);
 
         for (pos, station_type) in floor_stations {
-            tiles[pos.y as usize][pos.x as usize] = MechInteriorTile::Station(station_type);
+            // Mark station tile as empty for now - actual entity will be created elsewhere
+            tiles[pos.y as usize][pos.x as usize] = TileContent::Empty;
             let station = MechStation {
                 id: new_uuid(),
                 station_type,
@@ -126,7 +134,7 @@ impl MechLayoutGenerator {
         height: i32, 
         station_configs: Vec<(TilePos, StationType)>
     ) -> (FloorLayout, HashMap<Uuid, MechStation>) {
-        let mut tiles = vec![vec![MechInteriorTile::Empty; width as usize]; height as usize];
+        let mut tiles = vec![vec![TileContent::Empty; width as usize]; height as usize];
         let mut stations = HashMap::new();
         let ladders = Vec::new();
         
@@ -134,9 +142,9 @@ impl MechLayoutGenerator {
         for y in 0..height {
             for x in 0..width {
                 if x == 0 || x == width - 1 || y == 0 || y == height - 1 {
-                    tiles[y as usize][x as usize] = MechInteriorTile::Wall;
+                    tiles[y as usize][x as usize] = TileContent::Static(StaticTile::MetalWall);
                 } else {
-                    tiles[y as usize][x as usize] = MechInteriorTile::Floor;
+                    tiles[y as usize][x as usize] = TileContent::Static(StaticTile::MetalFloor);
                 }
             }
         }
@@ -144,7 +152,8 @@ impl MechLayoutGenerator {
         // Add custom stations
         for (pos, station_type) in station_configs {
             if pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height {
-                tiles[pos.y as usize][pos.x as usize] = MechInteriorTile::Station(station_type);
+                // Mark station tile as empty for now - actual entity will be created elsewhere
+            tiles[pos.y as usize][pos.x as usize] = TileContent::Empty;
                 let station = MechStation {
                     id: new_uuid(),
                     station_type,
@@ -169,13 +178,14 @@ impl FloorLayout {
         
         let tile = &self.tiles[pos.y as usize][pos.x as usize];
         match tile {
-            MechInteriorTile::Wall | MechInteriorTile::Empty => false,
-            _ => true,
+            TileContent::Empty => true,
+            TileContent::Static(static_tile) => static_tile.is_walkable(),
+            TileContent::Entity(_) => false,
         }
     }
     
     /// Get the tile type at a position
-    pub fn get_tile(&self, pos: TilePos) -> Option<&MechInteriorTile> {
+    pub fn get_tile(&self, pos: TilePos) -> Option<&TileContent> {
         if pos.x < 0 || pos.x >= FLOOR_WIDTH_TILES || pos.y < 0 || pos.y >= FLOOR_HEIGHT_TILES {
             return None;
         }
@@ -240,7 +250,9 @@ mod tests {
         assert_eq!(floor.tiles[0].len(), 10);
         
         // Check stations are placed correctly
-        assert_eq!(floor.get_tile(TilePos::new(2, 2)), Some(&MechInteriorTile::Station(StationType::Engine)));
-        assert_eq!(floor.get_tile(TilePos::new(4, 4)), Some(&MechInteriorTile::Station(StationType::WeaponLaser)));
+        // Note: With the new hybrid system, stations are entities, not tiles
+        // The tile at station positions should be empty or floor
+        assert!(matches!(floor.get_tile(TilePos::new(2, 2)), Some(TileContent::Empty)));
+        assert!(matches!(floor.get_tile(TilePos::new(4, 4)), Some(TileContent::Empty)));
     }
 }

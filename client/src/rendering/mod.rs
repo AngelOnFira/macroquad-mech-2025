@@ -37,7 +37,7 @@ impl Renderer {
                 }
                 PlayerLocation::InsideMech { mech_id, floor, .. } => {
                     if let Some(mech) = game_state.mechs.get(&mech_id) {
-                        mech_interior::render_mech_interior(mech, floor, cam_x, cam_y);
+                        mech_interior::render_mech_interior(game_state, mech, floor, cam_x, cam_y);
                         mech_interior::render_stations_on_floor(game_state, mech_id, floor);
                         mech_interior::render_players_on_floor(game_state, mech_id, floor, cam_x, cam_y);
                     }
@@ -78,7 +78,7 @@ impl Renderer {
             }
             PlayerLocation::InsideMech { mech_id, floor, .. } => {
                 if let Some(mech) = game_state.mechs.get(&mech_id) {
-                    mech_interior::render_mech_interior(mech, *floor, cam_x, cam_y);
+                    mech_interior::render_mech_interior(game_state, mech, *floor, cam_x, cam_y);
                     mech_interior::render_stations_on_floor(game_state, *mech_id, *floor);
                     mech_interior::render_players_on_floor(game_state, *mech_id, *floor, cam_x, cam_y);
                 }
@@ -104,7 +104,7 @@ impl Renderer {
                 }
                 PlayerLocation::InsideMech { mech_id, floor, .. } => {
                     if let Some(mech) = game_state.mechs.get(&mech_id) {
-                        mech_interior::render_mech_interior(mech, *floor, cam_x, cam_y);
+                        mech_interior::render_mech_interior(game_state, mech, *floor, cam_x, cam_y);
                         mech_interior::render_stations_on_floor(game_state, *mech_id, *floor);
                         mech_interior::render_players_on_floor(game_state, *mech_id, *floor, cam_x, cam_y);
                     }

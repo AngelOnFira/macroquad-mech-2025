@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use crate::types::*;
+use crate::tile_entity::TileVisual;
 use uuid::Uuid;
 use std::collections::HashMap;
 
@@ -149,6 +150,19 @@ pub enum ServerMessage {
         player_id: Uuid,
         killer: Option<Uuid>, // None if killed by environment (like being run over)
         respawn_position: WorldPos,
+    },
+    
+    // Tile Updates
+    TileUpdate {
+        position: TilePos,
+        visual: TileVisual,
+    },
+    TileBatch {
+        tiles: Vec<(TilePos, TileVisual)>,
+    },
+    VisibilityUpdate {
+        visible_tiles: Vec<(TilePos, TileVisual)>,
+        player_position: WorldPos,
     },
     
     // Errors

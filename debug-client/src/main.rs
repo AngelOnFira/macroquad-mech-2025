@@ -59,7 +59,7 @@ impl Default for AIDebugApp {
             show_communication_graph: true,
             show_decision_timeline: true,
             show_performance_metrics: true,
-            server_address: "ws://127.0.0.1:14191/debug".to_string(),
+            server_address: "ws://0.0.0.0:14191/debug".to_string(),
             connection_status: ConnectionStatus::Disconnected,
         }
     }

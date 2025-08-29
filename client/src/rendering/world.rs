@@ -107,29 +107,37 @@ fn render_mechs(game_state: &GameState, cam_x: f32, cam_y: f32) {
 }
 
 fn render_world_tiles(game_state: &GameState, cam_x: f32, cam_y: f32) {
-    // Only render special tiles (doors, drop-offs, etc.)
-    // The server needs to send us the world tile data for this to work properly
+    // Render visible tiles sent from server
+    for (tile_pos, tile_visual) in &game_state.visible_tiles {
+        let tile_x = cam_x + tile_pos.x as f32 * TILE_SIZE;
+        let tile_y = cam_y + tile_pos.y as f32 * TILE_SIZE;
+        
+        super::hybrid_tiles::render_tile_visual(tile_visual, tile_x, tile_y, TILE_SIZE);
+    }
     
-    // For now, we'll render based on known mech positions
-    for mech in game_state.mechs.values() {
-        let team_color = get_team_color(mech.team);
-        
-        // Render door tiles at bottom center of mech - 2 blocks wide
-        let door_x1 = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
-        let door_x2 = mech.position.x + (MECH_SIZE_TILES / 2);
-        let door_y = mech.position.y + MECH_SIZE_TILES - 1;
-        render_door_tile(door_x1, door_y, team_color, cam_x, cam_y);
-        render_door_tile(door_x2, door_y, team_color, cam_x, cam_y);
-        
-        // Render resource drop-off tiles on top of the mech
-        let dropoff_x = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
-        let dropoff_y = mech.position.y;
-        
-        // 3x3 drop-off zone on the roof
-        for dy in 0..3 {
-            for dx in 0..3 {
-                let is_center = dx == 1 && dy == 1;
-                render_dropoff_tile(dropoff_x + dx, dropoff_y + dy, team_color, is_center, cam_x, cam_y);
+    // Still render mech-related tiles for now as fallback
+    // TODO: Remove once server sends all tiles
+    if game_state.visible_tiles.is_empty() {
+        for mech in game_state.mechs.values() {
+            let team_color = get_team_color(mech.team);
+            
+            // Render door tiles at bottom center of mech - 2 blocks wide
+            let door_x1 = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
+            let door_x2 = mech.position.x + (MECH_SIZE_TILES / 2);
+            let door_y = mech.position.y + MECH_SIZE_TILES - 1;
+            render_door_tile(door_x1, door_y, team_color, cam_x, cam_y);
+            render_door_tile(door_x2, door_y, team_color, cam_x, cam_y);
+            
+            // Render resource drop-off tiles on top of the mech
+            let dropoff_x = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
+            let dropoff_y = mech.position.y;
+            
+            // 3x3 drop-off zone on the roof
+            for dy in 0..3 {
+                for dx in 0..3 {
+                    let is_center = dx == 1 && dy == 1;
+                    render_dropoff_tile(dropoff_x + dx, dropoff_y + dy, team_color, is_center, cam_x, cam_y);
+                }
             }
         }
     }

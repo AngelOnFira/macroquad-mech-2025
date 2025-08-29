@@ -1,34 +1,31 @@
+use anyhow::Result;
 use axum::{
-    extract::{ws::WebSocket, State, WebSocketUpgrade, Query, Path},
+    extract::{ws::WebSocket, Path, Query, State, WebSocketUpgrade},
     response::IntoResponse,
     routing::{get, post},
-    Router, Json,
+    Json, Router,
 };
-use std::{
-    net::SocketAddr,
-    sync::Arc,
-};
+use futures::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
+use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{broadcast, RwLock};
 use tower::ServiceBuilder;
 use uuid::Uuid;
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use futures::{SinkExt, StreamExt};
 
 use shared::*;
 
-mod game;
 mod client;
-mod physics;
 mod commands;
+mod entity_storage;
+mod game;
+mod hybrid_integration;
 mod movement;
+mod physics;
 mod spatial_collision;
 mod systems;
-mod entity_storage;
-mod hybrid_integration;
 
-use game::Game;
 use client::handle_client;
+use game::Game;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -93,9 +90,9 @@ async fn main() -> Result<()> {
         .with_state(app_state);
 
     // Run it
-    let addr = SocketAddr::from(([127, 0, 0, 1], SERVER_PORT));
+    let addr = SocketAddr::from(([0, 0, 0, 0], SERVER_PORT));
     log::info!("Server listening on {}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
@@ -122,21 +119,22 @@ async fn add_ai_player(
     Json(request): Json<AddAIRequest>,
 ) -> Result<Json<AddAIResponse>, &'static str> {
     let difficulty = request.difficulty.unwrap_or(0.5).clamp(0.0, 1.0);
-    
+
     // Parse personality
-    let personality = request.personality.as_ref().and_then(|p| {
-        match p.to_lowercase().as_str() {
+    let personality = request
+        .personality
+        .as_ref()
+        .and_then(|p| match p.to_lowercase().as_str() {
             "aggressive" => Some(ai::Personality::Aggressive),
             "defensive" => Some(ai::Personality::Defensive),
             "support" => Some(ai::Personality::Support),
             "balanced" => Some(ai::Personality::Balanced),
             _ => None,
-        }
-    });
-    
+        });
+
     // Add AI player to the game
     let mut game = state.game.write().await;
-    
+
     if let Some(ai_id) = game.add_ai_player(difficulty, personality) {
         // Get player info for response
         if let Some(player) = game.players.get(&ai_id) {
@@ -145,11 +143,11 @@ async fn add_ai_player(
                 name: player.name.clone(),
                 team: player.team,
             };
-            
+
             // Broadcast game state update
             let game_state = game.get_full_state();
             let _ = state.tx.send((Uuid::nil(), game_state));
-            
+
             Ok(Json(response))
         } else {
             Err("Failed to retrieve AI player info")
@@ -213,7 +211,7 @@ mod game_loop {
             interval.tick().await;
 
             let mut game = game.write().await;
-            
+
             // Update physics
             game.update_physics(FRAME_DELTA_SECONDS);
 
@@ -223,7 +221,10 @@ mod game_loop {
 
             // Update projectiles
             game.update_projectiles(FRAME_DELTA_SECONDS, &tx);
-            
+
+            // Calculate and send visibility updates for each player
+            game.update_player_visibility(&tx);
+
             // Update mechs and check for player deaths
             let messages = game.update(FRAME_DELTA_SECONDS);
             for msg in messages {
@@ -231,7 +232,8 @@ mod game_loop {
             }
 
             // Send periodic full state updates
-            if game.tick_count % STATE_UPDATE_INTERVAL == 0 { // Every second
+            if game.tick_count % STATE_UPDATE_INTERVAL == 0 {
+                // Every second
                 let state_msg = game.get_full_state();
                 let _ = tx.send((Uuid::nil(), state_msg));
             }
@@ -250,12 +252,12 @@ async fn debug_websocket_handler(
 async fn handle_debug_socket(mut socket: WebSocket, state: AppState) {
     use axum::extract::ws::Message;
     use futures::{SinkExt, StreamExt};
-    
+
     // For now, just send periodic game state updates
     let mut rx = state.tx.subscribe();
-    
+
     let (mut sender, mut receiver) = socket.split();
-    
+
     // Spawn task to handle incoming debug commands
     let game = state.game.clone();
     tokio::spawn(async move {
@@ -266,7 +268,7 @@ async fn handle_debug_socket(mut socket: WebSocket, state: AppState) {
             }
         }
     });
-    
+
     // Send game updates to debug client
     while let Ok((_, msg)) = rx.recv().await {
         if let Ok(json) = serde_json::to_string(&msg) {
@@ -282,12 +284,12 @@ async fn get_ai_debug_info(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, &'static str> {
     let game = state.game.read().await;
-    
+
     // Check if AI exists
     if !game.get_ai_players().contains(&ai_id) {
         return Err("AI not found");
     }
-    
+
     Ok(Json(serde_json::json!({
         "ai_id": ai_id,
         "message": "Debug info would go here",

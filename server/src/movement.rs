@@ -1,6 +1,7 @@
 use tokio::sync::broadcast;
 use uuid::Uuid;
 use shared::*;
+use shared::tile_entity::{TileContent, StaticTile, TileEvent, TransitionType};
 use crate::game::Game;
 
 /// Handle all player movement logic
@@ -46,65 +47,108 @@ async fn handle_outside_world_movement(
     
     // Get the tile at the new position
     let tile_pos = new_pos.to_tile_pos();
-    if let Some(world_tile) = game.get_world_tile(tile_pos.x, tile_pos.y) {
-        let tile_properties = world_tile.properties();
+    if let Some(tile_content) = game.tile_map.get_world_tile(tile_pos) {
+        let is_walkable = match tile_content {
+            TileContent::Empty => true,
+            TileContent::Static(static_tile) => static_tile.is_walkable(),
+            TileContent::Entity(_) => {
+                // TODO: Check entity properties
+                false
+            }
+        };
         
         // Check if tile is walkable
-        if !tile_properties.walkable {
+        if !is_walkable {
             return;
         }
         
-        // Don't check mech collision if we're on a door or drop-off tile
-        let skip_mech_collision = matches!(world_tile, WorldTile::MechDoor { .. } | WorldTile::ResourceDropoff { .. });
-        if !skip_mech_collision && has_mech_collision(game, new_pos) {
+        // Check for mech collision unless on special tiles
+        let is_transition = matches!(tile_content, TileContent::Static(StaticTile::TransitionZone { .. }));
+        if !is_transition && has_mech_collision(game, new_pos) {
             return;
         }
         
-        // Handle tile interaction
-        match &tile_properties.interaction {
-            TileInteraction::EnterMech { mech_id } => {
-                // Only enter if it's the player's team mech
-                if let Some(mech) = game.mechs.get(mech_id) {
-                    if mech.team == player_team {
-                        let entry_location = PlayerLocation::InsideMech {
-                            mech_id: *mech_id,
-                            floor: 0,
-                            pos: WorldPos::new(1.5 * TILE_SIZE, (FLOOR_HEIGHT_TILES as f32 / 2.0) * TILE_SIZE),
-                        };
-                        update_player_location(game, player_id, entry_location, tx).await;
-                        return;
+        // Handle tile interactions
+        if let TileContent::Static(static_tile) = tile_content {
+            if let Some(event) = static_tile.on_enter(player_id) {
+                match event {
+                    TileEvent::BeginTransition { actor: _, zone_id: _, transition_type } => {
+                        match transition_type {
+                            TransitionType::MechEntrance { stage } => {
+                                if stage == 1 {
+                                    // Find which mech we're entering
+                                    for (mech_id, mech) in &game.mechs {
+                                        let door_y = mech.position.y + MECH_SIZE_TILES - 1;
+                                        let door_x1 = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
+                                        let door_x2 = mech.position.x + (MECH_SIZE_TILES / 2);
+                                        
+                                        if tile_pos.y == door_y && (tile_pos.x == door_x1 || tile_pos.x == door_x2) {
+                                            if mech.team == player_team {
+                                                let entry_location = PlayerLocation::InsideMech {
+                                                    mech_id: *mech_id,
+                                                    floor: 0,
+                                                    pos: WorldPos::new(1.5 * TILE_SIZE, (FLOOR_HEIGHT_TILES as f32 / 2.0) * TILE_SIZE),
+                                                };
+                                                update_player_location(game, player_id, entry_location, tx).await;
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {} // Other transition types
+                        }
                     }
+                    _ => {} // Other events
                 }
             }
-            TileInteraction::DropResource { mech_id } => {
-                // Handle resource drop-off immediately
+        }
+        
+        // Handle cargo floor resource drop-off
+        if matches!(tile_content, TileContent::Static(StaticTile::CargoFloor { .. })) {
+            // Check if this is on top of a mech
+            let mut found_mech = None;
+            for (mech_id, mech) in &game.mechs {
+                let dropoff_x = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
+                let dropoff_y = mech.position.y;
+                
+                if tile_pos.x >= dropoff_x && tile_pos.x < dropoff_x + 3 &&
+                   tile_pos.y >= dropoff_y && tile_pos.y < dropoff_y + 3 {
+                    found_mech = Some((*mech_id, mech.team));
+                    break;
+                }
+            }
+            
+            if let Some((mech_id, mech_team)) = found_mech {
                 if let Some(resource_type) = game.players.get(&player_id)
                     .and_then(|p| p.carrying_resource) {
                     
-                    if let Some(mech) = game.mechs.get_mut(mech_id) {
-                        if mech.team == player_team {
-                            // Add resource to mech inventory
+                    if mech_team == player_team {
+                        // Add resource to mech inventory
+                        if let Some(mech) = game.mechs.get_mut(&mech_id) {
                             *mech.resource_inventory.entry(resource_type).or_insert(0) += 1;
-                            
-                            // Remove from player
-                            if let Some(player) = game.players.get_mut(&player_id) {
-                                player.carrying_resource = None;
-                            }
-                            
-                            // Notify clients
-                            let _ = tx.send((Uuid::nil(), ServerMessage::PlayerDroppedResource {
-                                player_id,
-                                resource_type,
-                                position: tile_pos,
-                            }));
-                            
-                            log::info!("Player {} dropped {} on mech", player_id, resource_type as u8);
                         }
+                        
+                        // Remove from player
+                        if let Some(player) = game.players.get_mut(&player_id) {
+                            player.carrying_resource = None;
+                        }
+                        
+                        // Notify clients
+                        let _ = tx.send((Uuid::nil(), ServerMessage::PlayerDroppedResource {
+                            player_id,
+                            resource_type,
+                            position: tile_pos,
+                        }));
+                        
+                        log::info!("Player {} dropped {} on mech", player_id, resource_type as u8);
                     }
                 }
             }
-            _ => {} // No interaction
         }
+    } else {
+        // No tile at position, can't move there
+        return;
     }
     
     // Normal movement
@@ -122,12 +166,6 @@ async fn handle_inside_mech_movement(
     movement: (f32, f32),
     tx: &broadcast::Sender<(Uuid, ServerMessage)>,
 ) {
-    // Get mech interior info
-    let floor_layout = match get_mech_floor_layout(game, mech_id, current_floor) {
-        Some(layout) => layout,
-        None => return,
-    };
-    
     let new_pos = calculate_new_world_position(current_pos, movement);
     
     if !is_mech_position_valid(new_pos) {
@@ -139,17 +177,7 @@ async fn handle_inside_mech_movement(
         return;
     }
     
-    let tile = floor_layout.tiles[tile_pos.y as usize][tile_pos.x as usize];
-    if !is_tile_walkable(tile) {
-        return;
-    }
-    
     let mut floor = current_floor;
-    
-    // Handle ladder interaction
-    if tile == MechInteriorTile::Ladder {
-        floor = handle_ladder_interaction(current_pos, new_pos, movement, current_floor);
-    }
     
     let new_location = PlayerLocation::InsideMech { 
         mech_id, 
@@ -187,8 +215,12 @@ fn is_tile_position_valid_for_floor(tile_pos: TilePos) -> bool {
 }
 
 /// Check if a tile type is walkable
-fn is_tile_walkable(tile: MechInteriorTile) -> bool {
-    tile != MechInteriorTile::Wall && tile != MechInteriorTile::Empty
+fn is_tile_walkable(tile_content: &TileContent) -> bool {
+    match tile_content {
+        TileContent::Empty => true,
+        TileContent::Static(static_tile) => static_tile.is_walkable(),
+        TileContent::Entity(_) => false, // Entities block movement
+    }
 }
 
 /// Check for collision with mechs in the world
@@ -225,12 +257,6 @@ fn check_mech_entry(game: &Game, pos: WorldPos, player_team: TeamId) -> Option<P
     None
 }
 
-/// Get floor layout for a mech
-fn get_mech_floor_layout(game: &Game, mech_id: Uuid, floor: u8) -> Option<FloorLayout> {
-    game.mechs.get(&mech_id)
-        .and_then(|m| m.interior.floors.get(floor as usize))
-        .cloned()
-}
 
 /// Handle ladder interaction for floor changes
 fn handle_ladder_interaction(

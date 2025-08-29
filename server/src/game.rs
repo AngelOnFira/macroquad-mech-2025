@@ -3,11 +3,15 @@ use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use shared::*;
+use shared::tile_entity::{TileMap, TileContent, StaticTile, TransitionType, TileVisual, Material};
+use shared::vision::VisionSystem;
+use shared::components::{Position, Station};
 use shared::mech_layout::MechLayoutGenerator;
 use shared::stations::StationRegistry;
 use shared::object_pool::PoolManager;
 use crate::spatial_collision::SpatialCollisionManager;
 use crate::systems::SystemManager;
+use crate::entity_storage::EntityStorage;
 
 pub struct Game {
     pub players: HashMap<Uuid, Player>,
@@ -20,7 +24,9 @@ pub struct Game {
     pub station_registry: StationRegistry,
     pub pool_manager: PoolManager,
     pub system_manager: SystemManager,
-    pub world_tiles: Vec<Vec<WorldTile>>, // Grid of world tiles
+    pub tile_map: TileMap,
+    pub entity_storage: EntityStorage,
+    pub vision_system: VisionSystem,
 }
 
 pub struct Player {
@@ -61,8 +67,6 @@ impl Clone for Player {
     }
 }
 
-// Types moved to shared crate
-
 pub struct Resource {
     pub id: Uuid,
     pub position: TilePos,
@@ -73,8 +77,18 @@ pub struct Resource {
 
 impl Game {
     pub fn new() -> Self {
-        // Initialize world tiles with grass
-        let mut world_tiles = vec![vec![WorldTile::Grass; ARENA_WIDTH_TILES as usize]; ARENA_HEIGHT_TILES as usize];
+        // Initialize the hybrid tile map
+        let mut tile_map = TileMap::new();
+        
+        // Initialize world with grass tiles
+        for x in 0..ARENA_WIDTH_TILES {
+            for y in 0..ARENA_HEIGHT_TILES {
+                tile_map.set_world_tile(
+                    TilePos::new(x as i32, y as i32),
+                    TileContent::Static(StaticTile::Grass)
+                );
+            }
+        }
         
         let mut game = Self {
             players: HashMap::new(),
@@ -87,10 +101,12 @@ impl Game {
             station_registry: StationRegistry::new(),
             pool_manager: PoolManager::new(),
             system_manager: SystemManager::new(),
-            world_tiles,
+            tile_map,
+            entity_storage: EntityStorage::new(),
+            vision_system: VisionSystem::new(),
         };
         
-        // Initialize mechs and update world tiles
+        // Initialize mechs and update tiles
         game.create_initial_mechs();
         
         game
@@ -143,21 +159,114 @@ impl Game {
 
     pub fn create_initial_mechs(&mut self) {
         // Red team mech
-        let red_mech = self.create_mech(TilePos::new(RED_MECH_SPAWN.0, RED_MECH_SPAWN.1), TeamId::Red);
+        let red_mech_pos = TilePos::new(RED_MECH_SPAWN.0, RED_MECH_SPAWN.1);
+        let red_mech = self.create_mech(red_mech_pos, TeamId::Red);
         let red_mech_id = red_mech.id;
         self.mechs.insert(red_mech.id, red_mech);
 
         // Blue team mech
-        let blue_mech = self.create_mech(TilePos::new(BLUE_MECH_SPAWN.0, BLUE_MECH_SPAWN.1), TeamId::Blue);
+        let blue_mech_pos = TilePos::new(BLUE_MECH_SPAWN.0, BLUE_MECH_SPAWN.1);
+        let blue_mech = self.create_mech(blue_mech_pos, TeamId::Blue);
         let blue_mech_id = blue_mech.id;
         self.mechs.insert(blue_mech.id, blue_mech);
         
-        // Update world tiles with mech door tiles and resource drop-off zones
-        self.update_mech_tiles(red_mech_id, TilePos::new(RED_MECH_SPAWN.0, RED_MECH_SPAWN.1));
-        self.update_mech_tiles(blue_mech_id, TilePos::new(BLUE_MECH_SPAWN.0, BLUE_MECH_SPAWN.1));
+        // Update tiles for both mechs
+        self.update_mech_tiles(red_mech_id, red_mech_pos);
+        self.update_mech_tiles(blue_mech_id, blue_mech_pos);
+    }
+    
+    pub fn update_player_visibility(&mut self, tx: &broadcast::Sender<(Uuid, ServerMessage)>) {
+        // Skip visibility updates every few ticks to reduce network traffic
+        if self.tick_count % 5 != 0 {
+            return;
+        }
+        
+        // Calculate visibility for each player
+        for (player_id, player) in &self.players {
+            let world_pos = match player.location {
+                PlayerLocation::OutsideWorld(pos) => pos,
+                PlayerLocation::InsideMech { pos, .. } => pos,
+            };
+            
+            // Calculate visibility using the vision system
+            let visibility = self.vision_system.calculate_visibility(
+                *player_id,
+                world_pos,
+                100.0, // Base vision range
+                &self.tile_map,
+                &self.entity_storage,
+            );
+            
+            // Convert visible tiles to visuals
+            let mut visible_tiles = Vec::new();
+            for tile_pos in &visibility.visible_tiles {
+                if let Some(tile_content) = self.tile_map.get_world_tile(*tile_pos) {
+                    let visual = match tile_content {
+                        TileContent::Empty => continue,
+                        TileContent::Static(static_tile) => {
+                            // Convert static tile to visual
+                            match static_tile {
+                                StaticTile::Grass => TileVisual::Floor {
+                                    material: Material::Metal,
+                                    wear: 0,
+                                },
+                                StaticTile::Rock => TileVisual::Wall {
+                                    material: Material::Reinforced,
+                                },
+                                StaticTile::MetalFloor => TileVisual::Floor {
+                                    material: Material::Metal,
+                                    wear: 0,
+                                },
+                                StaticTile::CargoFloor { wear } => TileVisual::Floor {
+                                    material: Material::Metal,
+                                    wear,
+                                },
+                                StaticTile::MetalWall => TileVisual::Wall {
+                                    material: Material::Metal,
+                                },
+                                StaticTile::ReinforcedWall => TileVisual::Wall {
+                                    material: Material::Reinforced,
+                                },
+                                StaticTile::Window { facing } => TileVisual::Window {
+                                    broken: false,
+                                    facing,
+                                },
+                                StaticTile::ReinforcedWindow { facing, .. } => TileVisual::Window {
+                                    broken: false,
+                                    facing,
+                                },
+                                StaticTile::TransitionZone { .. } => TileVisual::TransitionFade {
+                                    progress: 0.0,
+                                },
+                                _ => continue,
+                            }
+                        }
+                        TileContent::Entity(entity_id) => {
+                            // Get entity visual
+                            if let Some(station) = self.entity_storage.stations.get(&entity_id) {
+                                TileVisual::Station {
+                                    station_type: station.station_type,
+                                    active: station.operating,
+                                }
+                            } else {
+                                continue;
+                            }
+                        }
+                    };
+                    
+                    visible_tiles.push((*tile_pos, visual));
+                }
+            }
+            
+            // Send visibility update to player
+            let _ = tx.send((*player_id, ServerMessage::VisibilityUpdate {
+                visible_tiles,
+                player_position: world_pos,
+            }));
+        }
     }
 
-    fn create_mech(&self, position: TilePos, team: TeamId) -> Mech {
+    fn create_mech(&mut self, position: TilePos, team: TeamId) -> Mech {
         let id = Uuid::new_v4();
         let mut mech_stations = HashMap::new();
         let interior = MechLayoutGenerator::create_mech_interior(&mut mech_stations);
@@ -196,47 +305,100 @@ impl Game {
     }
     
     fn update_mech_tiles(&mut self, mech_id: Uuid, mech_pos: TilePos) {
+        // Create the mech tile map for this mech
+        let mech_tile_map = self.tile_map.create_mech(mech_id, mech_pos);
+        mech_tile_map.position = mech_pos;
+        
+        // Populate the mech interior from the layout
+        if let Some(mech) = self.mechs.get(&mech_id) {
+            for (floor_idx, floor_layout) in mech.interior.floors.iter().enumerate() {
+                if let Some(floor_map) = mech_tile_map.floors.get_mut(floor_idx) {
+                    // Add tiles from the layout
+                    for (y, row) in floor_layout.tiles.iter().enumerate() {
+                        for (x, tile_content) in row.iter().enumerate() {
+                            let tile_pos = TilePos::new(x as i32, y as i32);
+                            
+                            match tile_content {
+                                TileContent::Static(static_tile) => {
+                                    floor_map.static_tiles.insert(tile_pos, *static_tile);
+                                }
+                                TileContent::Entity(id) => {
+                                    floor_map.entity_tiles.insert(tile_pos, *id);
+                                }
+                                TileContent::Empty => {}
+                            }
+                        }
+                    }
+                    
+                    // Add station entities
+                    for (station_id, station) in &mech.stations {
+                        if station.floor == floor_idx as u8 {
+                            floor_map.entity_tiles.insert(station.position, *station_id);
+                            
+                            // Add to entity storage
+                            self.entity_storage.add_entity(
+                                *station_id,
+                                Position {
+                                    tile: station.position,
+                                    world: WorldPos::from_tile(station.position),
+                                    floor: Some(floor_idx as u8),
+                                    mech_id: Some(mech_id),
+                                }
+                            );
+                            
+                            // Add station component
+                            self.entity_storage.add_station(
+                                *station_id,
+                                Station {
+                                    station_type: station.station_type,
+                                    interaction_range: 1.5,
+                                    power_required: 10.0,
+                                    operating: false,
+                                }
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        
         // Add door tiles at the bottom center of the mech - 2 blocks wide
         let door_x1 = mech_pos.x + (MECH_SIZE_TILES / 2) - 1;
         let door_x2 = mech_pos.x + (MECH_SIZE_TILES / 2);
         let door_y = mech_pos.y + MECH_SIZE_TILES - 1;
         
-        if let Some(tile) = self.get_world_tile_mut(door_x1, door_y) {
-            *tile = WorldTile::MechDoor { mech_id };
-        }
-        if let Some(tile) = self.get_world_tile_mut(door_x2, door_y) {
-            *tile = WorldTile::MechDoor { mech_id };
-        }
+        self.tile_map.set_world_tile(
+            TilePos::new(door_x1, door_y),
+            TileContent::Static(StaticTile::TransitionZone {
+                zone_id: 0,
+                transition_type: TransitionType::MechEntrance { stage: 0 },
+            })
+        );
+        self.tile_map.set_world_tile(
+            TilePos::new(door_x2, door_y),
+            TileContent::Static(StaticTile::TransitionZone {
+                zone_id: 1,
+                transition_type: TransitionType::MechEntrance { stage: 1 },
+            })
+        );
         
         // Add resource drop-off zone on top of the mech (roof area)
-        // Create a 3x3 drop-off zone in the center of the mech roof
         let dropoff_x = mech_pos.x + (MECH_SIZE_TILES / 2) - 1;
         let dropoff_y = mech_pos.y;
         
+        // For now, just mark the area with metal floor tiles
+        // TODO: Add proper resource dropoff entity when needed
         for dy in 0..3 {
             for dx in 0..3 {
-                if let Some(tile) = self.get_world_tile_mut(dropoff_x + dx, dropoff_y + dy) {
-                    *tile = WorldTile::ResourceDropoff { mech_id };
-                }
+                self.tile_map.set_world_tile(
+                    TilePos::new(dropoff_x + dx, dropoff_y + dy),
+                    TileContent::Static(StaticTile::CargoFloor { wear: 0 })
+                );
             }
         }
     }
     
-    fn get_world_tile_mut(&mut self, x: i32, y: i32) -> Option<&mut WorldTile> {
-        if x >= 0 && y >= 0 && x < ARENA_WIDTH_TILES && y < ARENA_HEIGHT_TILES {
-            Some(&mut self.world_tiles[y as usize][x as usize])
-        } else {
-            None
-        }
-    }
     
-    pub fn get_world_tile(&self, x: i32, y: i32) -> Option<&WorldTile> {
-        if x >= 0 && y >= 0 && x < ARENA_WIDTH_TILES && y < ARENA_HEIGHT_TILES {
-            Some(&self.world_tiles[y as usize][x as usize])
-        } else {
-            None
-        }
-    }
 
 
     pub fn spawn_initial_resources(&mut self) {

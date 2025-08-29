@@ -1,61 +1,34 @@
 use macroquad::prelude::*;
-use shared::{types::*, constants::*};
+use shared::{types::*, constants::*, tile_entity::TileVisual};
 use crate::game_state::*;
 use super::utils::*;
 use uuid::Uuid;
 
-pub fn render_mech_interior(mech: &MechState, current_floor: u8, cam_x: f32, cam_y: f32) {
-    let floor = &mech.floors[current_floor as usize];
-    
-    // Draw floor tiles
-    for (y, row) in floor.tiles.iter().enumerate() {
-        for (x, tile) in row.iter().enumerate() {
-            render_tile(x, y, tile, cam_x, cam_y);
+pub fn render_mech_interior(game_state: &GameState, mech: &MechState, current_floor: u8, cam_x: f32, cam_y: f32) {
+    // The hybrid tile system sends all visible tiles through the same channel
+    // We need to filter for tiles that belong to this mech interior
+    // For now, render a basic floor grid as fallback
+    for y in 0..FLOOR_HEIGHT_TILES {
+        for x in 0..FLOOR_WIDTH_TILES {
+            let tile_x = cam_x + x as f32 * TILE_SIZE;
+            let tile_y = cam_y + y as f32 * TILE_SIZE;
+            
+            // Basic floor rendering
+            if x == 0 || x == FLOOR_WIDTH_TILES - 1 || y == 0 || y == FLOOR_HEIGHT_TILES - 1 {
+                // Wall
+                draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, LIGHTGRAY);
+            } else {
+                // Floor
+                draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, DARKGRAY);
+                draw_rectangle_lines(tile_x, tile_y, TILE_SIZE, TILE_SIZE, 1.0, GRAY);
+            }
         }
     }
+    
+    // TODO: Once server sends mech interior tiles via visible_tiles,
+    // render them using the hybrid_tiles renderer
 }
 
-fn render_tile(x: usize, y: usize, tile: &TileType, cam_x: f32, cam_y: f32) {
-    let tile_x = cam_x + x as f32 * TILE_SIZE;
-    let tile_y = cam_y + y as f32 * TILE_SIZE;
-    
-    match tile {
-        TileType::Empty => {} // Don't draw anything
-        TileType::Floor => {
-            draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, DARKGRAY);
-            draw_rectangle_lines(tile_x, tile_y, TILE_SIZE, TILE_SIZE, 1.0, GRAY);
-        }
-        TileType::Wall => {
-            draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, LIGHTGRAY);
-        }
-        TileType::Station(station_type) => {
-            draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, DARKGRAY);
-            let color = get_station_color(*station_type);
-            draw_rectangle(
-                tile_x + TILE_SIZE * 0.1,
-                tile_y + TILE_SIZE * 0.1,
-                TILE_SIZE * 0.8,
-                TILE_SIZE * 0.8,
-                color
-            );
-        }
-        TileType::Ladder => {
-            draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, DARKGRAY);
-            draw_text("↕", tile_x + 5.0, tile_y + TILE_SIZE - 5.0, 30.0, YELLOW);
-        }
-        TileType::ExitDoor { .. } => {
-            draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, DARKGRAY);
-            draw_rectangle(
-                tile_x + TILE_SIZE * 0.1,
-                tile_y + TILE_SIZE * 0.1,
-                TILE_SIZE * 0.8,
-                TILE_SIZE * 0.8,
-                Color::new(0.4, 0.2, 0.2, 1.0)
-            );
-            draw_text("EXIT", tile_x + 2.0, tile_y + TILE_SIZE - 5.0, 14.0, WHITE);
-        }
-    }
-}
 
 pub fn render_stations_on_floor(game_state: &GameState, mech_id: Uuid, floor: u8) {
     for station in game_state.stations.values() {

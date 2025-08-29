@@ -17,6 +17,10 @@ pub enum TileContent {
 // Simple tiles that don't need complex behavior
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum StaticTile {
+    // World tiles
+    Grass,
+    Rock,
+    
     // Floors
     MetalFloor,
     CargoFloor { wear: u8 },
@@ -71,13 +75,33 @@ pub struct TileMap {
 }
 
 pub struct MechTileMap {
-    floors: Vec<FloorMap>,
-    _mech_entity: Uuid, // The mech itself is an entity
+    pub floors: Vec<FloorMap>,
+    pub position: TilePos, // World position of mech
 }
 
+#[derive(Clone)]
 pub struct FloorMap {
-    static_tiles: HashMap<TilePos, StaticTile>,
-    entity_tiles: HashMap<TilePos, Uuid>,
+    pub static_tiles: HashMap<TilePos, StaticTile>,
+    pub entity_tiles: HashMap<TilePos, Uuid>,
+}
+
+impl FloorMap {
+    pub fn new() -> Self {
+        Self {
+            static_tiles: HashMap::new(),
+            entity_tiles: HashMap::new(),
+        }
+    }
+    
+    pub fn get_tile(&self, pos: TilePos) -> Option<TileContent> {
+        if let Some(entity_id) = self.entity_tiles.get(&pos) {
+            Some(TileContent::Entity(*entity_id))
+        } else if let Some(static_tile) = self.static_tiles.get(&pos) {
+            Some(TileContent::Static(*static_tile))
+        } else {
+            Some(TileContent::Empty)
+        }
+    }
 }
 
 // Simplified spatial index for now
@@ -93,6 +117,8 @@ pub struct SpatialIndex {
 impl StaticTile {
     pub fn is_walkable(&self) -> bool {
         match self {
+            StaticTile::Grass => true,
+            StaticTile::Rock => false,
             StaticTile::MetalFloor | StaticTile::CargoFloor { .. } => true,
             StaticTile::TransitionZone { .. } => true,
             StaticTile::PowerConduit | StaticTile::DataCable => true,
@@ -102,6 +128,7 @@ impl StaticTile {
     
     pub fn blocks_vision(&self) -> bool {
         match self {
+            StaticTile::Rock => true,
             StaticTile::MetalWall | StaticTile::ReinforcedWall => true,
             _ => false,
         }
@@ -197,6 +224,42 @@ impl TileMap {
         }
     }
     
+    pub fn set_world_tile(&mut self, pos: TilePos, content: TileContent) {
+        match content {
+            TileContent::Empty => {
+                self.static_tiles.remove(&pos);
+                self.entity_tiles.remove(&pos);
+            }
+            TileContent::Static(tile) => {
+                self.static_tiles.insert(pos, tile);
+                self.entity_tiles.remove(&pos);
+            }
+            TileContent::Entity(id) => {
+                self.entity_tiles.insert(pos, id);
+                self.static_tiles.remove(&pos);
+            }
+        }
+    }
+    
+    pub fn create_mech(&mut self, mech_id: Uuid, position: TilePos) -> &mut MechTileMap {
+        self.mech_tiles.entry(mech_id).or_insert_with(|| {
+            MechTileMap {
+                floors: vec![FloorMap::new(); 3], // 3 floors
+                position,
+            }
+        })
+    }
+    
+    pub fn get_world_tile(&self, pos: TilePos) -> Option<TileContent> {
+        if let Some(entity_id) = self.entity_tiles.get(&pos) {
+            Some(TileContent::Entity(*entity_id))
+        } else if let Some(static_tile) = self.static_tiles.get(&pos) {
+            Some(TileContent::Static(*static_tile))
+        } else {
+            None
+        }
+    }
+    
     // Get tile at world position, accounting for mechs
     pub fn get_tile_at(&self, world_pos: WorldPos) -> Option<TileContent> {
         // First check if we're inside a mech
@@ -266,7 +329,7 @@ impl TileMap {
 // =============================================================================
 
 impl MechTileMap {
-    pub fn new(mech_entity: Uuid, floor_count: usize) -> Self {
+    pub fn new(_mech_entity: Uuid, floor_count: usize) -> Self {
         let mut floors = Vec::with_capacity(floor_count);
         for _ in 0..floor_count {
             floors.push(FloorMap {
@@ -277,7 +340,7 @@ impl MechTileMap {
         
         Self {
             floors,
-            _mech_entity: mech_entity,
+            position: TilePos::new(0, 0), // Will be set when created
         }
     }
     

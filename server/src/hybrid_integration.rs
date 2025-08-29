@@ -1,5 +1,5 @@
 use shared::{
-    tile_entity::*, components::*, vision::*, tile_migration::*,
+    tile_entity::*, components::*, vision::*,
     TilePos, WorldPos, Direction, StationType, TeamId, ResourceType,
     constants::*, mech_layout::MechInterior
 };
@@ -127,14 +127,14 @@ impl HybridGameWorld {
             position.y + FLOOR_HEIGHT_TILES - 1
         );
         
-        let transitions = TileMigration::create_door_transitions(
-            mech_id,
-            &[(door_position, Direction::Down)]
+        // Create door transition zone
+        self.tile_map.set_static_tile(
+            door_position,
+            StaticTile::TransitionZone {
+                zone_id: 0,
+                transition_type: TransitionType::MechEntrance { stage: 0 },
+            }
         );
-        
-        for (pos, tile) in transitions {
-            self.tile_map.set_static_tile(pos, tile);
-        }
         
         self.mech_entities.insert(mech_id, mech_entity_id);
         (mech_id, mech_entity_id)
@@ -150,7 +150,7 @@ impl HybridGameWorld {
         
         for (floor, pos, station_type) in stations {
             // Create entity template
-            let template = create_station_template(*station_type);
+            let template = Self::create_station_template(*station_type);
             
             // Create position for the station
             let station_pos = Position {
@@ -205,6 +205,63 @@ impl HybridGameWorld {
             &self.tile_map,
             &self.entities,
         )
+    }
+    
+    /// Create a station entity template
+    fn create_station_template(station_type: StationType) -> EntityTemplate {
+        let mut components = EntityComponents::default();
+        
+        // All stations have the station component
+        components.station = Some(Station {
+            station_type,
+            interaction_range: 1.5,
+            power_required: match station_type {
+                StationType::WeaponLaser => 50.0,
+                StationType::WeaponProjectile => 30.0,
+                StationType::Engine => 20.0,
+                StationType::Shield => 40.0,
+                StationType::Repair => 25.0,
+                StationType::Electrical => 10.0,
+                StationType::Upgrade => 15.0,
+                StationType::Pilot => 5.0,
+            },
+            operating: false,
+        });
+        
+        // Most stations are solid
+        components.solid = Some(Solid {
+            blocks_movement: true,
+            blocks_projectiles: false,
+        });
+        
+        // All stations are renderable
+        components.renderable = Some(Renderable {
+            sprite: SpriteId(match station_type {
+                StationType::WeaponLaser => 1,
+                StationType::WeaponProjectile => 2,
+                StationType::Engine => 3,
+                StationType::Shield => 4,
+                StationType::Repair => 5,
+                StationType::Electrical => 6,
+                StationType::Upgrade => 7,
+                StationType::Pilot => 8,
+            }),
+            layer: RenderLayer::Object,
+            color_modulation: Color::WHITE,
+            animation_state: None,
+        });
+        
+        // All stations are interactable
+        components.interactable = Some(Interactable {
+            prompt: format!("Press E to operate {:?} station", station_type),
+            range: 1.5,
+            requires_facing: true,
+        });
+        
+        EntityTemplate {
+            name: format!("{:?} Station", station_type),
+            components,
+        }
     }
     
     /// Check if movement is valid

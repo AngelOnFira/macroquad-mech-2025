@@ -300,6 +300,23 @@ impl ClientHandler {
                 }
             }
 
+            ServerMessage::TileUpdate { position, visual } => {
+                game.visible_tiles.insert(position, visual);
+            }
+            
+            ServerMessage::TileBatch { tiles } => {
+                for (position, visual) in tiles {
+                    game.visible_tiles.insert(position, visual);
+                }
+            }
+            
+            ServerMessage::VisibilityUpdate { visible_tiles, player_position: _ } => {
+                game.visible_tiles.clear();
+                for (position, visual) in visible_tiles {
+                    game.visible_tiles.insert(position, visual);
+                }
+            }
+            
             _ => {
                 // Handle other messages as needed
             }

@@ -15,7 +15,6 @@ pub mod uuid_gen;
 pub mod tile_entity;
 pub mod components;
 pub mod vision;
-pub mod tile_migration;
 
 // Object pool is only needed server-side (uses Uuid::new_v4)
 #[cfg(not(target_arch = "wasm32"))]
@@ -49,4 +48,3 @@ pub use object_pool::*;
 pub use tile_entity::*;
 pub use components::*;
 pub use vision::*;
-pub use tile_migration::*;

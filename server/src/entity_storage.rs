@@ -8,8 +8,8 @@ use shared::{components::*, tile_entity::*, types::{TilePos, WorldPos}};
 
 pub struct EntityStorage {
     // Component storage - each component type has its own HashMap
-    positions: HashMap<Uuid, Position>,
-    stations: HashMap<Uuid, Station>,
+    pub positions: HashMap<Uuid, Position>,
+    pub stations: HashMap<Uuid, Station>,
     turrets: HashMap<Uuid, Turret>,
     power_nodes: HashMap<Uuid, PowerNode>,
     power_consumers: HashMap<Uuid, PowerConsumer>,
@@ -293,6 +293,22 @@ impl ComponentStorage for EntityStorage {
     
     fn get_station_mut(&mut self, entity: Uuid) -> Option<&mut Station> {
         self.stations.get_mut(&entity)
+    }
+}
+
+impl EntityStorage {
+    // Simple add methods for direct component insertion
+    pub fn add_entity(&mut self, entity_id: Uuid, position: Position) {
+        self.add_position(entity_id, position);
+        self.entities.insert(entity_id, EntityInfo {
+            id: entity_id,
+            name: format!("Entity_{}", entity_id),
+            active: true,
+        });
+    }
+    
+    pub fn add_station(&mut self, entity_id: Uuid, station: Station) {
+        self.stations.insert(entity_id, station);
     }
 }
 
