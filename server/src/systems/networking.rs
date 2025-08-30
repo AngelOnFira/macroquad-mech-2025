@@ -63,7 +63,7 @@ impl NetworkingSystem {
             log::info!("Tick: {}", game.tick_count);
             log::info!("Players: {}", game.players.len());
             log::info!("Mechs: {}", game.mechs.len());
-            log::info!("Resources: {}", game.resources.len());
+            log::info!("Resources: {}", game.get_resources().len());
             log::info!("Active Projectiles: {}", game.projectiles.len());
             log::info!("Active Effects: {}", game.active_effects.len());
             log::info!("Pool Stats - Projectiles: {}/{}, Effects: {}/{}",

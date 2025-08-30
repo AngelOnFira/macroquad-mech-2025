@@ -35,7 +35,7 @@ impl TileBehaviorSystem {
         self.process_proximity_triggers(&game.entity_storage, &game.players);
         
         // Process resource pickups
-        self.process_resource_pickups(&game.entity_storage, &game.players, &game.resources);
+        self.process_resource_pickups(&game.entity_storage, &game.players);
         
         // Process mech entrances
         self.process_mech_entrances(&game.entity_storage, &game.players, &game.mechs);
@@ -95,7 +95,6 @@ impl TileBehaviorSystem {
         &mut self,
         entities: &EntityStorage,
         players: &HashMap<Uuid, Player>,
-        resources: &HashMap<Uuid, crate::game::Resource>,
     ) {
         // Check all entities with resource pickup components
         for (entity_id, pickup) in &entities.resource_pickups {
@@ -127,31 +126,6 @@ impl TileBehaviorSystem {
                         actor: *player_id,
                         resource_type: pickup.resource_type,
                     });
-                }
-            }
-        }
-        
-        // Also check world resources (non-entity based)
-        for (resource_id, resource) in resources {
-            for (player_id, player) in players {
-                // Skip if player already carrying something
-                if player.carrying_resource.is_some() {
-                    continue;
-                }
-                
-                // Only check if player is in the world (not in mech)
-                if let PlayerLocation::OutsideWorld(player_pos) = player.location {
-                    let resource_world_pos = resource.position.to_world_pos();
-                    let distance = calculate_distance(&resource_world_pos, &player_pos);
-                    
-                    // Default pickup range for world resources
-                    if distance <= 1.5 * 16.0 { // 1.5 tiles
-                        self.event_queue.push(TileEvent::ResourcePickedUp {
-                            resource_entity: *resource_id,
-                            actor: *player_id,
-                            resource_type: resource.resource_type,
-                        });
-                    }
                 }
             }
         }
@@ -275,7 +249,7 @@ impl GameSystem for TileBehaviorSystem {
                         if player.carrying_resource.is_none() {
                             player.carrying_resource = Some(resource_type);
                             // Remove resource from world
-                            game.resources.remove(&resource_entity);
+                            game.remove_resource(resource_entity);
                             
                             messages.push(ServerMessage::PlayerPickedUpResource {
                                 player_id: actor,

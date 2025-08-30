@@ -16,7 +16,7 @@ use crate::entity_storage::EntityStorage;
 pub struct Game {
     pub players: HashMap<Uuid, Player>,
     pub mechs: HashMap<Uuid, Mech>,
-    pub resources: HashMap<Uuid, Resource>,
+    // Resources are now stored in entity_storage with ResourcePickup component
     pub projectiles: HashMap<Uuid, PooledProjectile>,
     pub active_effects: HashMap<Uuid, PooledEffect>,
     pub tick_count: u64,
@@ -76,6 +76,45 @@ pub struct Resource {
 // Projectile is now handled by PooledProjectile from the object_pool module
 
 impl Game {
+    /// Get all resources from entity storage
+    pub fn get_resources(&self) -> Vec<Resource> {
+        let mut resources = Vec::new();
+        for (entity_id, pickup) in &self.entity_storage.resource_pickups {
+            if let Some(pos) = self.entity_storage.positions.get(entity_id) {
+                resources.push(Resource {
+                    id: *entity_id,
+                    position: pos.tile,
+                    resource_type: pickup.resource_type,
+                });
+            }
+        }
+        resources
+    }
+    
+    /// Get resource by ID
+    pub fn get_resource(&self, id: Uuid) -> Option<Resource> {
+        if let Some(pickup) = self.entity_storage.resource_pickups.get(&id) {
+            if let Some(pos) = self.entity_storage.positions.get(&id) {
+                return Some(Resource {
+                    id,
+                    position: pos.tile,
+                    resource_type: pickup.resource_type,
+                });
+            }
+        }
+        None
+    }
+    
+    /// Remove a resource entity
+    pub fn remove_resource(&mut self, id: Uuid) {
+        self.entity_storage.destroy_entity(id);
+        self.tile_map.remove_tile(
+            self.entity_storage.positions.get(&id)
+                .map(|p| p.tile)
+                .unwrap_or(TilePos::new(0, 0))
+        );
+    }
+    
     pub fn new() -> Self {
         // Initialize the hybrid tile map
         let mut tile_map = TileMap::new();
@@ -93,7 +132,6 @@ impl Game {
         let mut game = Self {
             players: HashMap::new(),
             mechs: HashMap::new(),
-            resources: HashMap::new(),
             projectiles: HashMap::new(),
             active_effects: HashMap::new(),
             tick_count: 0,
@@ -431,13 +469,6 @@ impl Game {
         // Add to tile map
         self.tile_map.set_entity_tile(position, entity_id);
         
-        // Also add to legacy resource system for now
-        self.resources.insert(entity_id, Resource {
-            id: entity_id,
-            position,
-            resource_type,
-        });
-        
         entity_id
     }
     
@@ -517,12 +548,8 @@ impl Game {
         ];
 
         for (pos, resource_type) in resource_spawns {
-            let resource = Resource {
-                id: Uuid::new_v4(),
-                position: pos,
-                resource_type,
-            };
-            self.resources.insert(resource.id, resource);
+            // Use the new spawn method that creates entities
+            self.spawn_resource_with_behavior(pos, resource_type);
         }
     }
 
@@ -617,7 +644,7 @@ impl Game {
             })
             .collect();
 
-        let resources: Vec<ResourceState> = self.resources.values()
+        let resources: Vec<ResourceState> = self.get_resources().iter()
             .map(|r| ResourceState {
                 id: r.id,
                 position: r.position,
@@ -658,7 +685,7 @@ impl Game {
 
             if let PlayerLocation::OutsideWorld(player_pos) = player.location {
                 let player_tile = player_pos.to_tile_pos();
-                for resource in self.resources.values() {
+                for resource in self.get_resources() {
                     if resource.position.distance_to(player_tile) < RESOURCE_PICKUP_DISTANCE {
                         pickups.push((player.id, resource.id, resource.resource_type));
                         break;
@@ -670,7 +697,7 @@ impl Game {
         for (player_id, resource_id, resource_type) in pickups {
             if let Some(player) = self.players.get_mut(&player_id) {
                 player.carrying_resource = Some(resource_type);
-                self.resources.remove(&resource_id);
+                self.remove_resource(resource_id);
 
                 let msg = ServerMessage::PlayerPickedUpResource {
                     player_id,

@@ -57,21 +57,14 @@ impl ResourceSystem {
         self.last_spawn_check = game.tick_count;
         
         // Check if we need more resources
-        if game.resources.len() < self.max_resources {
-            let resources_to_spawn = self.max_resources - game.resources.len();
+        if game.get_resources().len() < self.max_resources {
+            let resources_to_spawn = self.max_resources - game.get_resources().len();
             
             for _ in 0..resources_to_spawn.min(3) { // Spawn max 3 at once
                 if let Some(spawn_pos) = self.get_random_spawn_position(game) {
                     let resource_type = self.get_random_resource_type();
-                    let resource_id = Uuid::new_v4();
                     
-                    let resource = Resource {
-                        id: resource_id,
-                        position: spawn_pos,
-                        resource_type,
-                    };
-                    
-                    game.resources.insert(resource_id, resource);
+                    let resource_id = game.spawn_resource_with_behavior(spawn_pos, resource_type);
                     
                     messages.push(ServerMessage::ResourceSpawned {
                         resource_id,
@@ -93,7 +86,7 @@ impl ResourceSystem {
         
         for pos in &self.resource_spawn_positions {
             // Check if position is free
-            let is_occupied = game.resources.values().any(|r| r.position == *pos);
+            let is_occupied = game.get_resources().iter().any(|r| r.position == *pos);
             if !is_occupied {
                 available_positions.push(*pos);
             }
@@ -139,7 +132,7 @@ impl ResourceSystem {
                 
                 // Pick up the nearest resource
                 if let Some(resource_id) = nearby_resources.first() {
-                    if let Some(resource) = game.resources.get(resource_id) {
+                    if let Some(resource) = game.get_resource(*resource_id) {
                         pickups.push((player.id, *resource_id, resource.resource_type));
                     }
                 }
@@ -150,7 +143,7 @@ impl ResourceSystem {
         for (player_id, resource_id, resource_type) in pickups {
             if let Some(player) = game.players.get_mut(&player_id) {
                 player.carrying_resource = Some(resource_type);
-                game.resources.remove(&resource_id);
+                game.remove_resource(resource_id);
                 
                 messages.push(ServerMessage::PlayerPickedUpResource {
                     player_id,
@@ -214,7 +207,7 @@ impl ResourceSystem {
         ];
         
         for (min_x, min_y, max_x, max_y) in quadrants {
-            let resources_in_quadrant = game.resources.values()
+            let resources_in_quadrant = game.get_resources().iter()
                 .filter(|r| r.position.x >= min_x && r.position.x < max_x && 
                            r.position.y >= min_y && r.position.y < max_y)
                 .count();

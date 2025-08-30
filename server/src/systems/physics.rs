@@ -120,7 +120,7 @@ impl PhysicsSystem {
         }
         
         // Add resources to spatial collision manager
-        for resource in game.resources.values() {
+        for resource in &game.get_resources() {
             let world_pos = resource.position.to_world_pos();
             game.spatial_collision.add_resource(resource.id, world_pos);
         }

@@ -125,9 +125,9 @@ impl AISystem {
             .collect();
         
         // Get visible resources
-        let resources: Vec<ai::ResourceView> = game.resources.iter()
-            .map(|(id, r)| ai::ResourceView {
-                id: *id,
+        let resources: Vec<ai::ResourceView> = game.get_resources().iter()
+            .map(|r| ai::ResourceView {
+                id: r.id,
                 position: r.position.to_world_pos(),
                 resource_type: r.resource_type,
             })

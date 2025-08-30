@@ -110,7 +110,7 @@ impl SpatialCollisionManager {
         }
         
         // Update resource positions
-        for resource in game.resources.values() {
+        for resource in &game.get_resources() {
             let entity = SpatialEntity::new(
                 resource.id,
                 resource.position.to_world_pos(),
