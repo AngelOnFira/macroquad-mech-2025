@@ -11,6 +11,7 @@ tokio = { version = "1.40", features = ["full"] }
 axum = { version = "0.7", features = ["ws"] }
 tower = "0.5"
 env_logger = "0.11"
+rand = "0.8"
 # Workspace dependencies
 serde = { workspace = true }
 serde_json = { workspace = true }

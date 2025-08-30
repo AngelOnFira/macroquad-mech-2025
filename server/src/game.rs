@@ -539,17 +539,67 @@ impl Game {
     }
 
     pub fn spawn_initial_resources(&mut self) {
-        let resource_spawns = vec![
-            (TilePos::new(INITIAL_RESOURCE_SPAWNS[0].0, INITIAL_RESOURCE_SPAWNS[0].1), ResourceType::ScrapMetal),
-            (TilePos::new(INITIAL_RESOURCE_SPAWNS[1].0, INITIAL_RESOURCE_SPAWNS[1].1), ResourceType::ComputerComponents),
-            (TilePos::new(INITIAL_RESOURCE_SPAWNS[2].0, INITIAL_RESOURCE_SPAWNS[2].1), ResourceType::Wiring),
-            (TilePos::new(INITIAL_RESOURCE_SPAWNS[3].0, INITIAL_RESOURCE_SPAWNS[3].1), ResourceType::Batteries),
-            (TilePos::new(INITIAL_RESOURCE_SPAWNS[4].0, INITIAL_RESOURCE_SPAWNS[4].1), ResourceType::ScrapMetal),
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        
+        // Spawn 5-8 initial resources randomly
+        let num_initial_resources = rng.gen_range(5..=8);
+        let resource_types = [
+            ResourceType::ScrapMetal,
+            ResourceType::ComputerComponents,
+            ResourceType::Wiring,
+            ResourceType::Batteries,
         ];
-
-        for (pos, resource_type) in resource_spawns {
-            // Use the new spawn method that creates entities
-            self.spawn_resource_with_behavior(pos, resource_type);
+        
+        for _ in 0..num_initial_resources {
+            // Try to find a valid spawn position
+            let mut attempts = 0;
+            const MAX_ATTEMPTS: i32 = 50;
+            
+            while attempts < MAX_ATTEMPTS {
+                // Generate random position (avoiding edges)
+                let x = rng.gen_range(10..(ARENA_WIDTH_TILES - 10)) as i32;
+                let y = rng.gen_range(10..(ARENA_HEIGHT_TILES - 10)) as i32;
+                let pos = TilePos::new(x, y);
+                
+                // Check if position is valid (simple check for initial spawn)
+                let mut valid = true;
+                
+                // Check distance from mechs
+                for mech in self.mechs.values() {
+                    let dx = (pos.x - mech.position.x).abs();
+                    let dy = (pos.y - mech.position.y).abs();
+                    let distance = ((dx * dx + dy * dy) as f32).sqrt();
+                    
+                    if distance < 15.0 { // Keep initial resources away from mechs
+                        valid = false;
+                        break;
+                    }
+                }
+                
+                // Check distance from other resources
+                if valid {
+                    for resource in self.get_resources() {
+                        let dx = (pos.x - resource.position.x).abs();
+                        let dy = (pos.y - resource.position.y).abs();
+                        let distance = ((dx * dx + dy * dy) as f32).sqrt();
+                        
+                        if distance < 5.0 { // Minimum spacing between resources
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if valid {
+                    // Pick a random resource type
+                    let resource_type = resource_types[rng.gen_range(0..resource_types.len())];
+                    self.spawn_resource_with_behavior(pos, resource_type);
+                    break;
+                }
+                
+                attempts += 1;
+            }
         }
     }
 

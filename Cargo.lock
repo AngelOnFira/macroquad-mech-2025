@@ -3430,6 +3430,7 @@ dependencies = [
  "env_logger",
  "futures",
  "log",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "shared",
