@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use shared::{
     components::*,
+    coordinates::MechDoorPositions,
     tile_entity::{TileEvent, TileMap},
     types::{WorldPos, TilePos},
     PlayerLocation, TeamId, ResourceType, ServerMessage,
@@ -270,39 +271,19 @@ impl GameSystem for TileBehaviorSystem {
                             // Get player's tile position to determine which door they used
                             let tile_pos = current_pos.to_tile_pos();
                             
-                            // Find mech position
+                            // Find mech position and use door abstraction
                             if let Some(mech) = game.mechs.get(&mech_id) {
-                                let door_x1 = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
-                                let door_x2 = mech.position.x + (MECH_SIZE_TILES / 2);
-                                
-                                // Determine which door was used and set appropriate entry position
-                                let entry_x = if tile_pos.x == door_x1 {
-                                    // Entered from left door
-                                    (FLOOR_WIDTH_TILES as f32 / 2.0 - 0.5) * TILE_SIZE
-                                } else if tile_pos.x == door_x2 {
-                                    // Entered from right door  
-                                    (FLOOR_WIDTH_TILES as f32 / 2.0 + 0.5) * TILE_SIZE
-                                } else {
-                                    // Fallback to center
-                                    (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE
-                                };
-                                
-                                // Place near the bottom of the floor
-                                let entry_y = (FLOOR_HEIGHT_TILES as f32 - 2.0) * TILE_SIZE;
-                                WorldPos::new(entry_x, entry_y)
+                                let doors = MechDoorPositions::from_mech_position(mech.position);
+                                doors.get_entry_position(tile_pos)
                             } else {
-                                // Fallback if mech not found
-                                WorldPos::new(
-                                    (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE,
-                                    (FLOOR_HEIGHT_TILES as f32 - 2.0) * TILE_SIZE
-                                )
+                                // Fallback if mech not found - use center entry position
+                                let fallback_doors = MechDoorPositions::from_mech_position(TilePos::new(0, 0));
+                                fallback_doors.get_entry_position(TilePos::new(0, 0))
                             }
                         } else {
-                            // Fallback for unexpected location state
-                            WorldPos::new(
-                                (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE,
-                                (FLOOR_HEIGHT_TILES as f32 - 2.0) * TILE_SIZE
-                            )
+                            // Fallback for unexpected location state - use center entry position
+                            let fallback_doors = MechDoorPositions::from_mech_position(TilePos::new(0, 0));
+                            fallback_doors.get_entry_position(TilePos::new(0, 0))
                         };
                         
                         player.location = PlayerLocation::InsideMech {

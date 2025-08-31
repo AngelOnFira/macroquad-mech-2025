@@ -1,5 +1,5 @@
 use macroquad::prelude::*;
-use shared::{types::*, constants::*};
+use shared::{types::*, constants::*, coordinates::MechDoorPositions};
 use crate::game_state::*;
 use super::utils::*;
 
@@ -96,8 +96,9 @@ fn render_mechs(game_state: &GameState, cam_x: f32, cam_y: f32) {
         let mech_size = MECH_SIZE_TILES as f32 * TILE_SIZE;
         let color = get_team_color(mech.team);
         
-        let mech_x = cam_x + mech.position.x as f32 * TILE_SIZE;
-        let mech_y = cam_y + mech.position.y as f32 * TILE_SIZE;
+        let mech_world = mech.position.to_world();
+        let mech_x = cam_x + mech_world.x;
+        let mech_y = cam_y + mech_world.y;
         
         // Main body
         draw_rectangle(mech_x, mech_y, mech_size, mech_size, color);
@@ -109,8 +110,9 @@ fn render_mechs(game_state: &GameState, cam_x: f32, cam_y: f32) {
 fn render_world_tiles(game_state: &GameState, cam_x: f32, cam_y: f32) {
     // Render visible tiles sent from server
     for (tile_pos, tile_visual) in &game_state.visible_tiles {
-        let tile_x = cam_x + tile_pos.x as f32 * TILE_SIZE;
-        let tile_y = cam_y + tile_pos.y as f32 * TILE_SIZE;
+        let tile_world = tile_pos.to_world();
+        let tile_x = cam_x + tile_world.x;
+        let tile_y = cam_y + tile_world.y;
         
         super::hybrid_tiles::render_tile_visual(tile_visual, tile_x, tile_y, TILE_SIZE);
     }
@@ -121,12 +123,10 @@ fn render_world_tiles(game_state: &GameState, cam_x: f32, cam_y: f32) {
         for mech in game_state.mechs.values() {
             let team_color = get_team_color(mech.team);
             
-            // Render door tiles at bottom center of mech - 2 blocks wide
-            let door_x1 = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
-            let door_x2 = mech.position.x + (MECH_SIZE_TILES / 2);
-            let door_y = mech.position.y + MECH_SIZE_TILES - 1;
-            render_door_tile(door_x1, door_y, team_color, cam_x, cam_y);
-            render_door_tile(door_x2, door_y, team_color, cam_x, cam_y);
+            // Render door tiles using door position abstraction
+            let doors = MechDoorPositions::from_mech_position(mech.position);
+            render_door_tile(doors.left_door.x, doors.left_door.y, team_color, cam_x, cam_y);
+            render_door_tile(doors.right_door.x, doors.right_door.y, team_color, cam_x, cam_y);
             
         }
     }

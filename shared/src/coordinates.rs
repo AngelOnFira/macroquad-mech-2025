@@ -1,4 +1,4 @@
-use crate::{TILE_SIZE, ARENA_WIDTH_TILES, ARENA_HEIGHT_TILES, FLOOR_WIDTH_TILES, FLOOR_HEIGHT_TILES};
+use crate::{TILE_SIZE, ARENA_WIDTH_TILES, ARENA_HEIGHT_TILES, FLOOR_WIDTH_TILES, FLOOR_HEIGHT_TILES, MECH_SIZE_TILES};
 use std::ops::{Add, Sub, Mul, Div};
 
 /// A unified coordinate system for the game
@@ -515,5 +515,294 @@ mod tests {
         let scaled = pos1 * 2.0;
         assert_eq!(scaled.x, 20.0);
         assert_eq!(scaled.y, 40.0);
+    }
+}
+
+/// Mech door position utilities
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MechDoorPositions {
+    pub left_door: TilePos,
+    pub right_door: TilePos,
+    pub mech_position: TilePos,
+}
+
+impl MechDoorPositions {
+    /// Create door positions from a mech's position
+    pub fn from_mech_position(mech_pos: TilePos) -> Self {
+        let door_x1 = mech_pos.x + (MECH_SIZE_TILES / 2) - 1;
+        let door_x2 = mech_pos.x + (MECH_SIZE_TILES / 2);
+        let door_y = mech_pos.y + MECH_SIZE_TILES - 1;
+        
+        Self {
+            left_door: TilePos::new(door_x1, door_y),
+            right_door: TilePos::new(door_x2, door_y),
+            mech_position: mech_pos,
+        }
+    }
+    
+    /// Get the appropriate entry position based on which door tile was used
+    pub fn get_entry_position(&self, entered_tile: TilePos) -> WorldPos {
+        let entry_x = if entered_tile == self.left_door {
+            // Entered from left door - position slightly left of center
+            (FLOOR_WIDTH_TILES as f32 / 2.0 - 0.5) * TILE_SIZE
+        } else if entered_tile == self.right_door {
+            // Entered from right door - position slightly right of center
+            (FLOOR_WIDTH_TILES as f32 / 2.0 + 0.5) * TILE_SIZE
+        } else {
+            // Fallback to center (shouldn't happen in normal gameplay)
+            (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE
+        };
+        
+        // Place near the bottom of the floor
+        let entry_y = (FLOOR_HEIGHT_TILES as f32 - 2.0) * TILE_SIZE;
+        WorldPos::new(entry_x, entry_y)
+    }
+    
+    /// Check if a given tile position is either door
+    pub fn is_door_tile(&self, tile_pos: TilePos) -> bool {
+        tile_pos == self.left_door || tile_pos == self.right_door
+    }
+    
+    /// Get both door positions as an array for iteration
+    pub fn door_tiles(&self) -> [TilePos; 2] {
+        [self.left_door, self.right_door]
+    }
+}
+
+/// Represents a rectangular region of tiles
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TileRegion {
+    pub min: TilePos,
+    pub max: TilePos,
+}
+
+impl TileRegion {
+    /// Create a new tile region from min and max positions (inclusive)
+    pub fn new(min: TilePos, max: TilePos) -> Self {
+        Self { min, max }
+    }
+    
+    /// Create a region from center and radius
+    pub fn from_center_radius(center: TilePos, radius: i32) -> Self {
+        Self {
+            min: TilePos::new(center.x - radius, center.y - radius),
+            max: TilePos::new(center.x + radius, center.y + radius),
+        }
+    }
+    
+    /// Create a region that covers the entire world
+    pub fn world_bounds() -> Self {
+        Self {
+            min: TilePos::new(0, 0),
+            max: TilePos::new(ARENA_WIDTH_TILES - 1, ARENA_HEIGHT_TILES - 1),
+        }
+    }
+    
+    /// Create a region that covers a mech floor
+    pub fn mech_floor_bounds() -> Self {
+        Self {
+            min: TilePos::new(0, 0),
+            max: TilePos::new(FLOOR_WIDTH_TILES - 1, FLOOR_HEIGHT_TILES - 1),
+        }
+    }
+    
+    /// Check if a tile position is within this region
+    pub fn contains(&self, pos: TilePos) -> bool {
+        pos.x >= self.min.x && pos.x <= self.max.x &&
+        pos.y >= self.min.y && pos.y <= self.max.y
+    }
+    
+    /// Clamp a position to be within this region
+    pub fn clamp(&self, pos: TilePos) -> TilePos {
+        TilePos::new(
+            pos.x.max(self.min.x).min(self.max.x),
+            pos.y.max(self.min.y).min(self.max.y),
+        )
+    }
+    
+    /// Get the width of this region
+    pub fn width(&self) -> i32 {
+        self.max.x - self.min.x + 1
+    }
+    
+    /// Get the height of this region
+    pub fn height(&self) -> i32 {
+        self.max.y - self.min.y + 1
+    }
+    
+    /// Get the area (width * height) of this region
+    pub fn area(&self) -> i32 {
+        self.width() * self.height()
+    }
+    
+    /// Iterate over all tile positions in this region
+    pub fn iter(&self) -> TileRegionIterator {
+        TileRegionIterator::new(*self)
+    }
+}
+
+/// Iterator over tile positions in a region
+pub struct TileRegionIterator {
+    region: TileRegion,
+    current_x: i32,
+    current_y: i32,
+}
+
+impl TileRegionIterator {
+    fn new(region: TileRegion) -> Self {
+        Self {
+            region,
+            current_x: region.min.x,
+            current_y: region.min.y,
+        }
+    }
+}
+
+impl Iterator for TileRegionIterator {
+    type Item = TilePos;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_y > self.region.max.y {
+            return None;
+        }
+        
+        let result = TilePos::new(self.current_x, self.current_y);
+        
+        self.current_x += 1;
+        if self.current_x > self.region.max.x {
+            self.current_x = self.region.min.x;
+            self.current_y += 1;
+        }
+        
+        Some(result)
+    }
+}
+
+/// Relative positioning utilities within tiles
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RelativePosition {
+    Center,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    TopCenter,
+    BottomCenter,
+    LeftCenter,
+    RightCenter,
+    Custom(f32, f32), // Custom offset from tile center as percentage (0.0-1.0)
+}
+
+impl RelativePosition {
+    /// Get the world position for this relative position within a tile
+    pub fn world_pos_in_tile(&self, tile: TilePos) -> WorldPos {
+        let tile_world = tile.to_world();
+        let (offset_x, offset_y) = self.get_offset();
+        
+        WorldPos::new(
+            tile_world.x + offset_x * TILE_SIZE,
+            tile_world.y + offset_y * TILE_SIZE,
+        )
+    }
+    
+    /// Get the offset from tile top-left (0.0-1.0 range)
+    fn get_offset(&self) -> (f32, f32) {
+        match self {
+            RelativePosition::Center => (0.5, 0.5),
+            RelativePosition::TopLeft => (0.0, 0.0),
+            RelativePosition::TopRight => (1.0, 0.0),
+            RelativePosition::BottomLeft => (0.0, 1.0),
+            RelativePosition::BottomRight => (1.0, 1.0),
+            RelativePosition::TopCenter => (0.5, 0.0),
+            RelativePosition::BottomCenter => (0.5, 1.0),
+            RelativePosition::LeftCenter => (0.0, 0.5),
+            RelativePosition::RightCenter => (1.0, 0.5),
+            RelativePosition::Custom(x, y) => (*x, *y),
+        }
+    }
+}
+
+#[cfg(test)]
+mod new_tests {
+    use super::*;
+
+    #[test]
+    fn test_mech_door_positions() {
+        let mech_pos = TilePos::new(10, 10);
+        let doors = MechDoorPositions::from_mech_position(mech_pos);
+        
+        // Assuming MECH_SIZE_TILES = 6, doors should be at positions 12 and 13, y=15
+        let expected_left = TilePos::new(10 + (MECH_SIZE_TILES / 2) - 1, 10 + MECH_SIZE_TILES - 1);
+        let expected_right = TilePos::new(10 + (MECH_SIZE_TILES / 2), 10 + MECH_SIZE_TILES - 1);
+        
+        assert_eq!(doors.left_door, expected_left);
+        assert_eq!(doors.right_door, expected_right);
+        assert!(doors.is_door_tile(expected_left));
+        assert!(doors.is_door_tile(expected_right));
+        assert!(!doors.is_door_tile(TilePos::new(0, 0)));
+    }
+
+    #[test]
+    fn test_mech_door_entry_positions() {
+        let mech_pos = TilePos::new(10, 10);
+        let doors = MechDoorPositions::from_mech_position(mech_pos);
+        
+        let left_entry = doors.get_entry_position(doors.left_door);
+        let right_entry = doors.get_entry_position(doors.right_door);
+        let fallback_entry = doors.get_entry_position(TilePos::new(0, 0));
+        
+        // Left entry should be left of center
+        assert!(left_entry.x < (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE);
+        // Right entry should be right of center
+        assert!(right_entry.x > (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE);
+        // Fallback should be at center
+        assert_eq!(fallback_entry.x, (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE);
+        
+        // All entries should be near bottom of floor
+        let expected_y = (FLOOR_HEIGHT_TILES as f32 - 2.0) * TILE_SIZE;
+        assert_eq!(left_entry.y, expected_y);
+        assert_eq!(right_entry.y, expected_y);
+        assert_eq!(fallback_entry.y, expected_y);
+    }
+
+    #[test]
+    fn test_tile_region() {
+        let region = TileRegion::new(TilePos::new(5, 5), TilePos::new(10, 8));
+        
+        assert_eq!(region.width(), 6);
+        assert_eq!(region.height(), 4);
+        assert_eq!(region.area(), 24);
+        
+        assert!(region.contains(TilePos::new(7, 6)));
+        assert!(!region.contains(TilePos::new(4, 6)));
+        assert!(!region.contains(TilePos::new(7, 9)));
+        
+        let clamped = region.clamp(TilePos::new(15, 2));
+        assert_eq!(clamped, TilePos::new(10, 5));
+    }
+
+    #[test]
+    fn test_tile_region_iterator() {
+        let region = TileRegion::new(TilePos::new(0, 0), TilePos::new(1, 1));
+        let positions: Vec<TilePos> = region.iter().collect();
+        
+        assert_eq!(positions.len(), 4);
+        assert!(positions.contains(&TilePos::new(0, 0)));
+        assert!(positions.contains(&TilePos::new(1, 0)));
+        assert!(positions.contains(&TilePos::new(0, 1)));
+        assert!(positions.contains(&TilePos::new(1, 1)));
+    }
+
+    #[test]
+    fn test_relative_position() {
+        let tile = TilePos::new(2, 3);
+        
+        let center = RelativePosition::Center.world_pos_in_tile(tile);
+        let expected_center = WorldPos::new(2.0 * TILE_SIZE + TILE_SIZE / 2.0, 3.0 * TILE_SIZE + TILE_SIZE / 2.0);
+        assert_eq!(center, expected_center);
+        
+        let top_left = RelativePosition::TopLeft.world_pos_in_tile(tile);
+        let expected_top_left = WorldPos::new(2.0 * TILE_SIZE, 3.0 * TILE_SIZE);
+        assert_eq!(top_left, expected_top_left);
     }
 }

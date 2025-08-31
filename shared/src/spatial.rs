@@ -302,6 +302,7 @@ pub mod spatial_utils {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::uuid_gen::new_uuid;
 
     #[test]
     fn test_spatial_grid_creation() {

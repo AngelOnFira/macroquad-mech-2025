@@ -2,6 +2,46 @@ use macroquad::prelude::*;
 use shared::{TileVisual, Material, Direction, StationType, TILE_SIZE};
 use std::collections::{HashMap, HashSet};
 
+// Arrow drawing utility (simplified version of ArrowRenderer)
+fn draw_directional_arrow(center_x: f32, center_y: f32, size: f32, direction: Direction, color: Color) {
+    let arrow_size = size * 0.3;
+    
+    match direction {
+        Direction::Up => {
+            draw_triangle(
+                Vec2::new(center_x, center_y - arrow_size),
+                Vec2::new(center_x - arrow_size/2.0, center_y),
+                Vec2::new(center_x + arrow_size/2.0, center_y),
+                color,
+            );
+        }
+        Direction::Down => {
+            draw_triangle(
+                Vec2::new(center_x, center_y + arrow_size),
+                Vec2::new(center_x - arrow_size/2.0, center_y),
+                Vec2::new(center_x + arrow_size/2.0, center_y),
+                color,
+            );
+        }
+        Direction::Left => {
+            draw_triangle(
+                Vec2::new(center_x - arrow_size, center_y),
+                Vec2::new(center_x, center_y - arrow_size/2.0),
+                Vec2::new(center_x, center_y + arrow_size/2.0),
+                color,
+            );
+        }
+        Direction::Right => {
+            draw_triangle(
+                Vec2::new(center_x + arrow_size, center_y),
+                Vec2::new(center_x, center_y - arrow_size/2.0),
+                Vec2::new(center_x, center_y + arrow_size/2.0),
+                color,
+            );
+        }
+    }
+}
+
 // Simple raycasting for line of sight
 fn cast_ray(from_x: f32, from_y: f32, to_x: f32, to_y: f32, max_dist: f32, check_blocking: impl Fn(i32, i32) -> bool) -> bool {
     let dx = to_x - from_x;
@@ -536,47 +576,13 @@ impl DemoMode {
                     glass_color.a *= alpha;
                     draw_rectangle(x + 2.0, y + 2.0, size - 4.0, size - 4.0, glass_color);
                     
-                    // Draw direction arrow
+                    // Draw direction arrow using utility function
                     let center_x = x + size / 2.0;
                     let center_y = y + size / 2.0;
-                    let arrow_size = size * 0.3;
                     let mut arrow_color = Color::from_rgba(200, 200, 210, 150);
                     arrow_color.a *= alpha;
                     
-                    match facing {
-                        Direction::Up => {
-                            draw_triangle(
-                                Vec2::new(center_x, center_y - arrow_size),
-                                Vec2::new(center_x - arrow_size/2.0, center_y),
-                                Vec2::new(center_x + arrow_size/2.0, center_y),
-                                arrow_color,
-                            );
-                        }
-                        Direction::Down => {
-                            draw_triangle(
-                                Vec2::new(center_x, center_y + arrow_size),
-                                Vec2::new(center_x - arrow_size/2.0, center_y),
-                                Vec2::new(center_x + arrow_size/2.0, center_y),
-                                arrow_color,
-                            );
-                        }
-                        Direction::Left => {
-                            draw_triangle(
-                                Vec2::new(center_x - arrow_size, center_y),
-                                Vec2::new(center_x, center_y - arrow_size/2.0),
-                                Vec2::new(center_x, center_y + arrow_size/2.0),
-                                arrow_color,
-                            );
-                        }
-                        Direction::Right => {
-                            draw_triangle(
-                                Vec2::new(center_x + arrow_size, center_y),
-                                Vec2::new(center_x, center_y - arrow_size/2.0),
-                                Vec2::new(center_x, center_y + arrow_size/2.0),
-                                arrow_color,
-                            );
-                        }
-                    }
+                    draw_directional_arrow(center_x, center_y, size, *facing, arrow_color);
                 }
             }
             TileVisual::Station { station_type, active } => {

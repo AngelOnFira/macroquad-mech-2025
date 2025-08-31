@@ -10,6 +10,7 @@ pub mod network;
 pub mod mech_layout;
 pub mod spatial;
 pub mod coordinates;
+pub mod tile_math;
 pub mod stations;
 pub mod uuid_gen;
 pub mod tile_entity;
@@ -32,6 +33,7 @@ pub use network::*;
 pub use mech_layout::*;
 pub use spatial::*;
 pub use coordinates::*;
+pub use tile_math::*;
 // Export stations module types selectively to avoid conflicts
 pub use stations::{
     StationRegistry, StationDefinition, ButtonDefinition, StationAction, WeaponType, 

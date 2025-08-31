@@ -400,20 +400,18 @@ impl Game {
             }
         }
         
-        // Add door tiles at the bottom center of the mech - 2 blocks wide
-        let door_x1 = mech_pos.x + (MECH_SIZE_TILES / 2) - 1;
-        let door_x2 = mech_pos.x + (MECH_SIZE_TILES / 2);
-        let door_y = mech_pos.y + MECH_SIZE_TILES - 1;
+        // Add door tiles using door position abstraction
+        let doors = MechDoorPositions::from_mech_position(mech_pos);
         
         self.tile_map.set_world_tile(
-            TilePos::new(door_x1, door_y),
+            doors.left_door,
             TileContent::Static(StaticTile::TransitionZone {
                 zone_id: 0,
                 transition_type: TransitionType::MechEntrance { stage: 0 },
             })
         );
         self.tile_map.set_world_tile(
-            TilePos::new(door_x2, door_y),
+            doors.right_door,
             TileContent::Static(StaticTile::TransitionZone {
                 zone_id: 1,
                 transition_type: TransitionType::MechEntrance { stage: 1 },

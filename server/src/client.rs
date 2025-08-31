@@ -179,7 +179,7 @@ pub async fn handle_exit_mech(
             // Place player outside mech
             if let Some(mech) = game.mechs.get(&mech_id) {
                 let exit_tile = mech.position.offset(-2, 0);
-                let exit_pos = WorldPos::new(exit_tile.x as f32 * TILE_SIZE, exit_tile.y as f32 * TILE_SIZE);
+                let exit_pos = exit_tile.to_world();
                 player.location = PlayerLocation::OutsideWorld(exit_pos);
                 let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
                     player_id,

@@ -1,5 +1,6 @@
 use macroquad::prelude::*;
 use shared::{TileVisual, Material, Direction, StationType, TILE_SIZE};
+use super::primitives::{ArrowRenderer, ArrowStyle};
 
 /// Render a tile using the hybrid tile visual system
 pub fn render_tile_visual(tile: &TileVisual, x: f32, y: f32, size: f32) {
@@ -52,45 +53,13 @@ pub fn render_tile_visual(tile: &TileVisual, x: f32, y: f32, size: f32) {
                 let glass_color = Color::from_rgba(100, 120, 140, 100);
                 draw_rectangle(x + 2.0, y + 2.0, size - 4.0, size - 4.0, glass_color);
                 
-                // Draw directional indicator
+                // Draw directional indicator using arrow renderer
                 let center_x = x + size / 2.0;
                 let center_y = y + size / 2.0;
-                let arrow_size = size * 0.3;
+                let arrow_style = ArrowStyle::default()
+                    .with_color(Color::from_rgba(200, 200, 210, 150));
                 
-                match facing {
-                    Direction::Up => {
-                        draw_triangle(
-                            Vec2::new(center_x, center_y - arrow_size),
-                            Vec2::new(center_x - arrow_size/2.0, center_y),
-                            Vec2::new(center_x + arrow_size/2.0, center_y),
-                            Color::from_rgba(200, 200, 210, 150),
-                        );
-                    }
-                    Direction::Down => {
-                        draw_triangle(
-                            Vec2::new(center_x, center_y + arrow_size),
-                            Vec2::new(center_x - arrow_size/2.0, center_y),
-                            Vec2::new(center_x + arrow_size/2.0, center_y),
-                            Color::from_rgba(200, 200, 210, 150),
-                        );
-                    }
-                    Direction::Left => {
-                        draw_triangle(
-                            Vec2::new(center_x - arrow_size, center_y),
-                            Vec2::new(center_x, center_y - arrow_size/2.0),
-                            Vec2::new(center_x, center_y + arrow_size/2.0),
-                            Color::from_rgba(200, 200, 210, 150),
-                        );
-                    }
-                    Direction::Right => {
-                        draw_triangle(
-                            Vec2::new(center_x + arrow_size, center_y),
-                            Vec2::new(center_x, center_y - arrow_size/2.0),
-                            Vec2::new(center_x, center_y + arrow_size/2.0),
-                            Color::from_rgba(200, 200, 210, 150),
-                        );
-                    }
-                }
+                ArrowRenderer::draw_arrow_at_screen(center_x, center_y, size, *facing, arrow_style);
             }
         }
         
