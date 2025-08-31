@@ -42,6 +42,11 @@ impl MechLayoutGenerator {
             // Create walls and floors
             Self::generate_basic_floor_layout(&mut tiles);
             
+            // Add cargo bay to floor 0
+            if floor_idx == 0 {
+                Self::add_cargo_bay_to_floor(&mut tiles);
+            }
+            
             // Add ladders between floors
             if floor_idx < MECH_FLOORS - 1 {
                 Self::add_ladders_to_floor(&mut tiles, &mut ladders);
@@ -64,6 +69,23 @@ impl MechLayoutGenerator {
                     tiles[y as usize][x as usize] = TileContent::Static(StaticTile::MetalWall);
                 } else {
                     tiles[y as usize][x as usize] = TileContent::Static(StaticTile::MetalFloor);
+                }
+            }
+        }
+    }
+    
+    /// Add cargo bay area to floor 0
+    pub fn add_cargo_bay_to_floor(tiles: &mut Vec<Vec<TileContent>>) {
+        // Create a 3x3 cargo bay area in the center-top of floor 0
+        let cargo_x = FLOOR_WIDTH_TILES / 2 - 1;
+        let cargo_y = 2; // Near the top of the floor
+        
+        for dy in 0..3 {
+            for dx in 0..3 {
+                let x = (cargo_x + dx) as usize;
+                let y = (cargo_y + dy) as usize;
+                if x < tiles[0].len() && y < tiles.len() {
+                    tiles[y][x] = TileContent::Static(StaticTile::CargoFloor { wear: 0 });
                 }
             }
         }
@@ -114,6 +136,7 @@ impl MechLayoutGenerator {
                 (TilePos::new(STATION_POSITIONS[0][0].0, STATION_POSITIONS[0][0].1), StationType::Engine),
                 (TilePos::new(STATION_POSITIONS[0][1].0, STATION_POSITIONS[0][1].1), StationType::Electrical),
                 (TilePos::new(STATION_POSITIONS[0][2].0, STATION_POSITIONS[0][2].1), StationType::Upgrade),
+                // Note: Cargo/resource drop-off area will be added as entities, not stations
             ],
             1 => vec![
                 (TilePos::new(STATION_POSITIONS[1][0].0, STATION_POSITIONS[1][0].1), StationType::WeaponLaser),

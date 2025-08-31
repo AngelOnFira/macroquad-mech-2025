@@ -5,6 +5,7 @@ use shared::{
     tile_entity::{TileEvent, TileMap},
     types::{WorldPos, TilePos},
     PlayerLocation, TeamId, ResourceType, ServerMessage,
+    TILE_SIZE, MECH_SIZE_TILES, FLOOR_WIDTH_TILES, FLOOR_HEIGHT_TILES,
 };
 use crate::game::Player;
 use crate::entity_storage::EntityStorage;
@@ -263,8 +264,46 @@ impl GameSystem for TileBehaviorSystem {
                 TileEvent::MechEntered { mech_id, actor, floor } => {
                     // Update player location
                     if let Some(player) = game.players.get_mut(&actor) {
-                        // Find entry position from mech entrance component
-                        let entry_pos = WorldPos::new(24.0, 40.0); // Default entry position
+                        // Calculate entry position based on where player entered from
+                        // Players enter near the bottom of floor 0, in the center
+                        let entry_pos = if let PlayerLocation::OutsideWorld(current_pos) = player.location {
+                            // Get player's tile position to determine which door they used
+                            let tile_pos = current_pos.to_tile_pos();
+                            
+                            // Find mech position
+                            if let Some(mech) = game.mechs.get(&mech_id) {
+                                let door_x1 = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
+                                let door_x2 = mech.position.x + (MECH_SIZE_TILES / 2);
+                                
+                                // Determine which door was used and set appropriate entry position
+                                let entry_x = if tile_pos.x == door_x1 {
+                                    // Entered from left door
+                                    (FLOOR_WIDTH_TILES as f32 / 2.0 - 0.5) * TILE_SIZE
+                                } else if tile_pos.x == door_x2 {
+                                    // Entered from right door  
+                                    (FLOOR_WIDTH_TILES as f32 / 2.0 + 0.5) * TILE_SIZE
+                                } else {
+                                    // Fallback to center
+                                    (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE
+                                };
+                                
+                                // Place near the bottom of the floor
+                                let entry_y = (FLOOR_HEIGHT_TILES as f32 - 2.0) * TILE_SIZE;
+                                WorldPos::new(entry_x, entry_y)
+                            } else {
+                                // Fallback if mech not found
+                                WorldPos::new(
+                                    (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE,
+                                    (FLOOR_HEIGHT_TILES as f32 - 2.0) * TILE_SIZE
+                                )
+                            }
+                        } else {
+                            // Fallback for unexpected location state
+                            WorldPos::new(
+                                (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE,
+                                (FLOOR_HEIGHT_TILES as f32 - 2.0) * TILE_SIZE
+                            )
+                        };
                         
                         player.location = PlayerLocation::InsideMech {
                             mech_id,
@@ -290,20 +329,36 @@ impl GameSystem for TileBehaviorSystem {
                         AutoInteractionType::DropResource => {
                             if let Some(player) = game.players.get_mut(&actor) {
                                 if let Some(resource_type) = player.carrying_resource {
-                                    // Find mech at this location
-                                    let player_pos = match player.location {
-                                        PlayerLocation::OutsideWorld(pos) => pos,
-                                        PlayerLocation::InsideMech { pos, .. } => pos,
+                                    // Get player's current location
+                                    let (mech_to_deposit, tile_pos) = match player.location {
+                                        PlayerLocation::InsideMech { mech_id, pos, .. } => {
+                                            // Player is inside a mech - deposit to that mech
+                                            (Some(mech_id), pos.to_tile_pos())
+                                        }
+                                        PlayerLocation::OutsideWorld(pos) => {
+                                            // Player is outside - shouldn't happen with new cargo bay system
+                                            // but keep as fallback
+                                            let tile_pos = pos.to_tile_pos();
+                                            let mut found_mech = None;
+                                            
+                                            for (mech_id, mech) in &game.mechs {
+                                                if mech.team == player.team {
+                                                    let dx = (mech.position.x - tile_pos.x).abs();
+                                                    let dy = (mech.position.y - tile_pos.y).abs();
+                                                    if dx < 5 && dy < 5 {
+                                                        found_mech = Some(*mech_id);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            (found_mech, tile_pos)
+                                        }
                                     };
-                                    let tile_pos = player_pos.to_tile_pos();
                                     
-                                    // Add to nearest mech inventory
-                                    for (mech_id, mech) in &mut game.mechs {
-                                        if mech.team == player.team {
-                                            // Simple distance check
-                                            let dx = (mech.position.x - tile_pos.x).abs();
-                                            let dy = (mech.position.y - tile_pos.y).abs();
-                                            if dx < 5 && dy < 5 {
+                                    // Deposit resource to the mech
+                                    if let Some(mech_id) = mech_to_deposit {
+                                        if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                                            if mech.team == player.team {
                                                 *mech.resource_inventory.entry(resource_type).or_insert(0) += 1;
                                                 player.carrying_resource = None;
                                                 
@@ -312,7 +367,8 @@ impl GameSystem for TileBehaviorSystem {
                                                     resource_type,
                                                     position: tile_pos,
                                                 });
-                                                break;
+                                                
+                                                log::info!("Player {} deposited {:?} to mech cargo bay", actor, resource_type);
                                             }
                                         }
                                     }

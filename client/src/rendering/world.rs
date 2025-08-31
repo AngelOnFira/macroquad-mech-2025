@@ -128,17 +128,6 @@ fn render_world_tiles(game_state: &GameState, cam_x: f32, cam_y: f32) {
             render_door_tile(door_x1, door_y, team_color, cam_x, cam_y);
             render_door_tile(door_x2, door_y, team_color, cam_x, cam_y);
             
-            // Render resource drop-off tiles on top of the mech
-            let dropoff_x = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
-            let dropoff_y = mech.position.y;
-            
-            // 3x3 drop-off zone on the roof
-            for dy in 0..3 {
-                for dx in 0..3 {
-                    let is_center = dx == 1 && dy == 1;
-                    render_dropoff_tile(dropoff_x + dx, dropoff_y + dy, team_color, is_center, cam_x, cam_y);
-                }
-            }
         }
     }
 }
@@ -159,39 +148,32 @@ fn render_door_tile(x: i32, y: i32, team_color: Color, cam_x: f32, cam_y: f32) {
     // Door outline
     draw_rectangle_lines(tile_x, tile_y, TILE_SIZE, TILE_SIZE, 2.0, WHITE);
     
-    // Entry indicator
-    draw_text(
-        "ENTER",
-        tile_x + TILE_SIZE / 2.0 - 20.0,
-        tile_y + TILE_SIZE / 2.0 + 6.0,
-        12.0,
-        WHITE
+    // Visual entry indicator - just a subtle arrow or pattern
+    let arrow_color = Color::new(1.0, 1.0, 1.0, 0.5);
+    draw_line(
+        tile_x + TILE_SIZE / 2.0,
+        tile_y + TILE_SIZE * 0.3,
+        tile_x + TILE_SIZE / 2.0,
+        tile_y + TILE_SIZE * 0.7,
+        2.0,
+        arrow_color
     );
-}
-
-fn render_dropoff_tile(x: i32, y: i32, team_color: Color, is_center: bool, cam_x: f32, cam_y: f32) {
-    let tile_x = cam_x + x as f32 * TILE_SIZE;
-    let tile_y = cam_y + y as f32 * TILE_SIZE;
-    
-    // Drop-off zone background (roof-like color)
-    let dropoff_color = Color::new(team_color.r * 0.7, team_color.g * 0.7, team_color.b * 0.7, 0.8);
-    draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, dropoff_color);
-    
-    // Add a cross pattern for visual clarity
-    let cross_color = Color::new(1.0, 1.0, 1.0, 0.3);
-    draw_line(tile_x, tile_y + TILE_SIZE / 2.0, tile_x + TILE_SIZE, tile_y + TILE_SIZE / 2.0, 2.0, cross_color);
-    draw_line(tile_x + TILE_SIZE / 2.0, tile_y, tile_x + TILE_SIZE / 2.0, tile_y + TILE_SIZE, 2.0, cross_color);
-    
-    // Drop indicator (only on center tile)
-    if is_center {
-        draw_text(
-            "DROP",
-            tile_x + TILE_SIZE / 2.0 - 16.0,
-            tile_y + TILE_SIZE / 2.0 + 5.0,
-            12.0,
-            WHITE
-        );
-    }
+    draw_line(
+        tile_x + TILE_SIZE * 0.3,
+        tile_y + TILE_SIZE * 0.5,
+        tile_x + TILE_SIZE / 2.0,
+        tile_y + TILE_SIZE * 0.7,
+        2.0,
+        arrow_color
+    );
+    draw_line(
+        tile_x + TILE_SIZE * 0.7,
+        tile_y + TILE_SIZE * 0.5,
+        tile_x + TILE_SIZE / 2.0,
+        tile_y + TILE_SIZE * 0.7,
+        2.0,
+        arrow_color
+    );
 }
 
 fn render_resources(game_state: &GameState, cam_x: f32, cam_y: f32) {

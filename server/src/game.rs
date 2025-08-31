@@ -420,20 +420,9 @@ impl Game {
             })
         );
         
-        // Add resource drop-off zone on top of the mech (roof area)
-        let dropoff_x = mech_pos.x + (MECH_SIZE_TILES / 2) - 1;
-        let dropoff_y = mech_pos.y;
-        
-        // For now, just mark the area with metal floor tiles
-        // TODO: Add proper resource dropoff entity when needed
-        for dy in 0..3 {
-            for dx in 0..3 {
-                self.tile_map.set_world_tile(
-                    TilePos::new(dropoff_x + dx, dropoff_y + dy),
-                    TileContent::Static(StaticTile::CargoFloor { wear: 0 })
-                );
-            }
-        }
+        // Resource drop-off is now inside the mech on floor 0
+        // Create drop-off entity inside the mech
+        self.create_mech_cargo_dropoff(mech_id);
     }
     
     pub fn spawn_resource_with_behavior(&mut self, position: TilePos, resource_type: ResourceType) -> Uuid {
@@ -506,6 +495,64 @@ impl Game {
         self.tile_map.set_entity_tile(position, entity_id);
         
         entity_id
+    }
+    
+    pub fn create_mech_cargo_dropoff(&mut self, mech_id: Uuid) {
+        use shared::components::*;
+        
+        // Get mech team
+        let team = match self.mechs.get(&mech_id) {
+            Some(mech) => mech.team,
+            None => return,
+        };
+        
+        // Create drop-off zones in cargo bay area (3x3 grid)
+        let cargo_x = FLOOR_WIDTH_TILES / 2 - 1;
+        let cargo_y = 2; // Near the top of floor 0
+        
+        // Create one entity for the center of the cargo bay
+        let center_x = cargo_x + 1;
+        let center_y = cargo_y + 1;
+        let entity_id = self.entity_storage.create_entity("CargoBayDropoff".to_string());
+        
+        // Add position (inside mech on floor 0)
+        self.entity_storage.add_position(entity_id, Position {
+            tile: TilePos::new(center_x, center_y),
+            world: TilePos::new(center_x, center_y).to_world_pos(),
+            floor: Some(0),
+            mech_id: Some(mech_id),
+        });
+        
+        // Add auto-interact component for resource drop-off
+        self.entity_storage.auto_interacts.insert(entity_id, AutoInteract {
+            range: TILE_SIZE * 2.0, // 2 tile range for cargo bay
+            interaction_type: AutoInteractionType::DropResource,
+            conditions: vec![
+                InteractionCondition::PlayerCarrying(ResourceType::ScrapMetal),
+                InteractionCondition::PlayerOnTeam(team),
+            ],
+        });
+        
+        // Also handle other resource types
+        for resource_type in [ResourceType::ComputerComponents, ResourceType::Wiring, ResourceType::Batteries] {
+            let entity_id = self.entity_storage.create_entity(format!("CargoBay_{:?}", resource_type));
+            
+            self.entity_storage.add_position(entity_id, Position {
+                tile: TilePos::new(center_x, center_y),
+                world: TilePos::new(center_x, center_y).to_world_pos(),
+                floor: Some(0),
+                mech_id: Some(mech_id),
+            });
+            
+            self.entity_storage.auto_interacts.insert(entity_id, AutoInteract {
+                range: TILE_SIZE * 2.0,
+                interaction_type: AutoInteractionType::DropResource,
+                conditions: vec![
+                    InteractionCondition::PlayerCarrying(resource_type),
+                    InteractionCondition::PlayerOnTeam(team),
+                ],
+            });
+        }
     }
     
     pub fn spawn_resource_dropoff(&mut self, position: TilePos, mech_id: Uuid, team: TeamId) -> Uuid {
