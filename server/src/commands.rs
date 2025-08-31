@@ -75,7 +75,44 @@ impl Command for PlayerInputCommand {
         
         // Handle movement
         if self.movement.0 != 0.0 || self.movement.1 != 0.0 {
-            super::client::handle_player_movement(&mut game, player_id, self.movement, tx).await;
+            // Update player position directly
+            if let Some(player) = game.players.get_mut(&player_id) {
+                let movement_speed = shared::balance::PLAYER_MOVE_SPEED; // tiles per second
+                let delta_time = shared::network_constants::FRAME_DELTA_SECONDS; // Use frame delta for consistent movement
+                
+                // Calculate movement delta
+                let delta_x = self.movement.0 * movement_speed * TILE_SIZE * delta_time;
+                let delta_y = self.movement.1 * movement_speed * TILE_SIZE * delta_time;
+                
+                // Update position based on current location
+                match &mut player.location {
+                    PlayerLocation::OutsideWorld(pos) => {
+                        // Move in world space
+                        pos.x += delta_x;
+                        pos.y += delta_y;
+                        
+                        // Keep within world bounds
+                        pos.x = pos.x.max(0.0).min((ARENA_WIDTH_TILES as f32) * TILE_SIZE);
+                        pos.y = pos.y.max(0.0).min((ARENA_HEIGHT_TILES as f32) * TILE_SIZE);
+                    }
+                    PlayerLocation::InsideMech { pos, .. } => {
+                        // Move within mech interior bounds
+                        pos.x += delta_x;
+                        pos.y += delta_y;
+                        
+                        // Keep within mech interior bounds (simplified - could add proper collision)
+                        let mech_bounds = (MECH_SIZE_TILES as f32) * TILE_SIZE;
+                        pos.x = pos.x.max(0.0).min(mech_bounds);
+                        pos.y = pos.y.max(0.0).min(mech_bounds);
+                    }
+                }
+                
+                // Send movement update to all players
+                let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
+                    player_id,
+                    location: player.location,
+                }));
+            }
         }
 
         // Handle action key
