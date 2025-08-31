@@ -75,12 +75,13 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
 
 
 pub async fn handle_player_movement(
-    game: &mut Game,
-    player_id: Uuid,
-    movement: (f32, f32),
-    tx: &broadcast::Sender<(Uuid, ServerMessage)>,
+    _game: &mut Game,
+    _player_id: Uuid,
+    _movement: (f32, f32),
+    _tx: &broadcast::Sender<(Uuid, ServerMessage)>,
 ) {
-    crate::movement::handle_player_movement(game, player_id, movement, tx).await;
+    // Movement is now handled by the systems architecture (PhysicsSystem, TileBehaviorSystem)
+    // This function is kept for compatibility but does nothing
 }
 
 pub async fn handle_action_key(

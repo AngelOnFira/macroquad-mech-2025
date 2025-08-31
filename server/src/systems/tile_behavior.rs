@@ -4,8 +4,9 @@ use shared::{
     components::*,
     tile_entity::{TileEvent, TileMap},
     types::{WorldPos, TilePos},
-    Player, PlayerLocation, TeamId, ResourceType, ServerMessage,
+    PlayerLocation, TeamId, ResourceType, ServerMessage,
 };
+use crate::game::Player;
 use crate::entity_storage::EntityStorage;
 use crate::game::Game;
 use crate::systems::GameSystem;

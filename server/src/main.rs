@@ -18,9 +18,6 @@ mod client;
 mod commands;
 mod entity_storage;
 mod game;
-mod hybrid_integration;
-mod movement;
-mod physics;
 mod spatial_collision;
 mod systems;
 
@@ -212,20 +209,7 @@ mod game_loop {
 
             let mut game = game.write().await;
 
-            // Update physics
-            game.update_physics(FRAME_DELTA_SECONDS);
-
-            // Check collisions
-            game.check_resource_pickups(&tx);
-            game.check_mech_entries(&tx);
-
-            // Update projectiles
-            game.update_projectiles(FRAME_DELTA_SECONDS, &tx);
-
-            // Calculate and send visibility updates for each player
-            game.update_player_visibility(&tx);
-
-            // Update mechs and check for player deaths
+            // Update all systems through SystemManager - this handles everything!
             let messages = game.update(FRAME_DELTA_SECONDS);
             for msg in messages {
                 let _ = tx.send((Uuid::nil(), msg));
