@@ -141,8 +141,7 @@ impl GameState {
         }
 
         // Update vision system
-        // We need to update vision separately to avoid borrowing issues
-        // This is a known pattern when a field needs to mutate while accessing other fields
+        self.update_vision();
 
         // Update camera to follow player
         let target_location = if let Some(transition) = &self.transition {
@@ -169,12 +168,9 @@ impl GameState {
         }
     }
 
-    /// Update the vision system separately to avoid borrowing conflicts
+    /// Update the vision system using the new static method pattern
     pub fn update_vision(&mut self) {
-        // TODO: Fix borrowing conflicts - for now vision updates are disabled
-        // The vision system exists and can be used in rendering, but updates need to be 
-        // called from outside the GameState update method
-        // self.vision_system.force_update(self);
+        ClientVisionSystem::force_update(self);
     }
 }
 
