@@ -1,4 +1,3 @@
-use log::{error, info};
 use macroquad::prelude::*;
 use std::sync::{Arc, Mutex};
 
