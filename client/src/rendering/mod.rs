@@ -1,12 +1,12 @@
+pub mod camera;
+mod effects;
+pub mod hybrid_tiles;
+mod mech_interior;
+mod pilot_station;
+pub mod primitives;
+mod ui;
 mod utils;
 mod world;
-mod effects;
-mod mech_interior;
-mod ui;
-mod pilot_station;
-pub mod hybrid_tiles;
-pub mod primitives;
-pub mod camera;
 
 use crate::game_state::*;
 use shared::types::*;
@@ -34,14 +34,40 @@ impl Renderer {
             // Normal rendering
             match game_state.player_location {
                 PlayerLocation::OutsideWorld(_) => {
-                    world::render_world_view(game_state, cam_x, cam_y);
+                    world::render_world_view_with_vision(
+                        game_state,
+                        cam_x,
+                        cam_y,
+                        Some(&game_state.vision_system),
+                    );
                     effects::render_effects(game_state, cam_x, cam_y);
                 }
                 PlayerLocation::InsideMech { mech_id, floor, .. } => {
                     if let Some(mech) = game_state.mechs.get(&mech_id) {
-                        mech_interior::render_mech_interior(game_state, mech, floor, cam_x, cam_y);
-                        mech_interior::render_stations_on_floor(game_state, mech_id, floor);
-                        mech_interior::render_players_on_floor(game_state, mech_id, floor, cam_x, cam_y);
+                        mech_interior::render_mech_interior_with_vision(
+                            game_state,
+                            mech,
+                            floor,
+                            cam_x,
+                            cam_y,
+                            Some(&game_state.vision_system),
+                        );
+                        mech_interior::render_stations_on_floor_with_vision(
+                            game_state,
+                            mech_id,
+                            floor,
+                            cam_x,
+                            cam_y,
+                            Some(&game_state.vision_system),
+                        );
+                        mech_interior::render_players_on_floor_with_vision(
+                            game_state,
+                            mech_id,
+                            floor,
+                            cam_x,
+                            cam_y,
+                            Some(&game_state.vision_system),
+                        );
                     }
                 }
             }
@@ -49,18 +75,24 @@ impl Renderer {
 
         // Render UI overlay
         ui::render_ui(game_state);
-        
+
         // Render pilot station window if open
         pilot_station::render_pilot_station_window(game_state);
     }
 
-    fn render_transition(&self, game_state: &GameState, transition: &crate::game_state::TransitionState, cam_x: f32, cam_y: f32) {
-        use macroquad::prelude::*;
+    fn render_transition(
+        &self,
+        game_state: &GameState,
+        transition: &crate::game_state::TransitionState,
+        cam_x: f32,
+        cam_y: f32,
+    ) {
         use crate::game_state::TransitionType;
-        
+        use macroquad::prelude::*;
+
         // For entering mech: fade from outside to inside
         // For exiting mech: fade from inside to outside
-        
+
         let (first_alpha, second_alpha) = match transition.transition_type {
             TransitionType::EnteringMech => {
                 // Fade out the outside world, fade in the mech interior
@@ -75,14 +107,40 @@ impl Renderer {
         // Render the first view (what we're transitioning from)
         match &transition.from_location {
             PlayerLocation::OutsideWorld(_) => {
-                world::render_world_view(game_state, cam_x, cam_y);
+                world::render_world_view_with_vision(
+                    game_state,
+                    cam_x,
+                    cam_y,
+                    Some(&game_state.vision_system),
+                );
                 effects::render_effects(game_state, cam_x, cam_y);
             }
             PlayerLocation::InsideMech { mech_id, floor, .. } => {
                 if let Some(mech) = game_state.mechs.get(&mech_id) {
-                    mech_interior::render_mech_interior(game_state, mech, *floor, cam_x, cam_y);
-                    mech_interior::render_stations_on_floor(game_state, *mech_id, *floor);
-                    mech_interior::render_players_on_floor(game_state, *mech_id, *floor, cam_x, cam_y);
+                    mech_interior::render_mech_interior_with_vision(
+                        game_state,
+                        mech,
+                        *floor,
+                        cam_x,
+                        cam_y,
+                        Some(&game_state.vision_system),
+                    );
+                    mech_interior::render_stations_on_floor_with_vision(
+                        game_state,
+                        *mech_id,
+                        *floor,
+                        cam_x,
+                        cam_y,
+                        Some(&game_state.vision_system),
+                    );
+                    mech_interior::render_players_on_floor_with_vision(
+                        game_state,
+                        *mech_id,
+                        *floor,
+                        cam_x,
+                        cam_y,
+                        Some(&game_state.vision_system),
+                    );
                 }
             }
         }
@@ -93,7 +151,7 @@ impl Renderer {
             0.0,
             screen_width(),
             screen_height(),
-            Color::new(0.0, 0.0, 0.0, 1.0 - first_alpha)
+            Color::new(0.0, 0.0, 0.0, 1.0 - first_alpha),
         );
 
         // If we're far enough into the transition, start rendering the second view
@@ -101,14 +159,40 @@ impl Renderer {
             // Render the second view (what we're transitioning to)
             match &transition.to_location {
                 PlayerLocation::OutsideWorld(_) => {
-                    world::render_world_view(game_state, cam_x, cam_y);
+                    world::render_world_view_with_vision(
+                        game_state,
+                        cam_x,
+                        cam_y,
+                        Some(&game_state.vision_system),
+                    );
                     effects::render_effects(game_state, cam_x, cam_y);
                 }
                 PlayerLocation::InsideMech { mech_id, floor, .. } => {
                     if let Some(mech) = game_state.mechs.get(&mech_id) {
-                        mech_interior::render_mech_interior(game_state, mech, *floor, cam_x, cam_y);
-                        mech_interior::render_stations_on_floor(game_state, *mech_id, *floor);
-                        mech_interior::render_players_on_floor(game_state, *mech_id, *floor, cam_x, cam_y);
+                        mech_interior::render_mech_interior_with_vision(
+                            game_state,
+                            mech,
+                            *floor,
+                            cam_x,
+                            cam_y,
+                            Some(&game_state.vision_system),
+                        );
+                        mech_interior::render_stations_on_floor_with_vision(
+                            game_state,
+                            *mech_id,
+                            *floor,
+                            cam_x,
+                            cam_y,
+                            Some(&game_state.vision_system),
+                        );
+                        mech_interior::render_players_on_floor_with_vision(
+                            game_state,
+                            *mech_id,
+                            *floor,
+                            cam_x,
+                            cam_y,
+                            Some(&game_state.vision_system),
+                        );
                     }
                 }
             }
@@ -119,7 +203,7 @@ impl Renderer {
                 0.0,
                 screen_width(),
                 screen_height(),
-                Color::new(0.0, 0.0, 0.0, 1.0 - second_alpha)
+                Color::new(0.0, 0.0, 0.0, 1.0 - second_alpha),
             );
         }
     }
