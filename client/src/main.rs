@@ -8,6 +8,7 @@ mod game_state;
 mod rendering;
 mod input;
 mod demo_mode;
+mod vision;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod network;

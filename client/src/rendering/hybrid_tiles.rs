@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
 use shared::{TileVisual, Material, Direction, StationType, TILE_SIZE};
 use super::primitives::{ArrowRenderer, ArrowStyle};
+use crate::vision::FogOfWarRenderer;
 
 /// Render a tile using the hybrid tile visual system
 pub fn render_tile_visual(tile: &TileVisual, x: f32, y: f32, size: f32) {
@@ -175,6 +176,19 @@ pub fn render_tile_grid(
             // Render as dark/fog
             draw_rectangle(screen_x, screen_y, TILE_SIZE, TILE_SIZE, Color::from_rgba(20, 20, 25, 255));
         }
+    }
+}
+
+/// Render a tile with fog of war visibility applied
+pub fn render_tile_visual_with_visibility(tile: &TileVisual, x: f32, y: f32, size: f32, visibility: f32) {
+    // First render the tile normally
+    render_tile_visual(tile, x, y, size);
+    
+    // Then apply fog overlay if visibility is reduced
+    if visibility < 1.0 {
+        let fog_alpha = (1.0 - visibility) * 0.7; // Max 70% fog overlay on tiles
+        let fog_color = Color::new(0.0, 0.0, 0.0, fog_alpha);
+        draw_rectangle(x, y, size, size, fog_color);
     }
 }
 
