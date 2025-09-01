@@ -196,3 +196,176 @@ Key differences:
 - Web uses `web-sys` WebSocket, native uses `ws` crate
 - Web connects to page origin, native to localhost
 - Web uses console logging, native uses env_logger
+
+## Tile Math and Rendering Abstractions
+
+**Use these abstractions instead of manual calculations to ensure consistency and maintainability.**
+
+### Coordinate Conversions
+- Use `WorldPos`, `TilePos`, `ScreenPos` from `shared::coordinates`
+- **Never manually multiply by `TILE_SIZE`** - use conversion methods instead
+- Use `to_world()`, `to_tile()`, `to_world_center()` for conversions
+
+### Mech Door Positioning
+```rust
+// ❌ Before: Manual door calculation
+let door_x1 = mech.position.x + (MECH_SIZE_TILES / 2) - 1;
+let door_x2 = mech.position.x + (MECH_SIZE_TILES / 2);
+let entry_x = if tile_pos.x == door_x1 {
+    (FLOOR_WIDTH_TILES as f32 / 2.0 - 0.5) * TILE_SIZE
+} else if tile_pos.x == door_x2 {
+    (FLOOR_WIDTH_TILES as f32 / 2.0 + 0.5) * TILE_SIZE
+} else {
+    (FLOOR_WIDTH_TILES as f32 / 2.0) * TILE_SIZE
+};
+
+// ✅ After: Use MechDoorPositions abstraction
+use shared::coordinates::MechDoorPositions;
+let doors = MechDoorPositions::from_mech_position(mech.position);
+let entry_pos = doors.get_entry_position(tile_pos);
+```
+
+### Arrow Drawing
+```rust
+// ❌ Before: Manual triangle drawing (20+ lines of repetitive code)
+let center_x = x + size / 2.0;
+let center_y = y + size / 2.0;
+let arrow_size = size * 0.3;
+match facing {
+    Direction::Up => {
+        draw_triangle(
+            Vec2::new(center_x, center_y - arrow_size),
+            Vec2::new(center_x - arrow_size/2.0, center_y),
+            Vec2::new(center_x + arrow_size/2.0, center_y),
+            arrow_color,
+        );
+    }
+    // ... 15 more lines for other directions
+}
+
+// ✅ After: Use ArrowRenderer primitives
+use crate::rendering::primitives::{ArrowRenderer, ArrowStyle};
+ArrowRenderer::draw_arrow_centered_in_tile(
+    tile_pos,
+    Direction::Up,
+    ArrowStyle::default().with_color(arrow_color)
+);
+```
+
+### Tile Highlighting and UI Elements
+```rust
+// ✅ Use rendering primitives for consistent styling
+use crate::rendering::primitives::{TileHighlight, TileHighlightStyle};
+
+// Highlight selected tiles
+TileHighlight::draw_tile(selected_tile, camera_offset, TileHighlightStyle::selection());
+
+// Highlight hovered tiles
+TileHighlight::draw_tile(hovered_tile, camera_offset, TileHighlightStyle::hover());
+
+// Highlight dangerous areas
+TileHighlight::draw_tiles(&danger_tiles, camera_offset, TileHighlightStyle::danger());
+```
+
+### Camera Operations
+```rust
+// ✅ Use Camera utilities instead of manual offset calculations
+use crate::rendering::camera::{Camera, ViewportCalculations, ScreenSpace};
+
+let mut camera = Camera::new(WorldPos::new(100.0, 200.0));
+
+// Get visible tiles for rendering optimization
+let visible_tiles = ViewportCalculations::get_visible_tile_range(&camera);
+
+// Convert mouse to world/tile coordinates
+let mouse_world = ScreenSpace::mouse_to_world(&camera);
+let mouse_tile = ScreenSpace::mouse_to_tile(&camera);
+
+// Check if something is visible before rendering
+if ViewportCalculations::is_tile_visible(&camera, tile_pos) {
+    render_tile(tile_pos);
+}
+```
+
+### Tile Math Operations
+```rust
+// ✅ Use tile_math utilities for common calculations
+use shared::tile_math::{TileDistance, TileNavigation, MechPositioning};
+
+// Distance calculations
+let tile_distance = TileDistance::tile_distance(pos1, pos2);
+let within_range = TileDistance::within_tile_radius(player_pos, target_pos, 5.0);
+
+// Navigation and pathfinding
+let adjacent_tiles = TileNavigation::adjacent_tiles(current_tile, Some(bounds));
+let line_tiles = TileNavigation::line_of_tiles(start_tile, end_tile);
+let circle_tiles = TileNavigation::tiles_in_circle(center_tile, radius);
+
+// Mech-specific calculations
+let mech_center = MechPositioning::mech_center(mech_pos);
+let is_inside = MechPositioning::is_inside_mech(world_pos, mech_pos);
+```
+
+### Tile Regions and Iteration
+```rust
+// ✅ Use TileRegion for working with areas
+use shared::coordinates::{TileRegion, RelativePosition};
+
+let region = TileRegion::new(min_tile, max_tile);
+let world_bounds = TileRegion::world_bounds();
+let mech_floor = TileRegion::mech_floor_bounds();
+
+// Iterate over all tiles in a region
+for tile_pos in region.iter() {
+    process_tile(tile_pos);
+}
+
+// Position entities within tiles
+let entity_pos = RelativePosition::Center.world_pos_in_tile(tile_pos);
+let corner_pos = RelativePosition::TopLeft.world_pos_in_tile(tile_pos);
+```
+
+### When to Add New Abstractions
+
+**Add new abstractions when you encounter these patterns:**
+
+1. **Duplicate calculations**: If you write the same tile calculation twice, abstract it
+2. **Complex rendering**: If rendering code is >10 lines for a simple shape, create a primitive
+3. **Coordinate conversions**: If you need new coordinate space conversions, extend existing converters
+4. **Pattern repetition**: If you see similar math patterns across files, create utilities
+
+### Performance Considerations
+
+- **Tile calculations are hot paths** - keep utility functions inline-friendly
+- **Cache visible tile ranges** when camera hasn't moved
+- **Use integer tile positions** until final render step
+- **Batch similar rendering operations** using the primitives
+
+### Common Patterns to Avoid
+
+```rust
+// ❌ Don't do manual tile math
+let tile_x = (pos.x / TILE_SIZE).floor() as i32;
+let world_x = tile.x as f32 * TILE_SIZE;
+
+// ❌ Don't repeat arrow drawing logic
+// (20+ lines of manual triangle calculations)
+
+// ❌ Don't manually calculate door positions
+let door_x = mech_pos.x + MECH_SIZE_TILES/2 - 1;
+
+// ❌ Don't do manual camera transforms
+let screen_x = world_pos.x + camera_offset.x;
+
+// ✅ Use the abstractions instead!
+```
+
+### Migration Strategy
+
+When updating existing code:
+1. **Identify patterns** that match the abstractions
+2. **Replace gradually** - don't break existing functionality
+3. **Test thoroughly** - ensure math precision is maintained
+4. **Remove old code** once abstractions are proven stable
+
+These abstractions make the codebase more maintainable, consistent, and easier to understand. Use them whenever possible!
