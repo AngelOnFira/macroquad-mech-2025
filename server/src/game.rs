@@ -2,16 +2,16 @@ use std::collections::HashMap;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use shared::*;
-use shared::tile_entity::{TileMap, TileContent, StaticTile, TransitionType, TileVisual, Material};
-use shared::vision::VisionSystem;
-use shared::components::{Position, Station};
-use shared::mech_layout::MechLayoutGenerator;
-use shared::stations::StationRegistry;
-use shared::object_pool::PoolManager;
+use crate::entity_storage::EntityStorage;
 use crate::spatial_collision::SpatialCollisionManager;
 use crate::systems::SystemManager;
-use crate::entity_storage::EntityStorage;
+use shared::components::{Position, Station};
+use shared::mech_layout::MechLayoutGenerator;
+use shared::object_pool::PoolManager;
+use shared::stations::StationRegistry;
+use shared::tile_entity::{Material, StaticTile, TileContent, TileMap, TileVisual, TransitionType};
+use shared::vision::VisionSystem;
+use shared::*;
 
 pub struct Game {
     pub players: HashMap<Uuid, Player>,
@@ -50,7 +50,7 @@ pub struct Mech {
     pub stations: HashMap<Uuid, StationInstance>,
     pub interior: MechInterior,
     pub resource_inventory: HashMap<ResourceType, u32>,
-    pub velocity: (f32, f32), // tiles per second
+    pub velocity: (f32, f32),     // tiles per second
     pub world_position: WorldPos, // For smooth movement
 }
 
@@ -90,7 +90,7 @@ impl Game {
         }
         resources
     }
-    
+
     /// Get resource by ID
     pub fn get_resource(&self, id: Uuid) -> Option<Resource> {
         if let Some(pickup) = self.entity_storage.resource_pickups.get(&id) {
@@ -104,31 +104,33 @@ impl Game {
         }
         None
     }
-    
+
     /// Remove a resource entity
     pub fn remove_resource(&mut self, id: Uuid) {
         self.entity_storage.destroy_entity(id);
         self.tile_map.remove_tile(
-            self.entity_storage.positions.get(&id)
+            self.entity_storage
+                .positions
+                .get(&id)
                 .map(|p| p.tile)
-                .unwrap_or(TilePos::new(0, 0))
+                .unwrap_or(TilePos::new(0, 0)),
         );
     }
-    
+
     pub fn new() -> Self {
         // Initialize the hybrid tile map
         let mut tile_map = TileMap::new();
-        
+
         // Initialize world with grass tiles
         for x in 0..ARENA_WIDTH_TILES {
             for y in 0..ARENA_HEIGHT_TILES {
                 tile_map.set_world_tile(
                     TilePos::new(x as i32, y as i32),
-                    TileContent::Static(StaticTile::Grass)
+                    TileContent::Static(StaticTile::Grass),
                 );
             }
         }
-        
+
         let mut game = Self {
             players: HashMap::new(),
             mechs: HashMap::new(),
@@ -143,24 +145,39 @@ impl Game {
             entity_storage: EntityStorage::new(),
             vision_system: VisionSystem::new(),
         };
-        
+
         // Initialize mechs and update tiles
         game.create_initial_mechs();
-        
+
         game
     }
-    
+
     /// Add an AI player to the game
-    pub fn add_ai_player(&mut self, difficulty: f32, personality: Option<ai::Personality>) -> Option<Uuid> {
+    pub fn add_ai_player(
+        &mut self,
+        difficulty: f32,
+        personality: Option<ai::Personality>,
+    ) -> Option<Uuid> {
         // Count teams for balancing
-        let red_count = self.players.values().filter(|p| p.team == TeamId::Red).count();
-        let blue_count = self.players.values().filter(|p| p.team == TeamId::Blue).count();
-        
+        let red_count = self
+            .players
+            .values()
+            .filter(|p| p.team == TeamId::Red)
+            .count();
+        let blue_count = self
+            .players
+            .values()
+            .filter(|p| p.team == TeamId::Blue)
+            .count();
+
         // Get the AI system from the system manager
         let mut system_manager = std::mem::take(&mut self.system_manager);
-        let result = if let Some(ai_system) = system_manager.get_system_mut::<crate::systems::ai::AISystem>() {
+        let result = if let Some(ai_system) =
+            system_manager.get_system_mut::<crate::systems::ai::AISystem>()
+        {
             // Add the AI player
-            let (ai_id, player) = ai_system.add_ai_player(difficulty, personality, red_count, blue_count);
+            let (ai_id, player) =
+                ai_system.add_ai_player(difficulty, personality, red_count, blue_count);
             self.players.insert(ai_id, player);
             Some(ai_id)
         } else {
@@ -170,12 +187,12 @@ impl Game {
         self.system_manager = system_manager;
         result
     }
-    
+
     /// Remove an AI player from the game
     pub fn remove_ai_player(&mut self, ai_id: Uuid) {
         // Remove from players
         self.players.remove(&ai_id);
-        
+
         // Get the AI system from the system manager
         let mut system_manager = std::mem::take(&mut self.system_manager);
         if let Some(ai_system) = system_manager.get_system_mut::<crate::systems::ai::AISystem>() {
@@ -186,10 +203,11 @@ impl Game {
         }
         self.system_manager = system_manager;
     }
-    
+
     /// Get list of all AI players
     pub fn get_ai_players(&self) -> Vec<Uuid> {
-        self.players.iter()
+        self.players
+            .iter()
             .filter(|(_, p)| p.name.starts_with("AI_"))
             .map(|(id, _)| *id)
             .collect()
@@ -207,25 +225,25 @@ impl Game {
         let blue_mech = self.create_mech(blue_mech_pos, TeamId::Blue);
         let blue_mech_id = blue_mech.id;
         self.mechs.insert(blue_mech.id, blue_mech);
-        
+
         // Update tiles for both mechs
         self.update_mech_tiles(red_mech_id, red_mech_pos);
         self.update_mech_tiles(blue_mech_id, blue_mech_pos);
     }
-    
+
     pub fn update_player_visibility(&mut self, tx: &broadcast::Sender<(Uuid, ServerMessage)>) {
         // Skip visibility updates every few ticks to reduce network traffic
         if self.tick_count % 5 != 0 {
             return;
         }
-        
+
         // Calculate visibility for each player
         for (player_id, player) in &self.players {
             let world_pos = match player.location {
                 PlayerLocation::OutsideWorld(pos) => pos,
                 PlayerLocation::InsideMech { pos, .. } => pos,
             };
-            
+
             // Calculate visibility using the vision system
             let visibility = self.vision_system.calculate_visibility(
                 *player_id,
@@ -234,7 +252,7 @@ impl Game {
                 &self.tile_map,
                 &self.entity_storage,
             );
-            
+
             // Convert visible tiles to visuals
             let mut visible_tiles = Vec::new();
             for tile_pos in &visibility.visible_tiles {
@@ -273,9 +291,9 @@ impl Game {
                                     broken: false,
                                     facing,
                                 },
-                                StaticTile::TransitionZone { .. } => TileVisual::TransitionFade {
-                                    progress: 0.0,
-                                },
+                                StaticTile::TransitionZone { .. } => {
+                                    TileVisual::TransitionFade { progress: 0.0 }
+                                }
                                 _ => continue,
                             }
                         }
@@ -291,16 +309,19 @@ impl Game {
                             }
                         }
                     };
-                    
+
                     visible_tiles.push((*tile_pos, visual));
                 }
             }
-            
+
             // Send visibility update to player
-            let _ = tx.send((*player_id, ServerMessage::VisibilityUpdate {
-                visible_tiles,
-                player_position: world_pos,
-            }));
+            let _ = tx.send((
+                *player_id,
+                ServerMessage::VisibilityUpdate {
+                    visible_tiles,
+                    player_position: world_pos,
+                },
+            ));
         }
     }
 
@@ -312,11 +333,14 @@ impl Game {
         // Convert MechStations to Stations using the registry
         let mut stations = HashMap::new();
         for (station_id, mech_station) in mech_stations {
-            let station = self.station_registry.create_station(
-                mech_station.station_type,
-                mech_station.floor,
-                mech_station.position,
-            ).expect("Failed to create station from registry");
+            let station = self
+                .station_registry
+                .create_station(
+                    mech_station.station_type,
+                    mech_station.floor,
+                    mech_station.position,
+                )
+                .expect("Failed to create station from registry");
             stations.insert(station_id, station);
         }
 
@@ -341,12 +365,12 @@ impl Game {
             world_position: position.to_world_pos(),
         }
     }
-    
+
     fn update_mech_tiles(&mut self, mech_id: Uuid, mech_pos: TilePos) {
         // Create the mech tile map for this mech
         let mech_tile_map = self.tile_map.create_mech(mech_id, mech_pos);
         mech_tile_map.position = mech_pos;
-        
+
         // Populate the mech interior from the layout
         if let Some(mech) = self.mechs.get(&mech_id) {
             for (floor_idx, floor_layout) in mech.interior.floors.iter().enumerate() {
@@ -355,7 +379,7 @@ impl Game {
                     for (y, row) in floor_layout.tiles.iter().enumerate() {
                         for (x, tile_content) in row.iter().enumerate() {
                             let tile_pos = TilePos::new(x as i32, y as i32);
-                            
+
                             match tile_content {
                                 TileContent::Static(static_tile) => {
                                     floor_map.static_tiles.insert(tile_pos, *static_tile);
@@ -367,12 +391,12 @@ impl Game {
                             }
                         }
                     }
-                    
+
                     // Add station entities
                     for (station_id, station) in &mech.stations {
                         if station.floor == floor_idx as u8 {
                             floor_map.entity_tiles.insert(station.position, *station_id);
-                            
+
                             // Add to entity storage
                             self.entity_storage.add_entity(
                                 *station_id,
@@ -381,9 +405,9 @@ impl Game {
                                     world: WorldPos::from_tile(station.position),
                                     floor: Some(floor_idx as u8),
                                     mech_id: Some(mech_id),
-                                }
+                                },
                             );
-                            
+
                             // Add station component
                             self.entity_storage.add_station(
                                 *station_id,
@@ -392,201 +416,260 @@ impl Game {
                                     interaction_range: 1.5,
                                     power_required: 10.0,
                                     operating: false,
-                                }
+                                },
                             );
                         }
                     }
                 }
             }
         }
-        
+
         // Add door tiles using door position abstraction
         let doors = MechDoorPositions::from_mech_position(mech_pos);
-        
+
         self.tile_map.set_world_tile(
             doors.left_door,
             TileContent::Static(StaticTile::TransitionZone {
                 zone_id: 0,
                 transition_type: TransitionType::MechEntrance { stage: 0 },
-            })
+            }),
         );
         self.tile_map.set_world_tile(
             doors.right_door,
             TileContent::Static(StaticTile::TransitionZone {
                 zone_id: 1,
                 transition_type: TransitionType::MechEntrance { stage: 1 },
-            })
+            }),
         );
-        
+
         // Resource drop-off is now inside the mech on floor 0
         // Create drop-off entity inside the mech
         self.create_mech_cargo_dropoff(mech_id);
     }
-    
-    pub fn spawn_resource_with_behavior(&mut self, position: TilePos, resource_type: ResourceType) -> Uuid {
+
+    pub fn spawn_resource_with_behavior(
+        &mut self,
+        position: TilePos,
+        resource_type: ResourceType,
+    ) -> Uuid {
         use shared::components::*;
-        
+
         // Create the entity
-        let entity_id = self.entity_storage.create_entity(format!("Resource_{:?}", resource_type));
-        
+        let entity_id = self
+            .entity_storage
+            .create_entity(format!("Resource_{:?}", resource_type));
+
         // Add position
-        self.entity_storage.add_position(entity_id, Position {
-            tile: position,
-            world: position.to_world_pos(),
-            floor: None,
-            mech_id: None,
-        });
-        
+        self.entity_storage.add_position(
+            entity_id,
+            Position {
+                tile: position,
+                world: position.to_world_pos(),
+                floor: None,
+                mech_id: None,
+            },
+        );
+
         // Add resource pickup behavior
-        self.entity_storage.resource_pickups.insert(entity_id, ResourcePickup {
-            resource_type,
-            auto_pickup: true,
-            pickup_range: 24.0, // 1.5 tiles
-            respawn_time: Some(30.0), // Respawn after 30 seconds
-        });
-        
+        self.entity_storage.resource_pickups.insert(
+            entity_id,
+            ResourcePickup {
+                resource_type,
+                auto_pickup: true,
+                pickup_range: 24.0,       // 1.5 tiles
+                respawn_time: Some(30.0), // Respawn after 30 seconds
+            },
+        );
+
         // Add proximity trigger for visual feedback
-        self.entity_storage.proximity_triggers.insert(entity_id, ProximityTrigger {
-            range: 32.0, // 2 tiles
-            trigger_for_teams: None, // All teams
-            cooldown: 0.5,
-            last_triggered: HashMap::new(),
-        });
-        
+        self.entity_storage.proximity_triggers.insert(
+            entity_id,
+            ProximityTrigger {
+                range: 32.0,             // 2 tiles
+                trigger_for_teams: None, // All teams
+                cooldown: 0.5,
+                last_triggered: HashMap::new(),
+            },
+        );
+
         // Add to tile map
         self.tile_map.set_entity_tile(position, entity_id);
-        
+
         entity_id
     }
-    
+
     pub fn spawn_mech_entrance(&mut self, position: TilePos, mech_id: Uuid, team: TeamId) -> Uuid {
         use shared::components::*;
-        
+
         // Create the entity
-        let entity_id = self.entity_storage.create_entity("MechEntrance".to_string());
-        
+        let entity_id = self
+            .entity_storage
+            .create_entity("MechEntrance".to_string());
+
         // Add position
-        self.entity_storage.add_position(entity_id, Position {
-            tile: position,
-            world: position.to_world_pos(),
-            floor: None,
-            mech_id: None,
-        });
-        
+        self.entity_storage.add_position(
+            entity_id,
+            Position {
+                tile: position,
+                world: position.to_world_pos(),
+                floor: None,
+                mech_id: None,
+            },
+        );
+
         // Add mech entrance behavior
-        self.entity_storage.mech_entrances.insert(entity_id, MechEntrance {
-            mech_id,
-            target_floor: 0,
-            entry_position: WorldPos::new(24.0, 40.0), // Center of first floor
-            team_restricted: Some(team),
-        });
-        
+        self.entity_storage.mech_entrances.insert(
+            entity_id,
+            MechEntrance {
+                mech_id,
+                target_floor: 0,
+                entry_position: WorldPos::new(24.0, 40.0), // Center of first floor
+                team_restricted: Some(team),
+            },
+        );
+
         // Add proximity trigger for UI prompt
-        self.entity_storage.proximity_triggers.insert(entity_id, ProximityTrigger {
-            range: 16.0, // 1 tile
-            trigger_for_teams: Some(vec![team]),
-            cooldown: 0.1,
-            last_triggered: HashMap::new(),
-        });
-        
+        self.entity_storage.proximity_triggers.insert(
+            entity_id,
+            ProximityTrigger {
+                range: 16.0, // 1 tile
+                trigger_for_teams: Some(vec![team]),
+                cooldown: 0.1,
+                last_triggered: HashMap::new(),
+            },
+        );
+
         // Add to tile map
         self.tile_map.set_entity_tile(position, entity_id);
-        
+
         entity_id
     }
-    
+
     pub fn create_mech_cargo_dropoff(&mut self, mech_id: Uuid) {
         use shared::components::*;
-        
+
         // Get mech team
         let team = match self.mechs.get(&mech_id) {
             Some(mech) => mech.team,
             None => return,
         };
-        
+
         // Create drop-off zones in cargo bay area (3x3 grid)
         let cargo_x = FLOOR_WIDTH_TILES / 2 - 1;
         let cargo_y = 2; // Near the top of floor 0
-        
+
         // Create one entity for the center of the cargo bay
         let center_x = cargo_x + 1;
         let center_y = cargo_y + 1;
-        let entity_id = self.entity_storage.create_entity("CargoBayDropoff".to_string());
-        
+        let entity_id = self
+            .entity_storage
+            .create_entity("CargoBayDropoff".to_string());
+
         // Add position (inside mech on floor 0)
-        self.entity_storage.add_position(entity_id, Position {
-            tile: TilePos::new(center_x, center_y),
-            world: TilePos::new(center_x, center_y).to_world_pos(),
-            floor: Some(0),
-            mech_id: Some(mech_id),
-        });
-        
-        // Add auto-interact component for resource drop-off
-        self.entity_storage.auto_interacts.insert(entity_id, AutoInteract {
-            range: TILE_SIZE * 2.0, // 2 tile range for cargo bay
-            interaction_type: AutoInteractionType::DropResource,
-            conditions: vec![
-                InteractionCondition::PlayerCarrying(ResourceType::ScrapMetal),
-                InteractionCondition::PlayerOnTeam(team),
-            ],
-        });
-        
-        // Also handle other resource types
-        for resource_type in [ResourceType::ComputerComponents, ResourceType::Wiring, ResourceType::Batteries] {
-            let entity_id = self.entity_storage.create_entity(format!("CargoBay_{:?}", resource_type));
-            
-            self.entity_storage.add_position(entity_id, Position {
+        self.entity_storage.add_position(
+            entity_id,
+            Position {
                 tile: TilePos::new(center_x, center_y),
                 world: TilePos::new(center_x, center_y).to_world_pos(),
                 floor: Some(0),
                 mech_id: Some(mech_id),
-            });
-            
-            self.entity_storage.auto_interacts.insert(entity_id, AutoInteract {
-                range: TILE_SIZE * 2.0,
+            },
+        );
+
+        // Add auto-interact component for resource drop-off
+        self.entity_storage.auto_interacts.insert(
+            entity_id,
+            AutoInteract {
+                range: TILE_SIZE * 2.0, // 2 tile range for cargo bay
                 interaction_type: AutoInteractionType::DropResource,
                 conditions: vec![
-                    InteractionCondition::PlayerCarrying(resource_type),
+                    InteractionCondition::PlayerCarrying(ResourceType::ScrapMetal),
                     InteractionCondition::PlayerOnTeam(team),
                 ],
-            });
+            },
+        );
+
+        // Also handle other resource types
+        for resource_type in [
+            ResourceType::ComputerComponents,
+            ResourceType::Wiring,
+            ResourceType::Batteries,
+        ] {
+            let entity_id = self
+                .entity_storage
+                .create_entity(format!("CargoBay_{:?}", resource_type));
+
+            self.entity_storage.add_position(
+                entity_id,
+                Position {
+                    tile: TilePos::new(center_x, center_y),
+                    world: TilePos::new(center_x, center_y).to_world_pos(),
+                    floor: Some(0),
+                    mech_id: Some(mech_id),
+                },
+            );
+
+            self.entity_storage.auto_interacts.insert(
+                entity_id,
+                AutoInteract {
+                    range: TILE_SIZE * 2.0,
+                    interaction_type: AutoInteractionType::DropResource,
+                    conditions: vec![
+                        InteractionCondition::PlayerCarrying(resource_type),
+                        InteractionCondition::PlayerOnTeam(team),
+                    ],
+                },
+            );
         }
     }
-    
-    pub fn spawn_resource_dropoff(&mut self, position: TilePos, mech_id: Uuid, team: TeamId) -> Uuid {
+
+    pub fn spawn_resource_dropoff(
+        &mut self,
+        position: TilePos,
+        mech_id: Uuid,
+        team: TeamId,
+    ) -> Uuid {
         use shared::components::*;
-        
+
         // Create the entity
-        let entity_id = self.entity_storage.create_entity("ResourceDropoff".to_string());
-        
+        let entity_id = self
+            .entity_storage
+            .create_entity("ResourceDropoff".to_string());
+
         // Add position
-        self.entity_storage.add_position(entity_id, Position {
-            tile: position,
-            world: position.to_world_pos(),
-            floor: None,
-            mech_id: None,
-        });
-        
+        self.entity_storage.add_position(
+            entity_id,
+            Position {
+                tile: position,
+                world: position.to_world_pos(),
+                floor: None,
+                mech_id: None,
+            },
+        );
+
         // Add auto-interact for resource dropping
-        self.entity_storage.auto_interacts.insert(entity_id, AutoInteract {
-            interaction_type: AutoInteractionType::DropResource,
-            range: 16.0, // 1 tile
-            conditions: vec![
-                InteractionCondition::PlayerOnTeam(team),
-                InteractionCondition::PlayerCarrying(ResourceType::ScrapMetal), // Example - could be any
-            ],
-        });
-        
+        self.entity_storage.auto_interacts.insert(
+            entity_id,
+            AutoInteract {
+                interaction_type: AutoInteractionType::DropResource,
+                range: 16.0, // 1 tile
+                conditions: vec![
+                    InteractionCondition::PlayerOnTeam(team),
+                    InteractionCondition::PlayerCarrying(ResourceType::ScrapMetal), // Example - could be any
+                ],
+            },
+        );
+
         // Add to tile map
         self.tile_map.set_entity_tile(position, entity_id);
-        
+
         entity_id
     }
 
     pub fn spawn_initial_resources(&mut self) {
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        
+
         // Spawn 5-8 initial resources randomly
         let num_initial_resources = rng.gen_range(5..=8);
         let resource_types = [
@@ -595,64 +678,79 @@ impl Game {
             ResourceType::Wiring,
             ResourceType::Batteries,
         ];
-        
+
         for _ in 0..num_initial_resources {
             // Try to find a valid spawn position
             let mut attempts = 0;
             const MAX_ATTEMPTS: i32 = 50;
-            
+
             while attempts < MAX_ATTEMPTS {
                 // Generate random position (avoiding edges)
                 let x = rng.gen_range(10..(ARENA_WIDTH_TILES - 10)) as i32;
                 let y = rng.gen_range(10..(ARENA_HEIGHT_TILES - 10)) as i32;
                 let pos = TilePos::new(x, y);
-                
+
                 // Check if position is valid (simple check for initial spawn)
                 let mut valid = true;
-                
+
                 // Check distance from mechs
                 for mech in self.mechs.values() {
                     let dx = (pos.x - mech.position.x).abs();
                     let dy = (pos.y - mech.position.y).abs();
                     let distance = ((dx * dx + dy * dy) as f32).sqrt();
-                    
-                    if distance < 15.0 { // Keep initial resources away from mechs
+
+                    if distance < 15.0 {
+                        // Keep initial resources away from mechs
                         valid = false;
                         break;
                     }
                 }
-                
+
                 // Check distance from other resources
                 if valid {
                     for resource in self.get_resources() {
                         let dx = (pos.x - resource.position.x).abs();
                         let dy = (pos.y - resource.position.y).abs();
                         let distance = ((dx * dx + dy * dy) as f32).sqrt();
-                        
-                        if distance < 5.0 { // Minimum spacing between resources
+
+                        if distance < 5.0 {
+                            // Minimum spacing between resources
                             valid = false;
                             break;
                         }
                     }
                 }
-                
+
                 if valid {
                     // Pick a random resource type
                     let resource_type = resource_types[rng.gen_range(0..resource_types.len())];
                     self.spawn_resource_with_behavior(pos, resource_type);
                     break;
                 }
-                
+
                 attempts += 1;
             }
         }
     }
 
-    pub fn add_player(&mut self, id: Uuid, name: String, preferred_team: Option<TeamId>) -> (TeamId, WorldPos) {
+    pub fn add_player(
+        &mut self,
+        id: Uuid,
+        name: String,
+        preferred_team: Option<TeamId>,
+    ) -> (TeamId, WorldPos) {
         // Balance teams
-        let red_count = self.players.values().filter(|p| p.team == TeamId::Red).count();
-        let blue_count = self.players.values().filter(|p| p.team == TeamId::Blue).count();
-        
+        let red_count = self
+            .players
+            .values()
+            .filter(|p| p.team == TeamId::Red)
+            .count();
+        let blue_count = self
+            .players
+            .values()
+            .filter(|p| p.team == TeamId::Blue)
+            .count();
+
         let team = if let Some(pref) = preferred_team {
             if (red_count as i32 - blue_count as i32).abs() <= MAX_TEAM_SIZE_DIFFERENCE as i32 {
                 pref
@@ -669,8 +767,14 @@ impl Game {
 
         // Spawn near team mech (but not inside it!)
         let spawn_pos = match team {
-            TeamId::Red => WorldPos::new(RED_PLAYER_SPAWN.0 * TILE_SIZE, RED_PLAYER_SPAWN.1 * TILE_SIZE),
-            TeamId::Blue => WorldPos::new(BLUE_PLAYER_SPAWN.0 * TILE_SIZE, BLUE_PLAYER_SPAWN.1 * TILE_SIZE),
+            TeamId::Red => WorldPos::new(
+                RED_PLAYER_SPAWN.0 * TILE_SIZE,
+                RED_PLAYER_SPAWN.1 * TILE_SIZE,
+            ),
+            TeamId::Blue => WorldPos::new(
+                BLUE_PLAYER_SPAWN.0 * TILE_SIZE,
+                BLUE_PLAYER_SPAWN.1 * TILE_SIZE,
+            ),
         };
 
         let player = Player {
@@ -697,25 +801,36 @@ impl Game {
                 }
             }
         }
-        
+
         self.players.remove(player_id);
     }
 
     pub fn get_full_state(&self) -> ServerMessage {
-        let players: HashMap<Uuid, PlayerState> = self.players.iter()
-            .map(|(id, p)| (*id, PlayerState {
-                id: p.id,
-                name: p.name.clone(),
-                team: p.team,
-                location: p.location,
-                carrying_resource: p.carrying_resource,
-                operating_station: p.operating_station,
-            }))
+        let players: HashMap<Uuid, PlayerState> = self
+            .players
+            .iter()
+            .map(|(id, p)| {
+                (
+                    *id,
+                    PlayerState {
+                        id: p.id,
+                        name: p.name.clone(),
+                        team: p.team,
+                        location: p.location,
+                        carrying_resource: p.carrying_resource,
+                        operating_station: p.operating_station,
+                    },
+                )
+            })
             .collect();
 
-        let mechs: HashMap<Uuid, MechState> = self.mechs.iter()
+        let mechs: HashMap<Uuid, MechState> = self
+            .mechs
+            .iter()
             .map(|(id, m)| {
-                let stations: Vec<StationState> = m.stations.values()
+                let stations: Vec<StationState> = m
+                    .stations
+                    .values()
                     .map(|s| StationState {
                         id: s.id,
                         station_type: s.station_type,
@@ -725,21 +840,26 @@ impl Game {
                     })
                     .collect();
 
-                (*id, MechState {
-                    id: m.id,
-                    team: m.team,
-                    position: m.position,
-                    world_position: m.world_position,
-                    health: m.health,
-                    shield: m.shield,
-                    upgrades: m.upgrades,
-                    stations,
-                    resource_inventory: m.resource_inventory.clone(),
-                })
+                (
+                    *id,
+                    MechState {
+                        id: m.id,
+                        team: m.team,
+                        position: m.position,
+                        world_position: m.world_position,
+                        health: m.health,
+                        shield: m.shield,
+                        upgrades: m.upgrades,
+                        stations,
+                        resource_inventory: m.resource_inventory.clone(),
+                    },
+                )
             })
             .collect();
 
-        let resources: Vec<ResourceState> = self.get_resources().iter()
+        let resources: Vec<ResourceState> = self
+            .get_resources()
+            .iter()
             .map(|r| ResourceState {
                 id: r.id,
                 position: r.position,
@@ -747,7 +867,9 @@ impl Game {
             })
             .collect();
 
-        let projectiles: Vec<ProjectileState> = self.projectiles.values()
+        let projectiles: Vec<ProjectileState> = self
+            .projectiles
+            .values()
             .map(|p| ProjectileState {
                 id: p.id,
                 position: p.position,
@@ -800,7 +922,11 @@ impl Game {
                     resource_id,
                 };
                 let _ = tx.send((Uuid::nil(), msg));
-                log::info!("Player {} picked up {:?} resource", player_id, resource_type);
+                log::info!(
+                    "Player {} picked up {:?} resource",
+                    player_id,
+                    resource_type
+                );
             }
         }
     }
@@ -810,13 +936,17 @@ impl Game {
         // This is simplified - in full game would check for entrance points
     }
 
-    pub fn update_projectiles(&mut self, _delta: f32, tx: &broadcast::Sender<(Uuid, ServerMessage)>) {
+    pub fn update_projectiles(
+        &mut self,
+        _delta: f32,
+        tx: &broadcast::Sender<(Uuid, ServerMessage)>,
+    ) {
         // Check projectile collisions with mechs
         let mut hits = Vec::new();
 
         for projectile in self.projectiles.values() {
             let proj_tile = projectile.position.to_tile_pos();
-            
+
             for mech in self.mechs.values() {
                 if mech.id == projectile.owner_mech_id {
                     continue;
@@ -825,8 +955,11 @@ impl Game {
                 let mech_min = mech.position;
                 let mech_max = mech.position.offset(MECH_SIZE_TILES, MECH_SIZE_TILES);
 
-                if proj_tile.x >= mech_min.x && proj_tile.x <= mech_max.x &&
-                   proj_tile.y >= mech_min.y && proj_tile.y <= mech_max.y {
+                if proj_tile.x >= mech_min.x
+                    && proj_tile.x <= mech_max.x
+                    && proj_tile.y >= mech_min.y
+                    && proj_tile.y <= mech_max.y
+                {
                     hits.push((projectile.id, mech.id, projectile.damage));
                     break;
                 }
@@ -835,7 +968,7 @@ impl Game {
 
         for (proj_id, mech_id, damage) in hits {
             self.projectiles.remove(&proj_id);
-            
+
             if let Some(mech) = self.mechs.get_mut(&mech_id) {
                 // Apply damage to shield first, then health
                 let shield_damage = damage.min(mech.shield);
@@ -843,37 +976,43 @@ impl Game {
                 let health_damage = damage - shield_damage;
                 mech.health = mech.health.saturating_sub(health_damage);
 
-                let _ = tx.send((Uuid::nil(), ServerMessage::MechDamaged {
-                    mech_id,
-                    damage,
-                    health_remaining: mech.health,
-                }));
+                let _ = tx.send((
+                    Uuid::nil(),
+                    ServerMessage::MechDamaged {
+                        mech_id,
+                        damage,
+                        health_remaining: mech.health,
+                    },
+                ));
 
-                let _ = tx.send((Uuid::nil(), ServerMessage::ProjectileHit {
-                    projectile_id: proj_id,
-                    hit_mech_id: Some(mech_id),
-                    damage_dealt: damage,
-                }));
+                let _ = tx.send((
+                    Uuid::nil(),
+                    ServerMessage::ProjectileHit {
+                        projectile_id: proj_id,
+                        hit_mech_id: Some(mech_id),
+                        damage_dealt: damage,
+                    },
+                ));
             }
         }
     }
-    
+
     pub fn update(&mut self, delta_time: f32) -> Vec<ServerMessage> {
         // Update tick count
         self.tick_count += 1;
-        
+
         // Temporarily take the system manager to avoid borrowing issues
         let mut system_manager = std::mem::take(&mut self.system_manager);
         let messages = system_manager.update_all(self, delta_time);
         self.system_manager = system_manager;
-        
+
         messages
     }
-    
+
     /// Legacy update method - now handled by systems
     pub fn update_legacy(&mut self, delta_time: f32) -> Vec<ServerMessage> {
         let mut messages = Vec::new();
-        
+
         // Update mech positions
         let mut mech_updates = Vec::new();
         for mech in self.mechs.values_mut() {
@@ -881,26 +1020,38 @@ impl Game {
                 // Update world position
                 mech.world_position.x += mech.velocity.0 * TILE_SIZE * delta_time;
                 mech.world_position.y += mech.velocity.1 * TILE_SIZE * delta_time;
-                
+
                 // Keep in bounds
-                mech.world_position.x = mech.world_position.x.max(0.0).min((ARENA_WIDTH_TILES as f32 - MECH_SIZE_TILES as f32) * TILE_SIZE);
-                mech.world_position.y = mech.world_position.y.max(0.0).min((ARENA_HEIGHT_TILES as f32 - MECH_SIZE_TILES as f32) * TILE_SIZE);
-                
+                mech.world_position.x = mech
+                    .world_position
+                    .x
+                    .max(0.0)
+                    .min((ARENA_WIDTH_TILES as f32 - MECH_SIZE_TILES as f32) * TILE_SIZE);
+                mech.world_position.y = mech
+                    .world_position
+                    .y
+                    .max(0.0)
+                    .min((ARENA_HEIGHT_TILES as f32 - MECH_SIZE_TILES as f32) * TILE_SIZE);
+
                 // Update tile position
                 let new_tile_pos = mech.world_position.to_tile_pos();
                 if new_tile_pos != mech.position {
                     mech.position = new_tile_pos;
                 }
-                
+
                 mech_updates.push((mech.id, mech.position, mech.world_position));
             }
         }
-        
+
         // Send mech position updates
         for (mech_id, position, world_position) in mech_updates {
-            messages.push(ServerMessage::MechMoved { mech_id, position, world_position });
+            messages.push(ServerMessage::MechMoved {
+                mech_id,
+                position,
+                world_position,
+            });
         }
-        
+
         // Check for mech-player collisions (instant death)
         let mut killed_players = Vec::new();
         for (player_id, player) in self.players.iter() {
@@ -911,9 +1062,12 @@ impl Game {
                     let mech_max_x = mech.world_position.x + (MECH_SIZE_TILES as f32 * TILE_SIZE);
                     let mech_min_y = mech.world_position.y;
                     let mech_max_y = mech.world_position.y + (MECH_SIZE_TILES as f32 * TILE_SIZE);
-                    
-                    if player_pos.x >= mech_min_x && player_pos.x <= mech_max_x &&
-                       player_pos.y >= mech_min_y && player_pos.y <= mech_max_y {
+
+                    if player_pos.x >= mech_min_x
+                        && player_pos.x <= mech_max_x
+                        && player_pos.y >= mech_min_y
+                        && player_pos.y <= mech_max_y
+                    {
                         // Player was run over!
                         killed_players.push(*player_id);
                         break;
@@ -921,22 +1075,28 @@ impl Game {
                 }
             }
         }
-        
+
         // Handle killed players
         for player_id in killed_players {
             if let Some(player) = self.players.get(&player_id) {
                 // Respawn at team spawn
                 let spawn_pos = match player.team {
-                    TeamId::Red => WorldPos::new(RED_PLAYER_SPAWN.0 * TILE_SIZE, RED_PLAYER_SPAWN.1 * TILE_SIZE),
-                    TeamId::Blue => WorldPos::new(BLUE_PLAYER_SPAWN.0 * TILE_SIZE, BLUE_PLAYER_SPAWN.1 * TILE_SIZE),
+                    TeamId::Red => WorldPos::new(
+                        RED_PLAYER_SPAWN.0 * TILE_SIZE,
+                        RED_PLAYER_SPAWN.1 * TILE_SIZE,
+                    ),
+                    TeamId::Blue => WorldPos::new(
+                        BLUE_PLAYER_SPAWN.0 * TILE_SIZE,
+                        BLUE_PLAYER_SPAWN.1 * TILE_SIZE,
+                    ),
                 };
-                
+
                 messages.push(ServerMessage::PlayerKilled {
                     player_id,
                     killer: None, // Killed by mech
                     respawn_position: spawn_pos,
                 });
-                
+
                 // Reset player state
                 if let Some(player) = self.players.get_mut(&player_id) {
                     player.location = PlayerLocation::OutsideWorld(spawn_pos);
@@ -945,10 +1105,10 @@ impl Game {
                 }
             }
         }
-        
+
         messages
     }
-    
+
     /// Create a new projectile using the object pool
     pub fn create_projectile(
         &mut self,
@@ -964,7 +1124,7 @@ impl Game {
         self.projectiles.insert(projectile_id, projectile);
         projectile_id
     }
-    
+
     /// Create a new visual effect using the object pool
     pub fn create_effect(
         &mut self,
@@ -980,11 +1140,11 @@ impl Game {
         self.active_effects.insert(effect_id, effect);
         effect_id
     }
-    
+
     /// Update pooled objects (projectiles and effects)
     pub fn update_pooled_objects(&mut self, delta_time: f32) -> Vec<ServerMessage> {
         let mut messages = Vec::new();
-        
+
         // Update projectiles
         let mut projectiles_to_remove = Vec::new();
         for (id, projectile) in self.projectiles.iter_mut() {
@@ -992,19 +1152,17 @@ impl Game {
                 projectiles_to_remove.push(*id);
             }
         }
-        
+
         // Remove expired projectiles and return them to pool
         for id in projectiles_to_remove {
             if let Some(mut projectile) = self.projectiles.remove(&id) {
                 projectile.reset();
                 self.pool_manager.return_projectile(projectile);
-                
-                messages.push(ServerMessage::ProjectileExpired {
-                    projectile_id: id,
-                });
+
+                messages.push(ServerMessage::ProjectileExpired { projectile_id: id });
             }
         }
-        
+
         // Update effects
         let mut effects_to_remove = Vec::new();
         for (id, effect) in self.active_effects.iter_mut() {
@@ -1012,33 +1170,31 @@ impl Game {
                 effects_to_remove.push(*id);
             }
         }
-        
+
         // Remove expired effects and return them to pool
         for id in effects_to_remove {
             if let Some(mut effect) = self.active_effects.remove(&id) {
                 effect.reset();
                 self.pool_manager.return_effect(effect);
-                
-                messages.push(ServerMessage::EffectExpired {
-                    effect_id: id,
-                });
+
+                messages.push(ServerMessage::EffectExpired { effect_id: id });
             }
         }
-        
+
         messages
     }
-    
+
     /// Get pool statistics for monitoring
     pub fn get_pool_stats(&self) -> PoolStats {
         self.pool_manager.get_stats()
     }
-    
+
     /// Clean up expired objects and optimize pools
     pub fn cleanup_pools(&mut self) {
         // This method can be called periodically to optimize memory usage
         // For now, the pools self-manage their size, but we could add
         // more sophisticated cleanup logic here if needed
-        
+
         // Log pool statistics
         let stats = self.get_pool_stats();
         log::debug!(

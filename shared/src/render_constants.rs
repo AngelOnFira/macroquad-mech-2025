@@ -124,4 +124,3 @@ pub const RADAR_CENTER_DIVISOR: f32 = 2.0;
 pub const REPAIR_STATION_Y_OFFSET: f32 = 100.0;
 pub const WEAPON_BUTTON_Y_OFFSET: f32 = 200.0;
 pub const DOOR_HANDLE_OFFSET: f32 = 5.0;
-

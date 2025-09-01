@@ -1,21 +1,26 @@
-use uuid::Uuid;
+use crate::{AIDebugInfo, AIMessage, Decision, Perception};
 use shared::*;
-use crate::{Perception, Decision, AIMessage, AIDebugInfo};
+use uuid::Uuid;
 
 /// Abstract interface for AI controllers
 pub trait AIController: Send + Sync {
     /// Get AI's unique ID
     fn id(&self) -> Uuid;
-    
+
     /// Perceive the game state
     fn perceive(&self, game_view: &GameView) -> Perception;
-    
+
     /// Make a decision based on perception and messages
-    fn decide(&mut self, perception: &Perception, messages: &[AIMessage], delta_time: f32) -> Decision;
-    
+    fn decide(
+        &mut self,
+        perception: &Perception,
+        messages: &[AIMessage],
+        delta_time: f32,
+    ) -> Decision;
+
     /// Get debug information about the AI's current state
     fn get_debug_info(&self) -> AIDebugInfo;
-    
+
     /// Reset AI state (useful for respawning)
     fn reset(&mut self);
 }
@@ -104,19 +109,27 @@ pub fn create_game_view(
     ai_player_id: Uuid,
     ai_team: TeamId,
 ) -> Option<GameView> {
-    if let ServerMessage::GameState { players, mechs, resources, projectiles } = game_state {
-        let player_views: Vec<PlayerView> = players.values()
+    if let ServerMessage::GameState {
+        players,
+        mechs,
+        resources,
+        projectiles,
+    } = game_state
+    {
+        let player_views: Vec<PlayerView> = players
+            .values()
             .map(|p| {
                 // Find the station type if player is operating a station
                 let operating_station_type = if let Some(station_id) = p.operating_station {
-                    mechs.values()
+                    mechs
+                        .values()
                         .flat_map(|m| &m.stations)
                         .find(|s| s.id == station_id)
                         .map(|s| s.station_type)
                 } else {
                     None
                 };
-                
+
                 PlayerView {
                     id: p.id,
                     name: p.name.clone(),
@@ -128,8 +141,9 @@ pub fn create_game_view(
                 }
             })
             .collect();
-        
-        let mech_views: Vec<MechView> = mechs.values()
+
+        let mech_views: Vec<MechView> = mechs
+            .values()
             .map(|m| MechView {
                 id: m.id,
                 team: m.team,
@@ -137,7 +151,9 @@ pub fn create_game_view(
                 health: m.health,
                 shield: m.shield,
                 velocity: (0.0, 0.0), // TODO: Calculate from position changes
-                stations: m.stations.iter()
+                stations: m
+                    .stations
+                    .iter()
                     .map(|s| StationView {
                         id: s.id,
                         station_type: s.station_type,
@@ -149,43 +165,42 @@ pub fn create_game_view(
                 resource_inventory: m.resource_inventory.clone(),
             })
             .collect();
-        
-        let resource_views: Vec<ResourceView> = resources.iter()
+
+        let resource_views: Vec<ResourceView> = resources
+            .iter()
             .map(|r| ResourceView {
                 id: r.id,
                 position: r.position.to_world_pos(),
                 resource_type: r.resource_type,
             })
             .collect();
-        
-        let projectile_views: Vec<ProjectileView> = projectiles.iter()
+
+        let projectile_views: Vec<ProjectileView> = projectiles
+            .iter()
             .map(|p| ProjectileView {
                 id: p.id,
                 position: p.position,
                 velocity: p.velocity,
-                owner_team: mechs.values()
+                owner_team: mechs
+                    .values()
                     .find(|m| m.id == p.owner_mech_id)
                     .map(|m| m.team)
                     .unwrap_or(TeamId::Red),
             })
             .collect();
-        
+
         // Calculate team info
-        let team_player_count = player_views.iter()
-            .filter(|p| p.team == ai_team)
-            .count();
-        
-        let team_mech_count = mech_views.iter()
-            .filter(|m| m.team == ai_team)
-            .count();
-        
+        let team_player_count = player_views.iter().filter(|p| p.team == ai_team).count();
+
+        let team_mech_count = mech_views.iter().filter(|m| m.team == ai_team).count();
+
         let mut total_resources = std::collections::HashMap::new();
         for mech in mech_views.iter().filter(|m| m.team == ai_team) {
             for (resource_type, count) in &mech.resource_inventory {
                 *total_resources.entry(*resource_type).or_insert(0) += count;
             }
         }
-        
+
         Some(GameView {
             tick: 0, // TODO: Track tick count
             players: player_views,

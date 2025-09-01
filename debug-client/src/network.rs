@@ -1,9 +1,9 @@
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Sender as MpscSender, Receiver};
-use ws::{connect, Handler, Sender as WsSender, Result as WsResult, Message, CloseCode, Handshake};
 use serde_json;
+use std::sync::mpsc::{channel, Receiver, Sender as MpscSender};
+use std::sync::{Arc, Mutex};
+use ws::{connect, CloseCode, Handler, Handshake, Message, Result as WsResult, Sender as WsSender};
 
-use crate::{DebugMessage, DebugCommand};
+use crate::{DebugCommand, DebugMessage};
 
 /// WebSocket connection to the debug server
 pub struct DebugConnection {
@@ -20,14 +20,14 @@ impl DebugConnection {
         let connected_clone = connected.clone();
         let tx = Arc::new(Mutex::new(None));
         let tx_clone = tx.clone();
-        
+
         // Spawn WebSocket thread
         let url = url.to_string();
         std::thread::spawn(move || {
             if let Err(e) = connect(url, |out| {
                 // Store the sender
                 *tx_clone.lock().unwrap() = Some(out.clone());
-                
+
                 ClientHandler {
                     out,
                     tx: msg_tx.clone(),
@@ -37,17 +37,17 @@ impl DebugConnection {
                 log::error!("Failed to connect: {}", e);
             }
         });
-        
+
         // Wait a bit for connection
         std::thread::sleep(std::time::Duration::from_millis(500));
-        
+
         Ok(DebugConnection {
             tx,
             receiver: Arc::new(Mutex::new(msg_rx)),
             connected,
         })
     }
-    
+
     /// Send a command to the server
     pub fn send_command(&self, cmd: DebugCommand) {
         if let Ok(tx_guard) = self.tx.lock() {
@@ -58,7 +58,7 @@ impl DebugConnection {
             }
         }
     }
-    
+
     /// Poll for messages (non-blocking)
     pub fn poll_message(&self) -> Option<DebugMessage> {
         if let Ok(rx) = self.receiver.lock() {
@@ -67,7 +67,7 @@ impl DebugConnection {
             None
         }
     }
-    
+
     /// Check if still connected
     pub fn is_connected(&self) -> bool {
         *self.connected.lock().unwrap()
@@ -86,7 +86,7 @@ impl Handler for ClientHandler {
         *self.connected.lock().unwrap() = true;
         Ok(())
     }
-    
+
     fn on_message(&mut self, msg: Message) -> WsResult<()> {
         if let Message::Text(text) = msg {
             // Try to parse as regular ServerMessage first
@@ -100,12 +100,12 @@ impl Handler for ClientHandler {
         }
         Ok(())
     }
-    
+
     fn on_close(&mut self, code: CloseCode, reason: &str) {
         log::info!("Connection closed: {:?} - {}", code, reason);
         *self.connected.lock().unwrap() = false;
     }
-    
+
     fn on_error(&mut self, err: ws::Error) {
         log::error!("WebSocket error: {}", err);
         *self.connected.lock().unwrap() = false;

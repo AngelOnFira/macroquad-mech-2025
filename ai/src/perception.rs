@@ -1,7 +1,7 @@
-use uuid::Uuid;
+use crate::{GameView, MechView, PlayerView, ProjectileView, TeamInfo};
 use shared::*;
-use crate::{GameView, PlayerView, MechView, ProjectileView, TeamInfo};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 /// AI's perception of the game state
 #[derive(Debug, Clone)]
@@ -78,7 +78,7 @@ pub enum OpportunityType {
 #[derive(Debug, Clone)]
 pub struct TeamState {
     pub mech_health: HashMap<Uuid, (u32, u32)>, // (health, shield)
-    pub player_roles: HashMap<Uuid, String>, // Current "hat" each player is wearing
+    pub player_roles: HashMap<Uuid, String>,    // Current "hat" each player is wearing
     pub resource_status: ResourceStatus,
     pub combat_readiness: f32, // 0.0 to 1.0
 }
@@ -102,10 +102,8 @@ pub struct EnvironmentInfo {
 impl Perception {
     /// Create perception from game view
     pub fn from_game_view(game_view: &GameView, ai_id: Uuid) -> Self {
-        let my_player = game_view.players.iter()
-            .find(|p| p.id == ai_id)
-            .cloned();
-        
+        let my_player = game_view.players.iter().find(|p| p.id == ai_id).cloned();
+
         let my_state = if let Some(player) = my_player {
             MyState {
                 location: player.location,
@@ -123,12 +121,12 @@ impl Perception {
                 nearest_safe_location: None,
             }
         };
-        
+
         let threats = identify_threats(&game_view, ai_id, &my_state);
         let opportunities = identify_opportunities(&game_view, ai_id, &my_state);
         let team_state = analyze_team_state(&game_view, ai_id);
         let environment = analyze_environment(&game_view);
-        
+
         Perception {
             my_id: ai_id,
             my_state,
@@ -143,18 +141,18 @@ impl Perception {
 /// Find nearest safe location
 fn find_nearest_safe_location(game_view: &GameView, player: &PlayerView) -> Option<WorldPos> {
     // Find friendly mech
-    let friendly_mechs: Vec<_> = game_view.mechs.iter()
+    let friendly_mechs: Vec<_> = game_view
+        .mechs
+        .iter()
         .filter(|m| m.team == player.team)
         .collect();
-    
+
     if let PlayerLocation::OutsideWorld(pos) = player.location {
-        friendly_mechs.iter()
-            .map(|m| m.position)
-            .min_by(|a, b| {
-                let dist_a = pos.distance_to(*a);
-                let dist_b = pos.distance_to(*b);
-                dist_a.partial_cmp(&dist_b).unwrap()
-            })
+        friendly_mechs.iter().map(|m| m.position).min_by(|a, b| {
+            let dist_a = pos.distance_to(*a);
+            let dist_b = pos.distance_to(*b);
+            dist_a.partial_cmp(&dist_b).unwrap()
+        })
     } else {
         None
     }
@@ -163,23 +161,23 @@ fn find_nearest_safe_location(game_view: &GameView, player: &PlayerView) -> Opti
 /// Identify threats
 fn identify_threats(game_view: &GameView, ai_id: Uuid, my_state: &MyState) -> Vec<Threat> {
     let mut threats = Vec::new();
-    
+
     let my_pos = match my_state.location {
         PlayerLocation::OutsideWorld(pos) => Some(pos),
-        PlayerLocation::InsideMech { mech_id, .. } => {
-            game_view.mechs.iter()
-                .find(|m| m.id == mech_id)
-                .map(|m| m.position)
-        }
+        PlayerLocation::InsideMech { mech_id, .. } => game_view
+            .mechs
+            .iter()
+            .find(|m| m.id == mech_id)
+            .map(|m| m.position),
     };
-    
+
     if let Some(pos) = my_pos {
         // Enemy mechs
         for mech in &game_view.mechs {
             if mech.team != game_view.team_info.team_id {
                 let distance = pos.distance_to(mech.position);
                 let severity = calculate_mech_threat_severity(mech, distance);
-                
+
                 threats.push(Threat {
                     threat_type: ThreatType::EnemyMech {
                         id: mech.id,
@@ -192,13 +190,13 @@ fn identify_threats(game_view: &GameView, ai_id: Uuid, my_state: &MyState) -> Ve
                 });
             }
         }
-        
+
         // Enemy projectiles
         for projectile in &game_view.projectiles {
             if projectile.owner_team != game_view.team_info.team_id {
                 let distance = pos.distance_to(projectile.position);
                 let (severity, time_to_impact) = calculate_projectile_threat(projectile, pos);
-                
+
                 if severity > 0.0 {
                     threats.push(Threat {
                         threat_type: ThreatType::Projectile {
@@ -214,7 +212,7 @@ fn identify_threats(game_view: &GameView, ai_id: Uuid, my_state: &MyState) -> Ve
             }
         }
     }
-    
+
     // Sort by severity
     threats.sort_by(|a, b| b.severity.partial_cmp(&a.severity).unwrap());
     threats
@@ -225,27 +223,31 @@ fn calculate_mech_threat_severity(mech: &MechView, distance: f32) -> f32 {
     let health_factor = mech.health as f32 / 100.0;
     let shield_factor = mech.shield as f32 / 100.0;
     let distance_factor = (100.0 - distance.min(100.0)) / 100.0;
-    
+
     (health_factor + shield_factor) * 0.5 * distance_factor
 }
 
 /// Calculate projectile threat
 fn calculate_projectile_threat(projectile: &ProjectileView, my_pos: WorldPos) -> (f32, f32) {
     // Simple calculation - check if projectile is heading towards us
-    let to_me = (my_pos.x - projectile.position.x, my_pos.y - projectile.position.y);
+    let to_me = (
+        my_pos.x - projectile.position.x,
+        my_pos.y - projectile.position.y,
+    );
     let distance = (to_me.0 * to_me.0 + to_me.1 * to_me.1).sqrt();
-    
+
     if distance < 0.1 {
         return (1.0, 0.0);
     }
-    
+
     // Dot product to see if projectile is heading towards us
     let dot = to_me.0 * projectile.velocity.0 + to_me.1 * projectile.velocity.1;
     let projectile_speed = (projectile.velocity.0.powi(2) + projectile.velocity.1.powi(2)).sqrt();
-    
+
     if projectile_speed > 0.0 && dot > 0.0 {
         let time_to_impact = distance / projectile_speed;
-        let severity = (1.0 - (time_to_impact / 5.0).min(1.0)) * (dot / (distance * projectile_speed));
+        let severity =
+            (1.0 - (time_to_impact / 5.0).min(1.0)) * (dot / (distance * projectile_speed));
         (severity.max(0.0), time_to_impact)
     } else {
         (0.0, f32::MAX)
@@ -253,24 +255,28 @@ fn calculate_projectile_threat(projectile: &ProjectileView, my_pos: WorldPos) ->
 }
 
 /// Identify opportunities
-fn identify_opportunities(game_view: &GameView, ai_id: Uuid, my_state: &MyState) -> Vec<Opportunity> {
+fn identify_opportunities(
+    game_view: &GameView,
+    ai_id: Uuid,
+    my_state: &MyState,
+) -> Vec<Opportunity> {
     let mut opportunities = Vec::new();
-    
+
     let my_pos = match my_state.location {
         PlayerLocation::OutsideWorld(pos) => Some(pos),
-        PlayerLocation::InsideMech { mech_id, .. } => {
-            game_view.mechs.iter()
-                .find(|m| m.id == mech_id)
-                .map(|m| m.position)
-        }
+        PlayerLocation::InsideMech { mech_id, .. } => game_view
+            .mechs
+            .iter()
+            .find(|m| m.id == mech_id)
+            .map(|m| m.position),
     };
-    
+
     if let Some(pos) = my_pos {
         // Resources
         for resource in &game_view.resources {
             let distance = pos.distance_to(resource.position);
             let value = calculate_resource_value(resource.resource_type, &game_view.team_info);
-            
+
             opportunities.push(Opportunity {
                 opportunity_type: OpportunityType::Resource {
                     resource_type: resource.resource_type,
@@ -281,15 +287,19 @@ fn identify_opportunities(game_view: &GameView, ai_id: Uuid, my_state: &MyState)
                 time_estimate: distance / (PLAYER_MOVE_SPEED * TILE_SIZE),
             });
         }
-        
+
         // Unmanned stations
-        for mech in game_view.mechs.iter().filter(|m| m.team == game_view.team_info.team_id) {
+        for mech in game_view
+            .mechs
+            .iter()
+            .filter(|m| m.team == game_view.team_info.team_id)
+        {
             for station in &mech.stations {
                 if station.operated_by.is_none() {
                     let station_world_pos = mech.position; // TODO: Calculate actual station position
                     let distance = pos.distance_to(station_world_pos);
                     let value = calculate_station_value(station.station_type);
-                    
+
                     opportunities.push(Opportunity {
                         opportunity_type: OpportunityType::UnmannedStation {
                             station_type: station.station_type,
@@ -303,21 +313,21 @@ fn identify_opportunities(game_view: &GameView, ai_id: Uuid, my_state: &MyState)
             }
         }
     }
-    
+
     // Sort by value/distance ratio
     opportunities.sort_by(|a, b| {
         let ratio_a = a.value / (a.distance + 1.0);
         let ratio_b = b.value / (b.distance + 1.0);
         ratio_b.partial_cmp(&ratio_a).unwrap()
     });
-    
+
     opportunities
 }
 
 /// Calculate resource value based on team needs
 fn calculate_resource_value(resource_type: ResourceType, team_info: &TeamInfo) -> f32 {
     let current_count = team_info.total_resources.get(&resource_type).unwrap_or(&0);
-    
+
     // Higher value for resources we have less of
     match resource_type {
         ResourceType::ScrapMetal => 0.6 - (*current_count as f32 * 0.05).min(0.4),
@@ -344,14 +354,22 @@ fn calculate_station_value(station_type: StationType) -> f32 {
 fn analyze_team_state(game_view: &GameView, ai_id: Uuid) -> TeamState {
     let mut mech_health = HashMap::new();
     let mut player_roles = HashMap::new();
-    
+
     // Collect mech health
-    for mech in game_view.mechs.iter().filter(|m| m.team == game_view.team_info.team_id) {
+    for mech in game_view
+        .mechs
+        .iter()
+        .filter(|m| m.team == game_view.team_info.team_id)
+    {
         mech_health.insert(mech.id, (mech.health, mech.shield));
     }
-    
+
     // Guess player roles based on their actions
-    for player in game_view.players.iter().filter(|p| p.team == game_view.team_info.team_id) {
+    for player in game_view
+        .players
+        .iter()
+        .filter(|p| p.team == game_view.team_info.team_id)
+    {
         let role = if player.operating_station.is_some() {
             "Operator".to_string()
         } else if player.carrying_resource.is_some() {
@@ -361,32 +379,34 @@ fn analyze_team_state(game_view: &GameView, ai_id: Uuid) -> TeamState {
         };
         player_roles.insert(player.id, role);
     }
-    
+
     // Calculate resource needs
     let mut resource_needs = HashMap::new();
     resource_needs.insert(ResourceType::ScrapMetal, 5);
     resource_needs.insert(ResourceType::ComputerComponents, 3);
     resource_needs.insert(ResourceType::Batteries, 3);
     resource_needs.insert(ResourceType::Wiring, 4);
-    
+
     let total_resources = game_view.team_info.total_resources.values().sum::<u32>();
     let world_resources = game_view.resources.len() as u32;
     let available_resources = total_resources + world_resources;
     let scarcity_level = 1.0 - (available_resources as f32 / 20.0).min(1.0);
-    
+
     let resource_status = ResourceStatus {
         total_resources: game_view.team_info.total_resources.clone(),
         resource_needs,
         scarcity_level,
     };
-    
+
     // Calculate combat readiness
-    let avg_mech_health = mech_health.values()
+    let avg_mech_health = mech_health
+        .values()
         .map(|(h, s)| (*h + *s) as f32 / 200.0)
-        .sum::<f32>() / mech_health.len().max(1) as f32;
-    
+        .sum::<f32>()
+        / mech_health.len().max(1) as f32;
+
     let combat_readiness = avg_mech_health * (1.0 - scarcity_level * 0.5);
-    
+
     TeamState {
         mech_health,
         player_roles,
@@ -400,23 +420,36 @@ fn analyze_environment(game_view: &GameView) -> EnvironmentInfo {
     let mut nearby_resources = Vec::new();
     let mut safe_zones = Vec::new();
     let mut contested_areas = Vec::new();
-    let strategic_positions = vec![
-        WorldPos::new(ARENA_WIDTH_TILES as f32 * TILE_SIZE / 2.0, ARENA_HEIGHT_TILES as f32 * TILE_SIZE / 2.0),
-    ];
-    
+    let strategic_positions = vec![WorldPos::new(
+        ARENA_WIDTH_TILES as f32 * TILE_SIZE / 2.0,
+        ARENA_HEIGHT_TILES as f32 * TILE_SIZE / 2.0,
+    )];
+
     // Collect resource positions
     for resource in &game_view.resources {
         nearby_resources.push((resource.position, resource.resource_type));
     }
-    
+
     // Identify safe zones (near friendly mechs)
-    for mech in game_view.mechs.iter().filter(|m| m.team == game_view.team_info.team_id) {
+    for mech in game_view
+        .mechs
+        .iter()
+        .filter(|m| m.team == game_view.team_info.team_id)
+    {
         safe_zones.push(mech.position);
     }
-    
+
     // Identify contested areas (between friendly and enemy mechs)
-    for friendly in game_view.mechs.iter().filter(|m| m.team == game_view.team_info.team_id) {
-        for enemy in game_view.mechs.iter().filter(|m| m.team != game_view.team_info.team_id) {
+    for friendly in game_view
+        .mechs
+        .iter()
+        .filter(|m| m.team == game_view.team_info.team_id)
+    {
+        for enemy in game_view
+            .mechs
+            .iter()
+            .filter(|m| m.team != game_view.team_info.team_id)
+        {
             let mid_point = WorldPos::new(
                 (friendly.position.x + enemy.position.x) / 2.0,
                 (friendly.position.y + enemy.position.y) / 2.0,
@@ -424,7 +457,7 @@ fn analyze_environment(game_view: &GameView) -> EnvironmentInfo {
             contested_areas.push(mid_point);
         }
     }
-    
+
     EnvironmentInfo {
         nearby_resources,
         safe_zones,

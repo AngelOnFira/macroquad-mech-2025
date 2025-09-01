@@ -22,22 +22,23 @@ impl NetworkingSystem {
             frame_count: 0,
         }
     }
-    
+
     /// Determine if a full game state broadcast is needed
     fn should_broadcast_full_state(&self, game: &Game) -> bool {
         game.tick_count - self.last_full_state_broadcast >= self.full_state_interval
     }
-    
+
     /// Create optimized state updates instead of full game state
     fn create_incremental_updates(&self, game: &Game) -> Vec<ServerMessage> {
         let mut messages = Vec::new();
-        
+
         // Only send updates for entities that have changed
         // This is a simplified version - in a real implementation,
         // you'd track dirty flags for each entity
-        
+
         // For now, we'll send periodic position updates for moving mechs
-        if self.frame_count % 10 == 0 { // Every 10 frames
+        if self.frame_count % 10 == 0 {
+            // Every 10 frames
             for mech in game.mechs.values() {
                 if mech.velocity.0 != 0.0 || mech.velocity.1 != 0.0 {
                     messages.push(ServerMessage::MechMoved {
@@ -48,17 +49,17 @@ impl NetworkingSystem {
                 }
             }
         }
-        
+
         messages
     }
-    
+
     /// Log performance metrics
     fn log_performance_metrics(&mut self, game: &Game) {
         if game.tick_count - self.last_metrics_log >= self.metrics_log_interval {
             self.last_metrics_log = game.tick_count;
-            
+
             let pool_stats = game.get_pool_stats();
-            
+
             log::info!("=== Game Performance Metrics ===");
             log::info!("Tick: {}", game.tick_count);
             log::info!("Players: {}", game.players.len());
@@ -66,7 +67,8 @@ impl NetworkingSystem {
             log::info!("Resources: {}", game.get_resources().len());
             log::info!("Active Projectiles: {}", game.projectiles.len());
             log::info!("Active Effects: {}", game.active_effects.len());
-            log::info!("Pool Stats - Projectiles: {}/{}, Effects: {}/{}",
+            log::info!(
+                "Pool Stats - Projectiles: {}/{}, Effects: {}/{}",
                 pool_stats.projectiles_available,
                 pool_stats.projectiles_max,
                 pool_stats.effects_available,
@@ -75,15 +77,15 @@ impl NetworkingSystem {
             log::info!("==============================");
         }
     }
-    
+
     /// Handle network bandwidth optimization
     fn optimize_bandwidth(&self, messages: &mut Vec<ServerMessage>) {
         // Remove duplicate messages of the same type for the same entity
         // This is a simplified version of message deduplication
-        
+
         let mut seen_mech_moves = std::collections::HashSet::new();
         let mut seen_player_moves = std::collections::HashSet::new();
-        
+
         messages.retain(|msg| {
             match msg {
                 ServerMessage::MechMoved { mech_id, .. } => {
@@ -106,7 +108,7 @@ impl NetworkingSystem {
             }
         });
     }
-    
+
     /// Compress game state for large broadcasts
     fn compress_game_state(&self, _game: &Game) -> Option<ServerMessage> {
         // TODO: Implement game state compression
@@ -116,7 +118,7 @@ impl NetworkingSystem {
         // - Level of detail (reduce precision for distant entities)
         None
     }
-    
+
     /// Handle connection quality adaptation
     fn adapt_to_connection_quality(&self, _game: &Game) -> NetworkAdaptation {
         // TODO: Implement adaptive networking based on connection quality
@@ -124,38 +126,50 @@ impl NetworkingSystem {
         // - Reducing update frequency for poor connections
         // - Switching to lower fidelity updates
         // - Implementing client-side prediction compensation
-        
+
         NetworkAdaptation {
             update_frequency: 1.0, // Normal frequency
             precision_level: PrecisionLevel::High,
             compression_enabled: false,
         }
     }
-    
+
     /// Validate message integrity
     fn validate_messages(&self, messages: &[ServerMessage]) -> bool {
         // Basic message validation
         for message in messages {
             match message {
-                ServerMessage::MechMoved { mech_id, position, world_position } => {
+                ServerMessage::MechMoved {
+                    mech_id,
+                    position,
+                    world_position,
+                } => {
                     // Validate that positions are reasonable
-                    if position.x < 0 || position.y < 0 || 
-                       position.x >= ARENA_WIDTH_TILES || position.y >= ARENA_HEIGHT_TILES {
+                    if position.x < 0
+                        || position.y < 0
+                        || position.x >= ARENA_WIDTH_TILES
+                        || position.y >= ARENA_HEIGHT_TILES
+                    {
                         log::warn!("Invalid mech position in message: {:?}", position);
                         return false;
                     }
-                    
-                    if world_position.x < 0.0 || world_position.y < 0.0 ||
-                       world_position.x >= (ARENA_WIDTH_TILES as f32 * TILE_SIZE) ||
-                       world_position.y >= (ARENA_HEIGHT_TILES as f32 * TILE_SIZE) {
-                        log::warn!("Invalid mech world position in message: {:?}", world_position);
+
+                    if world_position.x < 0.0
+                        || world_position.y < 0.0
+                        || world_position.x >= (ARENA_WIDTH_TILES as f32 * TILE_SIZE)
+                        || world_position.y >= (ARENA_HEIGHT_TILES as f32 * TILE_SIZE)
+                    {
+                        log::warn!(
+                            "Invalid mech world position in message: {:?}",
+                            world_position
+                        );
                         return false;
                     }
                 }
                 _ => {} // Other message types pass validation for now
             }
         }
-        
+
         true
     }
 }
@@ -164,7 +178,7 @@ impl GameSystem for NetworkingSystem {
     fn update(&mut self, game: &mut Game, delta_time: f32) -> Vec<ServerMessage> {
         let mut messages = Vec::new();
         self.frame_count += 1;
-        
+
         // Check if we need to broadcast full game state
         if self.should_broadcast_full_state(game) {
             self.last_full_state_broadcast = game.tick_count;
@@ -174,31 +188,31 @@ impl GameSystem for NetworkingSystem {
             let incremental = self.create_incremental_updates(game);
             messages.extend(incremental);
         }
-        
+
         // Optimize bandwidth usage
         self.optimize_bandwidth(&mut messages);
-        
+
         // Validate messages before sending
         if !self.validate_messages(&messages) {
             log::error!("Message validation failed, dropping invalid messages");
             messages.clear();
         }
-        
+
         // Log performance metrics periodically
         self.log_performance_metrics(game);
-        
+
         messages
     }
-    
+
     fn name(&self) -> &'static str {
         "networking"
     }
-    
+
     fn should_update(&self, game: &Game) -> bool {
         // Networking runs every few frames instead of every frame
         game.tick_count % 3 == 0
     }
-    
+
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }

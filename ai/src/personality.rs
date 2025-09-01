@@ -19,7 +19,7 @@ impl Personality {
             Personality::Balanced => "Pilot",
         }
     }
-    
+
     /// Get task preference multiplier based on personality
     pub fn task_preference(&self, action: &TaskAction) -> f32 {
         match (self, action) {
@@ -33,7 +33,7 @@ impl Personality {
             }
             (Personality::Aggressive, TaskAction::DefendPosition { .. }) => 0.6,
             (Personality::Aggressive, TaskAction::CollectResource { .. }) => 0.7,
-            
+
             // Defensive personality preferences
             (Personality::Defensive, TaskAction::DefendPosition { .. }) => 1.5,
             (Personality::Defensive, TaskAction::OperateStation { station_type }) => {
@@ -45,7 +45,7 @@ impl Personality {
             }
             (Personality::Defensive, TaskAction::AttackTarget { .. }) => 0.6,
             (Personality::Defensive, TaskAction::MoveToPosition { .. }) => 0.8,
-            
+
             // Support personality preferences
             (Personality::Support, TaskAction::CollectResource { .. }) => 1.4,
             (Personality::Support, TaskAction::OperateStation { station_type }) => {
@@ -58,15 +58,15 @@ impl Personality {
             }
             (Personality::Support, TaskAction::FollowPlayer { .. }) => 1.2,
             (Personality::Support, TaskAction::AttackTarget { .. }) => 0.5,
-            
+
             // Balanced personality - no strong preferences
             (Personality::Balanced, _) => 1.0,
-            
+
             // Default for unspecified combinations
             _ => 1.0,
         }
     }
-    
+
     /// Get combat aggressiveness (0.0 to 1.0)
     pub fn combat_aggressiveness(&self) -> f32 {
         match self {
@@ -76,7 +76,7 @@ impl Personality {
             Personality::Balanced => 0.5,
         }
     }
-    
+
     /// Get resource collection priority (0.0 to 1.0)
     pub fn resource_priority(&self) -> f32 {
         match self {
@@ -86,7 +86,7 @@ impl Personality {
             Personality::Balanced => 0.6,
         }
     }
-    
+
     /// Get teamwork tendency (0.0 to 1.0)
     pub fn teamwork_tendency(&self) -> f32 {
         match self {
@@ -96,7 +96,7 @@ impl Personality {
             Personality::Balanced => 0.6,
         }
     }
-    
+
     /// Get risk tolerance (0.0 to 1.0)
     pub fn risk_tolerance(&self) -> f32 {
         match self {
@@ -106,7 +106,7 @@ impl Personality {
             Personality::Balanced => 0.5,
         }
     }
-    
+
     /// Get preferred combat range
     pub fn preferred_combat_range(&self) -> CombatRange {
         match self {
@@ -116,7 +116,7 @@ impl Personality {
             Personality::Balanced => CombatRange::Medium,
         }
     }
-    
+
     /// Get reaction to threats
     pub fn threat_reaction(&self, threat_severity: f32) -> ThreatReaction {
         match self {
@@ -157,20 +157,20 @@ impl Personality {
 /// Combat range preferences
 #[derive(Debug, Clone, Copy)]
 pub enum CombatRange {
-    Close,      // < 20 tiles
-    Medium,     // 20-40 tiles
-    Long,       // 40-60 tiles
-    Safe,       // > 60 tiles or inside mech
+    Close,  // < 20 tiles
+    Medium, // 20-40 tiles
+    Long,   // 40-60 tiles
+    Safe,   // > 60 tiles or inside mech
 }
 
 /// Reactions to threats
 #[derive(Debug, Clone, Copy)]
 pub enum ThreatReaction {
-    Engage,           // Attack the threat
-    Defend,           // Hold position and defend
-    Evade,            // Move perpendicular to avoid
-    Retreat,          // Move away from threat
-    TacticalRetreat,  // Move to better position
+    Engage,          // Attack the threat
+    Defend,          // Hold position and defend
+    Evade,           // Move perpendicular to avoid
+    Retreat,         // Move away from threat
+    TacticalRetreat, // Move to better position
 }
 
 /// Personality traits that can be mixed
@@ -217,7 +217,7 @@ impl PersonalityTraits {
             },
         }
     }
-    
+
     /// Create a custom personality mix
     pub fn custom(
         aggression: f32,
@@ -234,12 +234,12 @@ impl PersonalityTraits {
             efficiency: efficiency.clamp(0.0, 1.0),
         }
     }
-    
+
     /// Blend two personalities
     pub fn blend(a: &Self, b: &Self, weight: f32) -> Self {
         let w = weight.clamp(0.0, 1.0);
         let inv_w = 1.0 - w;
-        
+
         Self {
             aggression: a.aggression * inv_w + b.aggression * w,
             caution: a.caution * inv_w + b.caution * w,
@@ -248,7 +248,7 @@ impl PersonalityTraits {
             efficiency: a.efficiency * inv_w + b.efficiency * w,
         }
     }
-    
+
     /// Get decision weight based on traits
     pub fn decision_weight(&self, decision_type: DecisionType) -> f32 {
         match decision_type {

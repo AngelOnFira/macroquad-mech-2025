@@ -1,8 +1,8 @@
-use shared::{types::*, constants::*, network_constants::*, tile_entity::TileVisual};
 use crate::vision::ClientVisionSystem;
+use macroquad::prelude::*;
+use shared::{constants::*, network_constants::*, tile_entity::TileVisual, types::*};
 use std::collections::HashMap;
 use uuid::Uuid;
-use macroquad::prelude::*;
 
 pub struct GameState {
     pub player_id: Option<Uuid>,
@@ -105,7 +105,10 @@ impl GameState {
     pub fn new() -> Self {
         Self {
             player_id: None,
-            player_location: PlayerLocation::OutsideWorld(WorldPos::new(DEFAULT_SPAWN_CAMERA_MULTIPLIER * TILE_SIZE, DEFAULT_SPAWN_CAMERA_MULTIPLIER * TILE_SIZE)),
+            player_location: PlayerLocation::OutsideWorld(WorldPos::new(
+                DEFAULT_SPAWN_CAMERA_MULTIPLIER * TILE_SIZE,
+                DEFAULT_SPAWN_CAMERA_MULTIPLIER * TILE_SIZE,
+            )),
             player_team: None,
             players: HashMap::new(),
             mechs: HashMap::new(),
@@ -153,17 +156,11 @@ impl GameState {
 
         match target_location {
             PlayerLocation::OutsideWorld(pos) => {
-                self.camera_offset = (
-                    pos.x - screen_width() / 2.0,
-                    pos.y - screen_height() / 2.0,
-                );
+                self.camera_offset = (pos.x - screen_width() / 2.0, pos.y - screen_height() / 2.0);
             }
             PlayerLocation::InsideMech { pos, .. } => {
                 // Center on the mech interior view
-                self.camera_offset = (
-                    pos.x - screen_width() / 2.0,
-                    pos.y - screen_height() / 2.0,
-                );
+                self.camera_offset = (pos.x - screen_width() / 2.0, pos.y - screen_height() / 2.0);
             }
         }
     }
@@ -184,7 +181,7 @@ impl MechFloor {
             ladder_positions.push(ladder1);
             ladder_positions.push(ladder2);
         }
-        
+
         Self {
             _level: level,
             _ladder_positions: ladder_positions,

@@ -1,6 +1,10 @@
+use shared::{
+    components::*,
+    tile_entity::*,
+    types::{TilePos, WorldPos},
+};
 use std::collections::HashMap;
 use uuid::Uuid;
-use shared::{components::*, tile_entity::*, types::{TilePos, WorldPos}};
 
 // =============================================================================
 // Entity Storage System
@@ -22,16 +26,16 @@ pub struct EntityStorage {
     oxygen_producers: HashMap<Uuid, OxygenProducer>,
     resource_storages: HashMap<Uuid, ResourceStorage>,
     scriptables: HashMap<Uuid, Scriptable>,
-    
+
     // Tile behavior components
     pub proximity_triggers: HashMap<Uuid, ProximityTrigger>,
     pub resource_pickups: HashMap<Uuid, ResourcePickup>,
     pub mech_entrances: HashMap<Uuid, MechEntrance>,
     pub auto_interacts: HashMap<Uuid, AutoInteract>,
-    
+
     // Entity tracking
     entities: HashMap<Uuid, EntityInfo>,
-    
+
     // Spatial indices for fast queries
     entities_by_position: HashMap<TilePos, Vec<Uuid>>,
     entities_by_mech: HashMap<Uuid, Vec<Uuid>>,
@@ -70,27 +74,30 @@ impl EntityStorage {
             entities_by_mech: HashMap::new(),
         }
     }
-    
+
     // =============================================================================
     // Entity Management
     // =============================================================================
-    
+
     pub fn create_entity(&mut self, name: String) -> Uuid {
         let id = Uuid::new_v4();
-        self.entities.insert(id, EntityInfo {
+        self.entities.insert(
             id,
-            name,
-            active: true,
-        });
+            EntityInfo {
+                id,
+                name,
+                active: true,
+            },
+        );
         id
     }
-    
+
     pub fn spawn_from_template(&mut self, template: &EntityTemplate, position: Position) -> Uuid {
         let entity_id = self.create_entity(template.name.clone());
-        
+
         // Add position component and update spatial index
         self.add_position(entity_id, position);
-        
+
         // Add all components from template
         if let Some(station) = &template.components.station {
             self.stations.insert(entity_id, station.clone());
@@ -102,10 +109,12 @@ impl EntityStorage {
             self.power_nodes.insert(entity_id, power_node.clone());
         }
         if let Some(power_consumer) = &template.components.power_consumer {
-            self.power_consumers.insert(entity_id, power_consumer.clone());
+            self.power_consumers
+                .insert(entity_id, power_consumer.clone());
         }
         if let Some(power_producer) = &template.components.power_producer {
-            self.power_producers.insert(entity_id, power_producer.clone());
+            self.power_producers
+                .insert(entity_id, power_producer.clone());
         }
         if let Some(breakable) = &template.components.breakable {
             self.breakables.insert(entity_id, breakable.clone());
@@ -123,19 +132,23 @@ impl EntityStorage {
             self.opaques.insert(entity_id, opaque.clone());
         }
         if let Some(oxygen_producer) = &template.components.oxygen_producer {
-            self.oxygen_producers.insert(entity_id, oxygen_producer.clone());
+            self.oxygen_producers
+                .insert(entity_id, oxygen_producer.clone());
         }
         if let Some(resource_storage) = &template.components.resource_storage {
-            self.resource_storages.insert(entity_id, resource_storage.clone());
+            self.resource_storages
+                .insert(entity_id, resource_storage.clone());
         }
         if let Some(scriptable) = &template.components.scriptable {
             self.scriptables.insert(entity_id, scriptable.clone());
         }
         if let Some(proximity_trigger) = &template.components.proximity_trigger {
-            self.proximity_triggers.insert(entity_id, proximity_trigger.clone());
+            self.proximity_triggers
+                .insert(entity_id, proximity_trigger.clone());
         }
         if let Some(resource_pickup) = &template.components.resource_pickup {
-            self.resource_pickups.insert(entity_id, resource_pickup.clone());
+            self.resource_pickups
+                .insert(entity_id, resource_pickup.clone());
         }
         if let Some(mech_entrance) = &template.components.mech_entrance {
             self.mech_entrances.insert(entity_id, mech_entrance.clone());
@@ -143,10 +156,10 @@ impl EntityStorage {
         if let Some(auto_interact) = &template.components.auto_interact {
             self.auto_interacts.insert(entity_id, auto_interact.clone());
         }
-        
+
         entity_id
     }
-    
+
     pub fn destroy_entity(&mut self, entity_id: Uuid) {
         // Remove from all component storages
         if let Some(pos) = self.positions.remove(&entity_id) {
@@ -160,7 +173,7 @@ impl EntityStorage {
                 }
             }
         }
-        
+
         self.stations.remove(&entity_id);
         self.turrets.remove(&entity_id);
         self.power_nodes.remove(&entity_id);
@@ -178,31 +191,31 @@ impl EntityStorage {
         self.resource_pickups.remove(&entity_id);
         self.mech_entrances.remove(&entity_id);
         self.auto_interacts.remove(&entity_id);
-        
+
         self.entities.remove(&entity_id);
     }
-    
+
     // =============================================================================
     // Position Management with Spatial Indexing
     // =============================================================================
-    
+
     pub fn add_position(&mut self, entity_id: Uuid, position: Position) {
         // Update spatial indices
         self.entities_by_position
             .entry(position.tile)
             .or_default()
             .push(entity_id);
-            
+
         if let Some(mech_id) = position.mech_id {
             self.entities_by_mech
                 .entry(mech_id)
                 .or_default()
                 .push(entity_id);
         }
-        
+
         self.positions.insert(entity_id, position);
     }
-    
+
     pub fn update_position(&mut self, entity_id: Uuid, new_position: Position) {
         // Remove from old indices
         if let Some(old_pos) = self.positions.get(&entity_id) {
@@ -215,33 +228,33 @@ impl EntityStorage {
                 }
             }
         }
-        
+
         // Add to new indices
         self.add_position(entity_id, new_position);
     }
-    
+
     // =============================================================================
     // Spatial Queries
     // =============================================================================
-    
+
     pub fn get_entities_at_tile(&self, tile: TilePos) -> Vec<Uuid> {
         self.entities_by_position
             .get(&tile)
             .cloned()
             .unwrap_or_default()
     }
-    
+
     pub fn get_entities_in_mech(&self, mech_id: Uuid) -> Vec<Uuid> {
         self.entities_by_mech
             .get(&mech_id)
             .cloned()
             .unwrap_or_default()
     }
-    
+
     pub fn get_entities_in_radius(&self, center: WorldPos, radius: f32) -> Vec<Uuid> {
         let mut result = Vec::new();
         let radius_squared = radius * radius;
-        
+
         for (&entity_id, pos) in &self.positions {
             let dx = pos.world.x - center.x;
             let dy = pos.world.y - center.y;
@@ -249,41 +262,44 @@ impl EntityStorage {
                 result.push(entity_id);
             }
         }
-        
+
         result
     }
-    
+
     // =============================================================================
     // Component Queries
     // =============================================================================
-    
+
     pub fn get_stations_in_mech(&self, mech_id: Uuid) -> Vec<(Uuid, &Station, &Position)> {
         let mut result = Vec::new();
-        
+
         for entity_id in self.get_entities_in_mech(mech_id) {
             if let (Some(station), Some(pos)) = (
                 self.stations.get(&entity_id),
-                self.positions.get(&entity_id)
+                self.positions.get(&entity_id),
             ) {
                 result.push((entity_id, station, pos));
             }
         }
-        
+
         result
     }
-    
-    pub fn get_turrets_in_range(&self, center: WorldPos, range: f32) -> Vec<(Uuid, &Turret, &Position)> {
+
+    pub fn get_turrets_in_range(
+        &self,
+        center: WorldPos,
+        range: f32,
+    ) -> Vec<(Uuid, &Turret, &Position)> {
         let mut result = Vec::new();
-        
+
         for entity_id in self.get_entities_in_radius(center, range) {
-            if let (Some(turret), Some(pos)) = (
-                self.turrets.get(&entity_id),
-                self.positions.get(&entity_id)
-            ) {
+            if let (Some(turret), Some(pos)) =
+                (self.turrets.get(&entity_id), self.positions.get(&entity_id))
+            {
                 result.push((entity_id, turret, pos));
             }
         }
-        
+
         result
     }
 }
@@ -296,27 +312,27 @@ impl ComponentStorage for EntityStorage {
     fn get_position(&self, entity: Uuid) -> Option<&Position> {
         self.positions.get(&entity)
     }
-    
+
     fn get_station(&self, entity: Uuid) -> Option<&Station> {
         self.stations.get(&entity)
     }
-    
+
     fn get_renderable(&self, entity: Uuid) -> Option<&Renderable> {
         self.renderables.get(&entity)
     }
-    
+
     fn get_solid(&self, entity: Uuid) -> Option<&Solid> {
         self.solids.get(&entity)
     }
-    
+
     fn get_opaque(&self, entity: Uuid) -> Option<&Opaque> {
         self.opaques.get(&entity)
     }
-    
+
     fn get_position_mut(&mut self, entity: Uuid) -> Option<&mut Position> {
         self.positions.get_mut(&entity)
     }
-    
+
     fn get_station_mut(&mut self, entity: Uuid) -> Option<&mut Station> {
         self.stations.get_mut(&entity)
     }
@@ -326,13 +342,16 @@ impl EntityStorage {
     // Simple add methods for direct component insertion
     pub fn add_entity(&mut self, entity_id: Uuid, position: Position) {
         self.add_position(entity_id, position);
-        self.entities.insert(entity_id, EntityInfo {
-            id: entity_id,
-            name: format!("Entity_{}", entity_id),
-            active: true,
-        });
+        self.entities.insert(
+            entity_id,
+            EntityInfo {
+                id: entity_id,
+                name: format!("Entity_{}", entity_id),
+                active: true,
+            },
+        );
     }
-    
+
     pub fn add_station(&mut self, entity_id: Uuid, station: Station) {
         self.stations.insert(entity_id, station);
     }
@@ -342,22 +361,22 @@ impl EntityStorage {
 mod tests {
     use super::*;
     use shared::{StationType, TilePos, WorldPos};
-    
+
     #[test]
     fn test_entity_creation_and_destruction() {
         let mut storage = EntityStorage::new();
-        
+
         let entity_id = storage.create_entity("Test Entity".to_string());
         assert!(storage.entities.contains_key(&entity_id));
-        
+
         storage.destroy_entity(entity_id);
         assert!(!storage.entities.contains_key(&entity_id));
     }
-    
+
     #[test]
     fn test_spawn_from_template() {
         let mut storage = EntityStorage::new();
-        
+
         let template = EntityTemplate {
             name: "Test Station".to_string(),
             components: EntityComponents {
@@ -374,60 +393,69 @@ mod tests {
                 ..Default::default()
             },
         };
-        
+
         let position = Position {
             tile: TilePos::new(5, 5),
             world: WorldPos::new(80.0, 80.0),
             floor: Some(1),
             mech_id: Some(Uuid::new_v4()),
         };
-        
+
         let entity_id = storage.spawn_from_template(&template, position);
-        
+
         assert!(storage.get_station(entity_id).is_some());
         assert!(storage.get_solid(entity_id).is_some());
         assert!(storage.get_position(entity_id).is_some());
     }
-    
+
     #[test]
     fn test_spatial_queries() {
         let mut storage = EntityStorage::new();
         let mech_id = Uuid::new_v4();
-        
+
         // Create entities at different positions
         let entity1 = storage.create_entity("Entity 1".to_string());
-        storage.add_position(entity1, Position {
-            tile: TilePos::new(5, 5),
-            world: WorldPos::new(80.0, 80.0),
-            floor: Some(1),
-            mech_id: Some(mech_id),
-        });
-        
+        storage.add_position(
+            entity1,
+            Position {
+                tile: TilePos::new(5, 5),
+                world: WorldPos::new(80.0, 80.0),
+                floor: Some(1),
+                mech_id: Some(mech_id),
+            },
+        );
+
         let entity2 = storage.create_entity("Entity 2".to_string());
-        storage.add_position(entity2, Position {
-            tile: TilePos::new(5, 5),
-            world: WorldPos::new(80.0, 80.0),
-            floor: Some(1),
-            mech_id: Some(mech_id),
-        });
-        
+        storage.add_position(
+            entity2,
+            Position {
+                tile: TilePos::new(5, 5),
+                world: WorldPos::new(80.0, 80.0),
+                floor: Some(1),
+                mech_id: Some(mech_id),
+            },
+        );
+
         let entity3 = storage.create_entity("Entity 3".to_string());
-        storage.add_position(entity3, Position {
-            tile: TilePos::new(10, 10),
-            world: WorldPos::new(160.0, 160.0),
-            floor: None,
-            mech_id: None,
-        });
-        
+        storage.add_position(
+            entity3,
+            Position {
+                tile: TilePos::new(10, 10),
+                world: WorldPos::new(160.0, 160.0),
+                floor: None,
+                mech_id: None,
+            },
+        );
+
         // Test queries
         let entities_at_tile = storage.get_entities_at_tile(TilePos::new(5, 5));
         assert_eq!(entities_at_tile.len(), 2);
         assert!(entities_at_tile.contains(&entity1));
         assert!(entities_at_tile.contains(&entity2));
-        
+
         let entities_in_mech = storage.get_entities_in_mech(mech_id);
         assert_eq!(entities_in_mech.len(), 2);
-        
+
         let entities_in_radius = storage.get_entities_in_radius(WorldPos::new(80.0, 80.0), 20.0);
         assert!(entities_in_radius.contains(&entity1));
         assert!(entities_in_radius.contains(&entity2));

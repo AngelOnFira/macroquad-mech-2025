@@ -1,8 +1,8 @@
 use super::GameSystem;
 use crate::game::{Game, Resource};
+use rand::Rng;
 use shared::*;
 use uuid::Uuid;
-use rand::Rng;
 
 /// Resource system handles resource spawning, collection, and management
 pub struct ResourceSystem {
@@ -29,25 +29,25 @@ impl ResourceSystem {
         let mut rng = rand::thread_rng();
         let mut attempts = 0;
         const MAX_ATTEMPTS: i32 = 100;
-        
+
         while attempts < MAX_ATTEMPTS {
             // Generate random position within arena bounds
             // Leave some margin from edges (5 tiles)
             let x = rng.gen_range(5..(ARENA_WIDTH_TILES - 5)) as i32;
             let y = rng.gen_range(5..(ARENA_HEIGHT_TILES - 5)) as i32;
             let pos = TilePos::new(x, y);
-            
+
             // Check if position is valid
             if self.is_valid_spawn_position(&pos, game) {
                 return Some(pos);
             }
-            
+
             attempts += 1;
         }
-        
+
         None
     }
-    
+
     /// Check if a position is valid for spawning a resource
     fn is_valid_spawn_position(&self, pos: &TilePos, game: &Game) -> bool {
         // Check distance from mechs
@@ -55,23 +55,23 @@ impl ResourceSystem {
             let dx = (pos.x - mech.position.x).abs();
             let dy = (pos.y - mech.position.y).abs();
             let distance = ((dx * dx + dy * dy) as f32).sqrt() as i32;
-            
+
             if distance < self.min_spawn_distance_from_mech {
                 return false;
             }
         }
-        
+
         // Check distance from existing resources
         for resource in game.get_resources() {
             let dx = (pos.x - resource.position.x).abs();
             let dy = (pos.y - resource.position.y).abs();
             let distance = ((dx * dx + dy * dy) as f32).sqrt() as i32;
-            
+
             if distance < self.min_spawn_distance_between_resources {
                 return false;
             }
         }
-        
+
         // Check if tile is walkable (not a wall or obstacle)
         if let Some(tile_content) = game.tile_map.get_world_tile(*pos) {
             match tile_content {
@@ -81,10 +81,10 @@ impl ResourceSystem {
                     }
                 }
                 TileContent::Entity(_) => return false, // Already occupied by entity
-                TileContent::Empty => {} // Empty is fine
+                TileContent::Empty => {}                // Empty is fine
             }
         }
-        
+
         true
     }
 
@@ -133,7 +133,7 @@ impl ResourceSystem {
             ResourceType::ComputerComponents,
             ResourceType::Batteries,
         ];
-        
+
         resource_types[rng.gen_range(0..resource_types.len())]
     }
 

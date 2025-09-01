@@ -1,10 +1,10 @@
 // WebSocket implementation for browsers using macroquad's JS interop
 // This avoids wasm-bindgen to stay compatible with macroquad's loader
 
-use std::sync::{Arc, Mutex};
+use crate::game_state::GameState;
 use macroquad::prelude::*;
 use shared::*;
-use crate::game_state::GameState;
+use std::sync::{Arc, Mutex};
 
 // JavaScript bindings for WebSocket using macroquad's sapp_jsutils
 #[link(wasm_import_module = "network_bindings")]
@@ -24,23 +24,21 @@ pub struct NetworkClient {
 
 impl NetworkClient {
     pub fn connect(url: &str, game_state: Arc<Mutex<GameState>>) -> Result<Self, String> {
-        let socket_id = unsafe {
-            js_ws_connect(url.as_ptr(), url.len())
-        };
-        
+        let socket_id = unsafe { js_ws_connect(url.as_ptr(), url.len()) };
+
         if socket_id == 0 {
             return Err("Failed to create WebSocket".to_string());
         }
-        
+
         info!("WebSocket connecting to: {}", url);
-        
+
         Ok(NetworkClient {
             socket_id,
             game_state,
             message_buffer: vec![0u8; 65536], // 64KB buffer for messages
         })
     }
-    
+
     pub fn update(&mut self) {
         // Poll for messages
         loop {
@@ -48,16 +46,17 @@ impl NetworkClient {
                 js_ws_poll_message(
                     self.socket_id,
                     self.message_buffer.as_mut_ptr(),
-                    self.message_buffer.len()
+                    self.message_buffer.len(),
                 )
             };
-            
+
             if msg_len < 0 {
                 break; // No more messages
             }
-            
+
             // Parse the message
-            if let Ok(message_str) = std::str::from_utf8(&self.message_buffer[0..msg_len as usize]) {
+            if let Ok(message_str) = std::str::from_utf8(&self.message_buffer[0..msg_len as usize])
+            {
                 if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(message_str) {
                     handle_server_message(server_msg, &self.game_state);
                 } else {
@@ -66,7 +65,7 @@ impl NetworkClient {
             }
         }
     }
-    
+
     pub fn send_message(&self, msg: ClientMessage) {
         if let Ok(json) = serde_json::to_string(&msg) {
             unsafe {
@@ -74,7 +73,7 @@ impl NetworkClient {
             }
         }
     }
-    
+
     pub fn is_connected(&self) -> bool {
         unsafe { js_ws_is_connected(self.socket_id) != 0 }
     }
@@ -92,24 +91,36 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
     let mut game = game_state.lock().unwrap();
 
     match msg {
-        ServerMessage::JoinedGame { player_id, team, spawn_position } => {
+        ServerMessage::JoinedGame {
+            player_id,
+            team,
+            spawn_position,
+        } => {
             game.player_id = Some(player_id);
             game.player_team = Some(team);
             game.player_location = PlayerLocation::OutsideWorld(spawn_position.to_world_pos());
             info!("Joined game as player {} on team {:?}", player_id, team);
         }
 
-        ServerMessage::GameState { players, mechs, resources, projectiles } => {
+        ServerMessage::GameState {
+            players,
+            mechs,
+            resources,
+            projectiles,
+        } => {
             // Update full game state
             game.players.clear();
             for (id, player) in players {
-                game.players.insert(id, crate::game_state::PlayerData {
-                    _id: player.id,
-                    name: player.name,
-                    team: player.team,
-                    location: player.location,
-                    carrying_resource: player.carrying_resource,
-                });
+                game.players.insert(
+                    id,
+                    crate::game_state::PlayerData {
+                        _id: player.id,
+                        name: player.name,
+                        team: player.team,
+                        location: player.location,
+                        carrying_resource: player.carrying_resource,
+                    },
+                );
             }
 
             game.mechs.clear();
@@ -128,20 +139,25 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
 
                 // Build floor layouts
                 for floor_idx in 0..MECH_FLOORS {
-                    mech_state.floors.push(crate::game_state::MechFloor::new(floor_idx as u8));
+                    mech_state
+                        .floors
+                        .push(crate::game_state::MechFloor::new(floor_idx as u8));
                 }
 
                 // Update stations
                 for station in &mech.stations {
-                    game.stations.insert(station.id, crate::game_state::StationState {
-                        _id: station.id,
-                        station_type: station.station_type,
-                        mech_id: mech.id,
-                        operated_by: station.operated_by,
-                        floor: station.floor,
-                        position: station.position,
-                        occupied: station.operated_by.is_some(),
-                    });
+                    game.stations.insert(
+                        station.id,
+                        crate::game_state::StationState {
+                            _id: station.id,
+                            station_type: station.station_type,
+                            mech_id: mech.id,
+                            operated_by: station.operated_by,
+                            floor: station.floor,
+                            position: station.position,
+                            occupied: station.operated_by.is_some(),
+                        },
+                    );
                 }
 
                 game.mechs.insert(id, mech_state);
@@ -168,7 +184,10 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             }
         }
 
-        ServerMessage::PlayerMoved { player_id, location } => {
+        ServerMessage::PlayerMoved {
+            player_id,
+            location,
+        } => {
             if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
                 // Check if we're transitioning between outside and inside mech
                 let should_transition = match (&game.player_location, &location) {
@@ -198,20 +217,32 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             }
         }
 
-        ServerMessage::PlayerPickedUpResource { player_id, resource_id: _, resource_type } => {
+        ServerMessage::PlayerPickedUpResource {
+            player_id,
+            resource_id: _,
+            resource_type,
+        } => {
             if let Some(player_data) = game.players.get_mut(&player_id) {
                 player_data.carrying_resource = Some(resource_type);
             }
         }
 
-        ServerMessage::MechMoved { mech_id, position, world_position } => {
+        ServerMessage::MechMoved {
+            mech_id,
+            position,
+            world_position,
+        } => {
             if let Some(mech_state) = game.mechs.get_mut(&mech_id) {
                 mech_state.position = position;
                 mech_state.world_position = world_position;
             }
         }
 
-        ServerMessage::MechDamaged { mech_id, damage: _, health_remaining } => {
+        ServerMessage::MechDamaged {
+            mech_id,
+            damage: _,
+            health_remaining,
+        } => {
             if let Some(mech_state) = game.mechs.get_mut(&mech_id) {
                 mech_state.health = health_remaining;
             }
@@ -223,7 +254,11 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             }
         }
 
-        ServerMessage::ResourceSpawned { resource_id, position, resource_type } => {
+        ServerMessage::ResourceSpawned {
+            resource_id,
+            position,
+            resource_type,
+        } => {
             game.resources.push(crate::game_state::ResourceState {
                 id: resource_id,
                 resource_type,
@@ -231,14 +266,22 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             });
         }
 
-        ServerMessage::ResourceCollected { resource_id, player_id } => {
+        ServerMessage::ResourceCollected {
+            resource_id,
+            player_id,
+        } => {
             game.resources.retain(|r| r.id != resource_id);
             if let Some(player) = game.players.get(&player_id) {
                 info!("{} collected a resource", player.name);
             }
         }
 
-        ServerMessage::WeaponFired { mech_id, weapon_type, target_position, projectile_id: _ } => {
+        ServerMessage::WeaponFired {
+            mech_id,
+            weapon_type,
+            target_position,
+            projectile_id: _,
+        } => {
             // Add visual effect
             if let Some(_mech) = game.mechs.get(&mech_id) {
                 game.weapon_effects.push(crate::game_state::WeaponEffect {
@@ -259,7 +302,11 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             game.projectiles.retain(|p| p.id != projectile_id);
         }
 
-        ServerMessage::PlayerKilled { player_id, killer: _, respawn_position } => {
+        ServerMessage::PlayerKilled {
+            player_id,
+            killer: _,
+            respawn_position,
+        } => {
             if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
                 game.player_location = PlayerLocation::OutsideWorld(respawn_position);
             }
@@ -268,13 +315,18 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             }
         }
 
-        ServerMessage::PlayerEnteredStation { player_id, station_id } => {
+        ServerMessage::PlayerEnteredStation {
+            player_id,
+            station_id,
+        } => {
             if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
                 // Check if it's a pilot station
-                let pilot_station_info = game.stations.get(&station_id)
+                let pilot_station_info = game
+                    .stations
+                    .get(&station_id)
                     .filter(|s| s.station_type == StationType::Pilot)
                     .map(|s| s.mech_id);
-                
+
                 if let Some(mech_id) = pilot_station_info {
                     // Open pilot window
                     game.ui_state.pilot_station_open = true;
@@ -289,7 +341,10 @@ fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>)
             }
         }
 
-        ServerMessage::PlayerExitedStation { player_id, station_id } => {
+        ServerMessage::PlayerExitedStation {
+            player_id,
+            station_id,
+        } => {
             if player_id == game.player_id.unwrap_or(uuid::Uuid::nil()) {
                 // Close pilot window if it was open
                 if game.ui_state.pilot_station_id == Some(station_id) {

@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // Re-export the unified coordinate types for backward compatibility
-pub use crate::coordinates::{WorldPos, TilePos, ScreenPos, GridPos, NDC};
+pub use crate::coordinates::{GridPos, ScreenPos, TilePos, WorldPos, NDC};
 
 // Add serde support to the coordinate types
 impl Serialize for WorldPos {
@@ -28,7 +28,7 @@ impl<'de> Deserialize<'de> for WorldPos {
             x: f32,
             y: f32,
         }
-        
+
         let helper = WorldPosHelper::deserialize(deserializer)?;
         Ok(WorldPos::new(helper.x, helper.y))
     }
@@ -57,7 +57,7 @@ impl<'de> Deserialize<'de> for TilePos {
             x: i32,
             y: i32,
         }
-        
+
         let helper = TilePosHelper::deserialize(deserializer)?;
         Ok(TilePos::new(helper.x, helper.y))
     }
@@ -69,7 +69,7 @@ impl WorldPos {
     pub fn to_tile_pos(&self) -> TilePos {
         self.to_tile()
     }
-    
+
     /// Legacy method for backward compatibility
     pub fn move_in_direction(&self, direction: Direction, speed: f32, delta_time: f32) -> Self {
         let (dx, dy) = direction.to_velocity();
@@ -104,7 +104,7 @@ impl Direction {
             Direction::Right => (1, 0),
         }
     }
-    
+
     pub fn to_velocity(&self) -> (f32, f32) {
         match self {
             Direction::Up => (0.0, -1.0),
@@ -146,7 +146,11 @@ pub enum StationType {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum PlayerLocation {
     OutsideWorld(WorldPos),
-    InsideMech { mech_id: Uuid, floor: u8, pos: WorldPos },
+    InsideMech {
+        mech_id: Uuid,
+        floor: u8,
+        pos: WorldPos,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

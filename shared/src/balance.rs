@@ -15,7 +15,7 @@ pub const INITIAL_UPGRADE_LEVEL: u8 = 1;
 
 // ===== Movement and Distances =====
 pub const RESOURCE_PICKUP_DISTANCE: f32 = 1.5; // tiles
-pub const MECH_DOOR_ENTRY_DISTANCE: f32 = 0.8; // tiles  
+pub const MECH_DOOR_ENTRY_DISTANCE: f32 = 0.8; // tiles
 pub const LADDER_INTERACTION_DISTANCE: f32 = 0.3; // tiles
 pub const MECH_COLLISION_DISTANCE: f32 = 5.0; // tiles for resource deposit
 
@@ -52,21 +52,17 @@ pub const MAX_UPGRADE_LEVEL: u8 = 5;
 // ===== Resource Costs =====
 pub mod upgrade_costs {
     use crate::types::ResourceType;
-    
+
     pub const LASER_UPGRADE: &[(ResourceType, usize)] = &[
         (ResourceType::ScrapMetal, 2),
         (ResourceType::ComputerComponents, 1),
     ];
-    
-    pub const PROJECTILE_UPGRADE: &[(ResourceType, usize)] = &[
-        (ResourceType::ScrapMetal, 3),
-    ];
-    
-    pub const SHIELD_UPGRADE: &[(ResourceType, usize)] = &[
-        (ResourceType::Batteries, 2),
-        (ResourceType::Wiring, 1),
-    ];
-    
+
+    pub const PROJECTILE_UPGRADE: &[(ResourceType, usize)] = &[(ResourceType::ScrapMetal, 3)];
+
+    pub const SHIELD_UPGRADE: &[(ResourceType, usize)] =
+        &[(ResourceType::Batteries, 2), (ResourceType::Wiring, 1)];
+
     pub const ENGINE_UPGRADE: &[(ResourceType, usize)] = &[
         (ResourceType::ComputerComponents, 2),
         (ResourceType::Wiring, 2),
@@ -74,13 +70,8 @@ pub mod upgrade_costs {
 }
 
 // ===== Initial Resource Spawns =====
-pub const INITIAL_RESOURCE_SPAWNS: &[(i32, i32)] = &[
-    (40, 30),
-    (60, 30),
-    (30, 60),
-    (70, 60),
-    (50, 50),
-];
+pub const INITIAL_RESOURCE_SPAWNS: &[(i32, i32)] =
+    &[(40, 30), (60, 30), (30, 60), (70, 60), (50, 50)];
 
 // ===== Mech Interior Layout =====
 pub const LADDER_POSITIONS: &[(i32, i32)] = &[

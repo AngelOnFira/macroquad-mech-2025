@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
-use crate::types::*;
 use crate::tile_entity::TileVisual;
-use uuid::Uuid;
+use crate::types::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 // Client -> Server Messages
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,7 +42,7 @@ pub enum ServerMessage {
     PlayerDisconnected {
         player_id: Uuid,
     },
-    
+
     // Game State Updates
     GameState {
         players: HashMap<Uuid, PlayerState>,
@@ -50,7 +50,7 @@ pub enum ServerMessage {
         resources: Vec<ResourceState>,
         projectiles: Vec<ProjectileState>,
     },
-    
+
     // Player Updates
     PlayerMoved {
         player_id: Uuid,
@@ -74,7 +74,7 @@ pub enum ServerMessage {
         player_id: Uuid,
         station_id: Uuid,
     },
-    
+
     // Mech Updates
     MechMoved {
         mech_id: Uuid,
@@ -100,7 +100,7 @@ pub enum ServerMessage {
         health_restored: u32,
         new_health: u32,
     },
-    
+
     // Combat
     WeaponFired {
         mech_id: Uuid,
@@ -125,7 +125,7 @@ pub enum ServerMessage {
     EffectExpired {
         effect_id: Uuid,
     },
-    
+
     // Resources
     ResourceSpawned {
         resource_id: Uuid,
@@ -136,7 +136,7 @@ pub enum ServerMessage {
         resource_id: Uuid,
         player_id: Uuid,
     },
-    
+
     // Chat
     ChatMessage {
         player_id: Uuid,
@@ -144,14 +144,14 @@ pub enum ServerMessage {
         message: String,
         team_only: bool,
     },
-    
+
     // Player death
     PlayerKilled {
         player_id: Uuid,
         killer: Option<Uuid>, // None if killed by environment (like being run over)
         respawn_position: WorldPos,
     },
-    
+
     // Tile Updates
     TileUpdate {
         position: TilePos,
@@ -164,7 +164,7 @@ pub enum ServerMessage {
         visible_tiles: Vec<(TilePos, TileVisual)>,
         player_position: WorldPos,
     },
-    
+
     // Errors
     Error {
         message: String,
@@ -227,4 +227,3 @@ pub struct MechUpgrades {
     pub engine_level: u8,
     pub shield_level: u8,
 }
-

@@ -1,7 +1,7 @@
-use uuid::Uuid;
+use chrono::{DateTime, Utc};
 use shared::*;
 use std::collections::VecDeque;
-use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 /// Message that AIs can send to each other
 #[derive(Debug, Clone)]
@@ -20,16 +20,16 @@ pub struct AIMessage {
 pub enum MessageType {
     // Commands (from captain)
     Command { order: Order },
-    
+
     // Status updates
     StatusUpdate { status: Status },
-    
+
     // Requests
     Request { request_type: RequestType },
-    
+
     // Information sharing
     Intel { info: IntelInfo },
-    
+
     // Coordination
     Coordination { action: CoordinationAction },
 }
@@ -37,11 +37,22 @@ pub enum MessageType {
 /// Orders that can be given (usually by captain)
 #[derive(Debug, Clone)]
 pub enum Order {
-    MoveTo { position: WorldPos, urgency: Urgency },
-    OperateStation { station_type: StationType },
-    CollectResources { resource_type: Option<ResourceType> },
-    DefendPosition { position: WorldPos },
-    AttackTarget { target_id: Uuid },
+    MoveTo {
+        position: WorldPos,
+        urgency: Urgency,
+    },
+    OperateStation {
+        station_type: StationType,
+    },
+    CollectResources {
+        resource_type: Option<ResourceType>,
+    },
+    DefendPosition {
+        position: WorldPos,
+    },
+    AttackTarget {
+        target_id: Uuid,
+    },
     Retreat,
     FormUp,
 }
@@ -49,30 +60,67 @@ pub enum Order {
 /// Status updates
 #[derive(Debug, Clone)]
 pub enum Status {
-    ChangingHat { new_hat: String },
-    UnderAttack { threat_level: f32 },
-    LowHealth { health_percent: f32 },
-    ResourceFound { position: WorldPos, resource_type: ResourceType },
-    StationAvailable { station_type: StationType, mech_id: Uuid },
-    TaskCompleted { task: String },
+    ChangingHat {
+        new_hat: String,
+    },
+    UnderAttack {
+        threat_level: f32,
+    },
+    LowHealth {
+        health_percent: f32,
+    },
+    ResourceFound {
+        position: WorldPos,
+        resource_type: ResourceType,
+    },
+    StationAvailable {
+        station_type: StationType,
+        mech_id: Uuid,
+    },
+    TaskCompleted {
+        task: String,
+    },
 }
 
 /// Types of requests
 #[derive(Debug, Clone)]
 pub enum RequestType {
-    NeedHelp { position: WorldPos, urgency: Urgency },
-    NeedResources { resource_type: ResourceType, amount: u32 },
-    NeedBackup { enemy_count: usize },
-    RequestRole { preferred_hat: String },
+    NeedHelp {
+        position: WorldPos,
+        urgency: Urgency,
+    },
+    NeedResources {
+        resource_type: ResourceType,
+        amount: u32,
+    },
+    NeedBackup {
+        enemy_count: usize,
+    },
+    RequestRole {
+        preferred_hat: String,
+    },
 }
 
 /// Intelligence information
 #[derive(Debug, Clone)]
 pub enum IntelInfo {
-    EnemySpotted { position: WorldPos, enemy_type: String },
-    ResourceLocation { position: WorldPos, resource_type: ResourceType },
-    MechStatus { mech_id: Uuid, health: u32, shield: u32 },
-    StrategicPosition { position: WorldPos, value: f32 },
+    EnemySpotted {
+        position: WorldPos,
+        enemy_type: String,
+    },
+    ResourceLocation {
+        position: WorldPos,
+        resource_type: ResourceType,
+    },
+    MechStatus {
+        mech_id: Uuid,
+        health: u32,
+        shield: u32,
+    },
+    StrategicPosition {
+        position: WorldPos,
+        value: f32,
+    },
 }
 
 /// Coordination actions
@@ -119,70 +167,74 @@ impl CommunicationSystem {
             max_history: 1000,
         }
     }
-    
+
     /// Assign a captain
     pub fn assign_captain(&mut self, ai_id: Uuid) {
         self.captain = Some(ai_id);
-        
+
         // Announce new captain
-        self.send_message(ai_id, AIMessage {
-            id: Uuid::new_v4(),
-            sender: ai_id,
-            recipient: None,
-            message_type: MessageType::StatusUpdate {
-                status: Status::ChangingHat { new_hat: "Captain".to_string() },
+        self.send_message(
+            ai_id,
+            AIMessage {
+                id: Uuid::new_v4(),
+                sender: ai_id,
+                recipient: None,
+                message_type: MessageType::StatusUpdate {
+                    status: Status::ChangingHat {
+                        new_hat: "Captain".to_string(),
+                    },
+                },
+                priority: MessagePriority::High,
+                timestamp: Utc::now(),
+                expires_at: None,
             },
-            priority: MessagePriority::High,
-            timestamp: Utc::now(),
-            expires_at: None,
-        });
+        );
     }
-    
+
     /// Send a message
     pub fn send_message(&mut self, sender: Uuid, mut message: AIMessage) {
         message.sender = sender;
         message.timestamp = Utc::now();
-        
+
         // Captain messages get higher priority
         if Some(sender) == self.captain && message.priority < MessagePriority::High {
             message.priority = MessagePriority::High;
         }
-        
+
         self.messages.push_back(message.clone());
         self.message_history.push(message);
-        
+
         // Trim history if needed
         if self.message_history.len() > self.max_history {
             self.message_history.remove(0);
         }
     }
-    
+
     /// Get pending messages and clear the queue
     pub fn get_pending_messages(&mut self) -> Vec<AIMessage> {
         let now = Utc::now();
-        
+
         // Filter out expired messages
-        self.messages.retain(|msg| {
-            msg.expires_at.map(|exp| exp > now).unwrap_or(true)
-        });
-        
+        self.messages
+            .retain(|msg| msg.expires_at.map(|exp| exp > now).unwrap_or(true));
+
         // Sort by priority (highest first)
         let mut messages: Vec<_> = self.messages.drain(..).collect();
         messages.sort_by(|a, b| b.priority.cmp(&a.priority));
-        
+
         messages
     }
-    
+
     /// Check if an AI is the captain
     pub fn is_captain(&self, ai_id: Uuid) -> bool {
         self.captain == Some(ai_id)
     }
-    
+
     /// Get message history for debugging
     pub fn get_history(&self) -> &[AIMessage] {
         &self.message_history
     }
-    
+
     /// Create a standard message
     pub fn create_message(
         sender: Uuid,
@@ -206,7 +258,7 @@ impl CommunicationSystem {
 pub trait MessageHandler {
     /// Process a message and decide how to respond
     fn handle_message(&mut self, message: &AIMessage, is_captain: bool) -> Option<MessageResponse>;
-    
+
     /// Generate messages based on current state
     fn generate_messages(&self) -> Vec<AIMessage>;
 }
@@ -238,7 +290,7 @@ impl AIMessage {
             expires_at: Some(Utc::now() + chrono::Duration::seconds(30)),
         }
     }
-    
+
     /// Create a status update
     pub fn status(sender: Uuid, status: Status) -> Self {
         Self {
@@ -251,7 +303,7 @@ impl AIMessage {
             expires_at: Some(Utc::now() + chrono::Duration::seconds(10)),
         }
     }
-    
+
     /// Create a request
     pub fn request(sender: Uuid, request_type: RequestType) -> Self {
         let priority = match &request_type {
@@ -263,7 +315,7 @@ impl AIMessage {
             RequestType::NeedBackup { .. } => MessagePriority::High,
             _ => MessagePriority::Normal,
         };
-        
+
         Self {
             id: Uuid::new_v4(),
             sender,
@@ -274,7 +326,7 @@ impl AIMessage {
             expires_at: Some(Utc::now() + chrono::Duration::seconds(20)),
         }
     }
-    
+
     /// Create an intel message
     pub fn intel(sender: Uuid, info: IntelInfo) -> Self {
         Self {
@@ -287,7 +339,7 @@ impl AIMessage {
             expires_at: Some(Utc::now() + chrono::Duration::seconds(60)),
         }
     }
-    
+
     /// Create a coordination message
     pub fn coordinate(sender: Uuid, action: CoordinationAction) -> Self {
         Self {

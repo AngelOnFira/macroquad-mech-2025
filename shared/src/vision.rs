@@ -1,5 +1,5 @@
+use crate::{components::*, tile_entity::*, Direction, TilePos, WorldPos};
 use std::collections::{HashMap, HashSet};
-use crate::{WorldPos, TilePos, Direction, tile_entity::*, components::*};
 
 // =============================================================================
 // Vision System
@@ -33,11 +33,11 @@ impl Ray {
             length: 0.0,
         }
     }
-    
+
     pub fn current_pos(&self) -> WorldPos {
         self.current_pos
     }
-    
+
     pub fn advance(&mut self, step: f32) {
         let (dx, dy) = angle_to_direction(self.angle);
         self.current_pos.x += dx * step;
@@ -52,7 +52,7 @@ impl VisionSystem {
             visibility_cache: HashMap::new(),
         }
     }
-    
+
     pub fn calculate_visibility<S: ComponentStorage>(
         &mut self,
         viewer_id: uuid::Uuid,
@@ -69,23 +69,23 @@ impl VisionSystem {
         } else {
             true
         };
-        
+
         if !needs_update {
             return self.visibility_cache.get(&viewer_id).unwrap();
         }
-        
+
         let mut visible = HashSet::new();
         let mut light_levels = HashMap::new();
-        
+
         // Cast rays in all directions
         for angle in 0..360 {
             let mut ray = Ray::new(viewer_pos, angle as f32);
             let mut attenuation = 0.0;
-            
+
             while ray.length < max_range && attenuation < 1.0 {
                 let check_pos = ray.current_pos();
                 let tile_pos = check_pos.to_tile();
-                
+
                 if let Some(tile_content) = tile_map.get_tile_at(check_pos) {
                     match tile_content {
                         TileContent::Static(static_tile) => {
@@ -107,35 +107,35 @@ impl VisionSystem {
                         }
                     }
                 }
-                
+
                 if attenuation < 1.0 {
                     visible.insert(tile_pos);
                     light_levels.insert(tile_pos, 1.0 - attenuation);
                 }
-                
+
                 ray.advance(0.5);
             }
         }
-        
+
         // Cache and return
         let visibility_data = VisibilityData {
             visible_tiles: visible,
             light_levels,
             last_update_pos: viewer_pos,
         };
-        
+
         self.visibility_cache.insert(viewer_id, visibility_data);
         self.visibility_cache.get(&viewer_id).unwrap()
     }
-    
+
     pub fn get_visibility(&self, viewer_id: uuid::Uuid) -> Option<&VisibilityData> {
         self.visibility_cache.get(&viewer_id)
     }
-    
+
     pub fn clear_cache(&mut self) {
         self.visibility_cache.clear();
     }
-    
+
     pub fn remove_viewer(&mut self, viewer_id: uuid::Uuid) {
         self.visibility_cache.remove(&viewer_id);
     }
@@ -157,7 +157,7 @@ impl WindowVision {
             window_extension,
         }
     }
-    
+
     pub fn calculate_window_visibility<S: ComponentStorage>(
         &self,
         viewer_pos: WorldPos,
@@ -169,25 +169,25 @@ impl WindowVision {
             visible_tiles: HashSet::new(),
             window_views: Vec::new(),
         };
-        
+
         if !viewer_inside_mech {
             // Outside viewers use normal vision
             return result;
         }
-        
+
         // Find nearby windows
         let search_radius = self.base_radius;
         let viewer_tile = viewer_pos.to_tile();
-        
+
         for dx in -search_radius as i32..=search_radius as i32 {
             for dy in -search_radius as i32..=search_radius as i32 {
                 let check_tile = TilePos::new(viewer_tile.x + dx, viewer_tile.y + dy);
                 let check_pos = check_tile.to_world();
-                
+
                 if let Some(TileContent::Static(static_tile)) = tile_map.get_tile_at(check_pos) {
                     match static_tile {
-                        StaticTile::Window { facing } | 
-                        StaticTile::ReinforcedWindow { facing, .. } => {
+                        StaticTile::Window { facing }
+                        | StaticTile::ReinforcedWindow { facing, .. } => {
                             // Calculate window view cone
                             let window_view = self.calculate_window_cone(
                                 check_tile,
@@ -202,10 +202,10 @@ impl WindowVision {
                 }
             }
         }
-        
+
         result
     }
-    
+
     fn calculate_window_cone(
         &self,
         window_pos: TilePos,
@@ -214,16 +214,16 @@ impl WindowVision {
         extension: f32,
     ) -> WindowView {
         let window_world = window_pos.to_world();
-        
+
         // Calculate angle from viewer to window
         let dx = window_world.x - viewer_pos.x;
         let dy = window_world.y - viewer_pos.y;
         let distance = (dx * dx + dy * dy).sqrt();
-        
+
         // Window provides vision in its facing direction
         let base_angle = direction_to_angle(facing);
         let cone_width = 60.0; // 60 degree cone
-        
+
         WindowView {
             window_pos,
             facing,
@@ -301,7 +301,7 @@ pub fn handle_movement<S: ComponentStorage>(
 ) -> Result<(), MovementError> {
     // Check static tile at destination
     let _tile_pos = new_pos.to_tile();
-    
+
     if let Some(tile_content) = tile_map.get_tile_at(new_pos) {
         match tile_content {
             TileContent::Static(static_tile) => {
@@ -323,7 +323,7 @@ pub fn handle_movement<S: ComponentStorage>(
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -331,39 +331,42 @@ pub fn handle_movement<S: ComponentStorage>(
 mod tests {
     use super::*;
     use uuid::Uuid;
-    
+
     #[test]
     fn test_vision_system_creation() {
         let mut vision_system = VisionSystem::new();
         let viewer_id = Uuid::new_v4();
-        
+
         assert!(vision_system.get_visibility(viewer_id).is_none());
-        
-        vision_system.visibility_cache.insert(viewer_id, VisibilityData {
-            visible_tiles: HashSet::new(),
-            light_levels: HashMap::new(),
-            last_update_pos: WorldPos::new(0.0, 0.0),
-        });
-        
+
+        vision_system.visibility_cache.insert(
+            viewer_id,
+            VisibilityData {
+                visible_tiles: HashSet::new(),
+                light_levels: HashMap::new(),
+                last_update_pos: WorldPos::new(0.0, 0.0),
+            },
+        );
+
         assert!(vision_system.get_visibility(viewer_id).is_some());
     }
-    
+
     #[test]
     fn test_ray_advancement() {
         let mut ray = Ray::new(WorldPos::new(0.0, 0.0), 0.0);
-        
+
         ray.advance(10.0);
         assert_eq!(ray.current_pos().x, 10.0);
         assert_eq!(ray.current_pos().y, 0.0);
         assert_eq!(ray.length, 10.0);
     }
-    
+
     #[test]
     fn test_angle_conversions() {
         let (dx, dy) = angle_to_direction(0.0);
         assert!((dx - 1.0).abs() < 0.001);
         assert!(dy.abs() < 0.001);
-        
+
         let (dx, dy) = angle_to_direction(90.0);
         assert!(dx.abs() < 0.001);
         assert!((dy - 1.0).abs() < 0.001);

@@ -1,7 +1,7 @@
-use macroquad::prelude::*;
-use shared::types::*;
-use shared::constants::*;
 use crate::game_state::MechState;
+use macroquad::prelude::*;
+use shared::constants::*;
+use shared::types::*;
 
 /// Get the color for a resource type
 pub fn get_resource_color(resource_type: ResourceType) -> Color {
@@ -47,7 +47,6 @@ pub fn get_station_color(station_type: StationType) -> Color {
 pub fn get_mech_center(mech: &MechState) -> WorldPos {
     WorldPos::new(
         (mech.position.x as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
-        (mech.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE
+        (mech.position.y as f32 + MECH_SIZE_TILES as f32 / 2.0) * TILE_SIZE,
     )
 }
-

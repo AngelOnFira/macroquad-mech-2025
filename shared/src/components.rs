@@ -1,7 +1,7 @@
-use serde::{Serialize, Deserialize};
+use crate::{ResourceType, StationType, TeamId, TilePos, WorldPos};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use crate::{TilePos, WorldPos, StationType, ResourceType, TeamId};
 
 // =============================================================================
 // Position and Spatial Components
@@ -127,8 +127,18 @@ pub struct Color {
 }
 
 impl Color {
-    pub const WHITE: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-    pub const BLACK: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+    pub const WHITE: Color = Color {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const BLACK: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,7 +288,7 @@ pub trait ComponentStorage {
     fn get_renderable(&self, entity: Uuid) -> Option<&Renderable>;
     fn get_solid(&self, entity: Uuid) -> Option<&Solid>;
     fn get_opaque(&self, entity: Uuid) -> Option<&Opaque>;
-    
+
     fn get_position_mut(&mut self, entity: Uuid) -> Option<&mut Position>;
     fn get_station_mut(&mut self, entity: Uuid) -> Option<&mut Station>;
 }
@@ -286,7 +296,7 @@ pub trait ComponentStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_entity_template_creation() {
         let template = EntityTemplate {
@@ -311,7 +321,7 @@ mod tests {
                 ..Default::default()
             },
         };
-        
+
         assert_eq!(template.name, "Laser Turret");
         assert!(template.components.turret.is_some());
         assert!(template.components.power_consumer.is_some());

@@ -3,9 +3,9 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use shared::*;
+use crate::{game::Game, AppState};
 use shared::types::UpgradeType;
-use crate::{AppState, game::Game};
+use shared::*;
 
 pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
@@ -68,12 +68,12 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
     }
 
     // Notify other players
-    let _ = state.tx.send((Uuid::nil(), ServerMessage::PlayerDisconnected { player_id }));
+    let _ = state
+        .tx
+        .send((Uuid::nil(), ServerMessage::PlayerDisconnected { player_id }));
 
     log::info!("Player {} disconnected", player_id);
 }
-
-
 
 pub async fn handle_action_key(
     game: &mut crate::game::Game,
@@ -89,18 +89,23 @@ pub async fn handle_action_key(
                 if player.carrying_resource.is_some() {
                     let player_tile = pos.to_tile_pos();
                     for mech in game.mechs.values_mut() {
-                        if mech.team == player.team && player_tile.distance_to(mech.position) < MECH_COLLISION_DISTANCE {
+                        if mech.team == player.team
+                            && player_tile.distance_to(mech.position) < MECH_COLLISION_DISTANCE
+                        {
                             // Deposit resource at mech
                             if let Some(player) = game.players.get_mut(&player_id) {
                                 if let Some(resource_type) = player.carrying_resource.take() {
                                     // Add to mech inventory
                                     *mech.resource_inventory.entry(resource_type).or_insert(0) += 1;
-                                    
-                                    let _ = tx.send((Uuid::nil(), ServerMessage::PlayerDroppedResource {
-                                        player_id,
-                                        resource_type,
-                                        position: player_tile,
-                                    }));
+
+                                    let _ = tx.send((
+                                        Uuid::nil(),
+                                        ServerMessage::PlayerDroppedResource {
+                                            player_id,
+                                            resource_type,
+                                            position: player_tile,
+                                        },
+                                    ));
                                 }
                             }
                             return;
@@ -120,18 +125,25 @@ pub async fn handle_action_key(
                     if let Some(player) = game.players.get_mut(&player_id) {
                         player.operating_station = None;
                     }
-                    let _ = tx.send((Uuid::nil(), ServerMessage::PlayerExitedStation {
-                        player_id,
-                        station_id,
-                    }));
+                    let _ = tx.send((
+                        Uuid::nil(),
+                        ServerMessage::PlayerExitedStation {
+                            player_id,
+                            station_id,
+                        },
+                    ));
                     return; // Exit early - don't check for entering another station
                 }
-                
+
                 // Otherwise check for station to enter
                 let player_tile = pos.to_tile_pos();
-                let station_to_enter = game.mechs.values()
+                let station_to_enter = game
+                    .mechs
+                    .values()
                     .flat_map(|m| m.stations.values())
-                    .find(|s| s.floor == floor && s.position == player_tile && s.operated_by.is_none())
+                    .find(|s| {
+                        s.floor == floor && s.position == player_tile && s.operated_by.is_none()
+                    })
                     .map(|s| s.id);
 
                 if let Some(station_id) = station_to_enter {
@@ -142,10 +154,13 @@ pub async fn handle_action_key(
                             if let Some(player) = game.players.get_mut(&player_id) {
                                 player.operating_station = Some(station_id);
                             }
-                            let _ = tx.send((Uuid::nil(), ServerMessage::PlayerEnteredStation {
-                                player_id,
-                                station_id,
-                            }));
+                            let _ = tx.send((
+                                Uuid::nil(),
+                                ServerMessage::PlayerEnteredStation {
+                                    player_id,
+                                    station_id,
+                                },
+                            ));
                             return;
                         }
                     }
@@ -167,10 +182,13 @@ pub async fn handle_exit_mech(
                 for mech in game.mechs.values_mut() {
                     if let Some(station) = mech.stations.get_mut(&station_id) {
                         station.operated_by = None;
-                        let _ = tx.send((Uuid::nil(), ServerMessage::PlayerExitedStation {
-                            player_id,
-                            station_id,
-                        }));
+                        let _ = tx.send((
+                            Uuid::nil(),
+                            ServerMessage::PlayerExitedStation {
+                                player_id,
+                                station_id,
+                            },
+                        ));
                         break;
                     }
                 }
@@ -181,10 +199,13 @@ pub async fn handle_exit_mech(
                 let exit_tile = mech.position.offset(-2, 0);
                 let exit_pos = exit_tile.to_world();
                 player.location = PlayerLocation::OutsideWorld(exit_pos);
-                let _ = tx.send((Uuid::nil(), ServerMessage::PlayerMoved {
-                    player_id,
-                    location: player.location,
-                }));
+                let _ = tx.send((
+                    Uuid::nil(),
+                    ServerMessage::PlayerMoved {
+                        player_id,
+                        location: player.location,
+                    },
+                ));
             }
         }
     }
@@ -201,10 +222,13 @@ pub async fn handle_exit_station(
             for mech in game.mechs.values_mut() {
                 if let Some(station) = mech.stations.get_mut(&station_id) {
                     station.operated_by = None;
-                    let _ = tx.send((Uuid::nil(), ServerMessage::PlayerExitedStation {
-                        player_id,
-                        station_id,
-                    }));
+                    let _ = tx.send((
+                        Uuid::nil(),
+                        ServerMessage::PlayerExitedStation {
+                            player_id,
+                            station_id,
+                        },
+                    ));
                     break;
                 }
             }
@@ -230,40 +254,51 @@ pub async fn handle_station_button(
                         return;
                     }
                 };
-                
-                let target = game.mechs.values()
+
+                let target = game
+                    .mechs
+                    .values()
                     .filter(|m| m.team != our_team)
                     .min_by(|a, b| {
                         let dist_a = a.position.distance_to(our_pos);
                         let dist_b = b.position.distance_to(our_pos);
-                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                        dist_a
+                            .partial_cmp(&dist_b)
+                            .unwrap_or(std::cmp::Ordering::Equal)
                     });
 
                 if let Some(target) = target {
                     let target_id = target.id;
                     let target_pos = target.position;
                     let target_health = target.health;
-                    
-                    let _ = tx.send((Uuid::nil(), ServerMessage::WeaponFired {
-                        mech_id,
-                        weapon_type: StationType::WeaponLaser,
-                        target_position: target_pos,
-                        projectile_id: None,
-                    }));
-                    
+
+                    let _ = tx.send((
+                        Uuid::nil(),
+                        ServerMessage::WeaponFired {
+                            mech_id,
+                            weapon_type: StationType::WeaponLaser,
+                            target_position: target_pos,
+                            projectile_id: None,
+                        },
+                    ));
+
                     // Instant damage for laser
-                    let damage = LASER_BASE_DAMAGE + (LASER_DAMAGE_PER_LEVEL * (laser_level as u32 - 1));
+                    let damage =
+                        LASER_BASE_DAMAGE + (LASER_DAMAGE_PER_LEVEL * (laser_level as u32 - 1));
                     let new_health = target_health.saturating_sub(damage);
-                    
+
                     if let Some(target_mech) = game.mechs.get_mut(&target_id) {
                         target_mech.health = new_health;
                     }
-                    
-                    let _ = tx.send((Uuid::nil(), ServerMessage::MechDamaged {
-                        mech_id: target_id,
-                        damage,
-                        health_remaining: new_health,
-                    }));
+
+                    let _ = tx.send((
+                        Uuid::nil(),
+                        ServerMessage::MechDamaged {
+                            mech_id: target_id,
+                            damage,
+                            health_remaining: new_health,
+                        },
+                    ));
                 }
             }
         }
@@ -277,18 +312,22 @@ pub async fn handle_station_button(
                         return;
                     }
                 };
-                
-                let target = game.mechs.values()
+
+                let target = game
+                    .mechs
+                    .values()
                     .filter(|m| m.team != our_team)
                     .min_by(|a, b| {
                         let dist_a = a.position.distance_to(our_pos);
                         let dist_b = b.position.distance_to(our_pos);
-                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                        dist_a
+                            .partial_cmp(&dist_b)
+                            .unwrap_or(std::cmp::Ordering::Equal)
                     });
 
                 if let Some(target) = target {
                     let target_pos = target.position;
-                    
+
                     // Calculate projectile trajectory
                     let start_pos = our_pos.to_world_pos();
                     let target_world = target_pos.to_world_pos();
@@ -296,13 +335,17 @@ pub async fn handle_station_button(
                     let dy = target_world.y - start_pos.y;
                     let dist = (dx * dx + dy * dy).sqrt();
                     let velocity = if dist > 0.0 {
-                        (dx / dist * PROJECTILE_BASE_SPEED, dy / dist * PROJECTILE_BASE_SPEED)
+                        (
+                            dx / dist * PROJECTILE_BASE_SPEED,
+                            dy / dist * PROJECTILE_BASE_SPEED,
+                        )
                     } else {
                         (0.0, 0.0)
                     };
 
-                    let damage = PROJECTILE_BASE_DAMAGE + (PROJECTILE_DAMAGE_PER_LEVEL * (projectile_level as u32 - 1));
-                    
+                    let damage = PROJECTILE_BASE_DAMAGE
+                        + (PROJECTILE_DAMAGE_PER_LEVEL * (projectile_level as u32 - 1));
+
                     // Use the new pooled projectile system
                     let actual_projectile_id = game.create_projectile(
                         start_pos,
@@ -312,12 +355,15 @@ pub async fn handle_station_button(
                         PROJECTILE_LIFETIME,
                     );
 
-                    let _ = tx.send((Uuid::nil(), ServerMessage::WeaponFired {
-                        mech_id,
-                        weapon_type: StationType::WeaponProjectile,
-                        target_position: target_pos,
-                        projectile_id: Some(actual_projectile_id),
-                    }));
+                    let _ = tx.send((
+                        Uuid::nil(),
+                        ServerMessage::WeaponFired {
+                            mech_id,
+                            weapon_type: StationType::WeaponProjectile,
+                            target_position: target_pos,
+                            projectile_id: Some(actual_projectile_id),
+                        },
+                    ));
                 }
             }
         }
@@ -326,10 +372,13 @@ pub async fn handle_station_button(
                 // Activate shield boost
                 if let Some(mech) = game.mechs.get_mut(&mech_id) {
                     mech.shield = (mech.shield + SHIELD_BOOST_AMOUNT).min(mech.max_shield);
-                    let _ = tx.send((Uuid::nil(), ServerMessage::MechShieldChanged {
-                        mech_id,
-                        shield: mech.shield,
-                    }));
+                    let _ = tx.send((
+                        Uuid::nil(),
+                        ServerMessage::MechShieldChanged {
+                            mech_id,
+                            shield: mech.shield,
+                        },
+                    ));
                 }
             }
         }
@@ -342,54 +391,87 @@ pub async fn handle_station_button(
             match button_index {
                 0 => {
                     // Upgrade laser (costs 2 scrap metal + 1 computer component)
-                    if check_and_consume_resources(game, mech_id, upgrade_costs::LASER_UPGRADE.to_vec()) {
+                    if check_and_consume_resources(
+                        game,
+                        mech_id,
+                        upgrade_costs::LASER_UPGRADE.to_vec(),
+                    ) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            mech.upgrades.laser_level = (mech.upgrades.laser_level + 1).min(MAX_UPGRADE_LEVEL);
-                            let _ = tx.send((Uuid::nil(), ServerMessage::MechUpgraded {
-                                mech_id,
-                                upgrade_type: UpgradeType::Laser,
-                                new_level: mech.upgrades.laser_level,
-                            }));
+                            mech.upgrades.laser_level =
+                                (mech.upgrades.laser_level + 1).min(MAX_UPGRADE_LEVEL);
+                            let _ = tx.send((
+                                Uuid::nil(),
+                                ServerMessage::MechUpgraded {
+                                    mech_id,
+                                    upgrade_type: UpgradeType::Laser,
+                                    new_level: mech.upgrades.laser_level,
+                                },
+                            ));
                         }
                     }
                 }
                 1 => {
                     // Upgrade projectile (costs 3 scrap metal)
-                    if check_and_consume_resources(game, mech_id, upgrade_costs::PROJECTILE_UPGRADE.to_vec()) {
+                    if check_and_consume_resources(
+                        game,
+                        mech_id,
+                        upgrade_costs::PROJECTILE_UPGRADE.to_vec(),
+                    ) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            mech.upgrades.projectile_level = (mech.upgrades.projectile_level + 1).min(MAX_UPGRADE_LEVEL);
-                            let _ = tx.send((Uuid::nil(), ServerMessage::MechUpgraded {
-                                mech_id,
-                                upgrade_type: UpgradeType::Projectile,
-                                new_level: mech.upgrades.projectile_level,
-                            }));
+                            mech.upgrades.projectile_level =
+                                (mech.upgrades.projectile_level + 1).min(MAX_UPGRADE_LEVEL);
+                            let _ = tx.send((
+                                Uuid::nil(),
+                                ServerMessage::MechUpgraded {
+                                    mech_id,
+                                    upgrade_type: UpgradeType::Projectile,
+                                    new_level: mech.upgrades.projectile_level,
+                                },
+                            ));
                         }
                     }
                 }
                 2 => {
                     // Upgrade shields (costs 2 batteries + 1 wiring)
-                    if check_and_consume_resources(game, mech_id, upgrade_costs::SHIELD_UPGRADE.to_vec()) {
+                    if check_and_consume_resources(
+                        game,
+                        mech_id,
+                        upgrade_costs::SHIELD_UPGRADE.to_vec(),
+                    ) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            mech.upgrades.shield_level = (mech.upgrades.shield_level + 1).min(MAX_UPGRADE_LEVEL);
-                            mech.max_shield = MECH_MAX_SHIELD + (mech.upgrades.shield_level as u32 - 1) * SHIELD_PER_LEVEL;
-                            let _ = tx.send((Uuid::nil(), ServerMessage::MechUpgraded {
-                                mech_id,
-                                upgrade_type: UpgradeType::Shield,
-                                new_level: mech.upgrades.shield_level,
-                            }));
+                            mech.upgrades.shield_level =
+                                (mech.upgrades.shield_level + 1).min(MAX_UPGRADE_LEVEL);
+                            mech.max_shield = MECH_MAX_SHIELD
+                                + (mech.upgrades.shield_level as u32 - 1) * SHIELD_PER_LEVEL;
+                            let _ = tx.send((
+                                Uuid::nil(),
+                                ServerMessage::MechUpgraded {
+                                    mech_id,
+                                    upgrade_type: UpgradeType::Shield,
+                                    new_level: mech.upgrades.shield_level,
+                                },
+                            ));
                         }
                     }
                 }
                 3 => {
                     // Upgrade engine (costs 2 computer components + 2 wiring)
-                    if check_and_consume_resources(game, mech_id, upgrade_costs::ENGINE_UPGRADE.to_vec()) {
+                    if check_and_consume_resources(
+                        game,
+                        mech_id,
+                        upgrade_costs::ENGINE_UPGRADE.to_vec(),
+                    ) {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            mech.upgrades.engine_level = (mech.upgrades.engine_level + 1).min(MAX_UPGRADE_LEVEL);
-                            let _ = tx.send((Uuid::nil(), ServerMessage::MechUpgraded {
-                                mech_id,
-                                upgrade_type: UpgradeType::Engine,
-                                new_level: mech.upgrades.engine_level,
-                            }));
+                            mech.upgrades.engine_level =
+                                (mech.upgrades.engine_level + 1).min(MAX_UPGRADE_LEVEL);
+                            let _ = tx.send((
+                                Uuid::nil(),
+                                ServerMessage::MechUpgraded {
+                                    mech_id,
+                                    upgrade_type: UpgradeType::Engine,
+                                    new_level: mech.upgrades.engine_level,
+                                },
+                            ));
                         }
                     }
                 }
@@ -402,18 +484,25 @@ pub async fn handle_station_button(
                 if let Some(mech) = game.mechs.get(&mech_id) {
                     let damage = mech.max_health.saturating_sub(mech.health);
                     let scrap_needed = (damage + REPAIR_HP_PER_SCRAP - 1) / REPAIR_HP_PER_SCRAP; // Round up
-                    
-                    if scrap_needed > 0 && check_and_consume_resources(game, mech_id, vec![
-                        (ResourceType::ScrapMetal, scrap_needed as usize),
-                    ]) {
+
+                    if scrap_needed > 0
+                        && check_and_consume_resources(
+                            game,
+                            mech_id,
+                            vec![(ResourceType::ScrapMetal, scrap_needed as usize)],
+                        )
+                    {
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
                             let healed = scrap_needed * REPAIR_HP_PER_SCRAP;
                             mech.health = (mech.health + healed).min(mech.max_health);
-                            let _ = tx.send((Uuid::nil(), ServerMessage::MechRepaired {
-                                mech_id,
-                                health_restored: healed,
-                                new_health: mech.health,
-                            }));
+                            let _ = tx.send((
+                                Uuid::nil(),
+                                ServerMessage::MechRepaired {
+                                    mech_id,
+                                    health_restored: healed,
+                                    new_health: mech.health,
+                                },
+                            ));
                         }
                     }
                 }
@@ -425,21 +514,21 @@ pub async fn handle_station_button(
     }
 }
 
-pub async fn handle_engine_control(
-    game: &mut Game,
-    player_id: Uuid,
-    movement: (f32, f32),
-) {
+pub async fn handle_engine_control(game: &mut Game, player_id: Uuid, movement: (f32, f32)) {
     // Check if player is operating an engine station
-    let player_station = game.players.get(&player_id)
+    let player_station = game
+        .players
+        .get(&player_id)
         .and_then(|p| p.operating_station);
-    
+
     if let Some(station_id) = player_station {
         // Find which mech contains this station
-        let mech_to_control = game.mechs.values()
+        let mech_to_control = game
+            .mechs
+            .values()
             .find(|m| m.stations.contains_key(&station_id))
             .map(|m| m.id);
-        
+
         if let Some(mech_id) = mech_to_control {
             // Verify it's an engine station
             if let Some(mech) = game.mechs.get(&mech_id) {
@@ -447,8 +536,9 @@ pub async fn handle_engine_control(
                     if station.station_type == StationType::Engine {
                         // Update the specific mech's velocity based on WASD input
                         if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                            let base_speed = MECH_BASE_SPEED + (mech.upgrades.engine_level as f32 - 1.0) * MECH_SPEED_PER_LEVEL;
-                            
+                            let base_speed = MECH_BASE_SPEED
+                                + (mech.upgrades.engine_level as f32 - 1.0) * MECH_SPEED_PER_LEVEL;
+
                             // Normalize diagonal movement
                             let (mut vx, mut vy) = movement;
                             let magnitude = (vx * vx + vy * vy).sqrt();
@@ -456,7 +546,7 @@ pub async fn handle_engine_control(
                                 vx /= magnitude;
                                 vy /= magnitude;
                             }
-                            
+
                             // Apply speed to normalized velocity
                             mech.velocity = (vx * base_speed, vy * base_speed);
                         }
@@ -481,7 +571,7 @@ fn check_and_consume_resources(
                 return false;
             }
         }
-        
+
         // We have enough - consume the resources from mech inventory
         if let Some(mech) = game.mechs.get_mut(&mech_id) {
             for (resource_type, needed) in required {
@@ -490,7 +580,7 @@ fn check_and_consume_resources(
                 }
             }
         }
-        
+
         true
     } else {
         false

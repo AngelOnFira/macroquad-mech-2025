@@ -1,17 +1,17 @@
+use crate::{ClientMessage, GameResult, NetworkError, NetworkResult, ServerMessage};
 use std::sync::{Arc, Mutex};
-use crate::{ClientMessage, ServerMessage, GameResult, NetworkError, NetworkResult};
 
 /// Trait for network operations across platforms
 pub trait NetworkTransport: Send + Sync {
     /// Send a client message to the server
     fn send_message(&self, msg: ClientMessage) -> NetworkResult<()>;
-    
+
     /// Check if the connection is active
     fn is_connected(&self) -> bool;
-    
+
     /// Close the connection
     fn close(&self);
-    
+
     /// Get connection status information
     fn get_connection_info(&self) -> ConnectionInfo;
 }
@@ -50,44 +50,44 @@ impl<T: NetworkTransport> NetworkClient<T> {
             retry_count: 0,
             last_error: None,
         };
-        
+
         Self {
             transport,
             connection_info: Arc::new(Mutex::new(connection_info)),
             _retry_count: 0,
         }
     }
-    
+
     pub fn send_message(&self, msg: ClientMessage) -> NetworkResult<()> {
         if !self.transport.is_connected() {
             return Err(NetworkError::ConnectionClosed);
         }
-        
+
         self.transport.send_message(msg).map_err(|e| {
             self.update_connection_error(format!("Send failed: {}", e));
             e
         })
     }
-    
+
     pub fn is_connected(&self) -> bool {
         self.transport.is_connected()
     }
-    
+
     pub fn get_connection_info(&self) -> ConnectionInfo {
         self.connection_info.lock().unwrap().clone()
     }
-    
+
     pub fn close(&self) {
         self.transport.close();
         self.update_connection_status(ConnectionStatus::Disconnected);
     }
-    
+
     fn update_connection_status(&self, status: ConnectionStatus) {
         if let Ok(mut info) = self.connection_info.lock() {
             info.status = status;
         }
     }
-    
+
     fn update_connection_error(&self, error: String) {
         if let Ok(mut info) = self.connection_info.lock() {
             info.status = ConnectionStatus::Error(error.clone());
@@ -108,7 +108,9 @@ pub struct GameStateHandler<T> {
 
 impl<T> GameStateHandler<T> {
     pub fn new(game_state: Arc<Mutex<T>>) -> Self {
-        Self { _game_state: game_state }
+        Self {
+            _game_state: game_state,
+        }
     }
 }
 
@@ -153,11 +155,11 @@ impl ReconnectManager {
             last_attempt: None,
         }
     }
-    
+
     pub fn should_retry(&self) -> bool {
         self.current_attempts < self.max_attempts
     }
-    
+
     pub fn can_attempt_now(&self) -> bool {
         match self.last_attempt {
             None => true,
@@ -167,27 +169,27 @@ impl ReconnectManager {
             }
         }
     }
-    
+
     pub fn record_attempt(&mut self) {
         self.current_attempts += 1;
         self.last_attempt = Some(std::time::Instant::now());
     }
-    
+
     pub fn reset(&mut self) {
         self.current_attempts = 0;
         self.last_attempt = None;
     }
-    
+
     fn calculate_delay(&self) -> u64 {
         // Exponential backoff with jitter
         let base_delay = self.base_delay_ms * (2_u64.pow(self.current_attempts.min(10)));
         base_delay.min(self.max_delay_ms)
     }
-    
+
     pub fn get_current_attempts(&self) -> u32 {
         self.current_attempts
     }
-    
+
     pub fn get_max_attempts(&self) -> u32 {
         self.max_attempts
     }
@@ -200,26 +202,26 @@ mod tests {
     #[test]
     fn test_reconnect_manager() {
         let mut manager = ReconnectManager::new(3, 100, 1000);
-        
+
         assert!(manager.should_retry());
         assert!(manager.can_attempt_now());
-        
+
         manager.record_attempt();
         assert_eq!(manager.get_current_attempts(), 1);
         assert!(!manager.can_attempt_now()); // Should wait for delay
-        
+
         // Test reset
         manager.reset();
         assert_eq!(manager.get_current_attempts(), 0);
         assert!(manager.can_attempt_now());
     }
-    
+
     #[test]
     fn test_message_serialization() {
         let msg = ClientMessage::ChatMessage {
             message: "Hello world".to_string(),
         };
-        
+
         let json = serialize_client_message(&msg).unwrap();
         assert!(json.contains("ChatMessage"));
         assert!(json.contains("Hello world"));

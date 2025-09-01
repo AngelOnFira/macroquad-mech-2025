@@ -1,6 +1,6 @@
+use crate::game_state::*;
 use macroquad::prelude::*;
 use shared::types::*;
-use crate::game_state::*;
 
 pub fn render_ui(game_state: &GameState) {
     render_team_and_location_info(game_state);
@@ -16,12 +16,17 @@ fn render_team_and_location_info(game_state: &GameState) {
         None => "Team: None",
     };
     draw_text(team_text, 10.0, 30.0, 20.0, WHITE);
-    
+
     // Location info
     let location_text = match game_state.player_location {
         PlayerLocation::OutsideWorld(pos) => format!("Outside at ({}, {})", pos.x, pos.y),
         PlayerLocation::InsideMech { floor, pos, .. } => {
-            format!("Inside Mech - Floor {} at ({}, {})", floor + 1, pos.x, pos.y)
+            format!(
+                "Inside Mech - Floor {} at ({}, {})",
+                floor + 1,
+                pos.x,
+                pos.y
+            )
         }
     };
     draw_text(&location_text, 10.0, 50.0, 20.0, WHITE);
@@ -29,21 +34,41 @@ fn render_team_and_location_info(game_state: &GameState) {
 
 fn render_mech_status_bars(game_state: &GameState) {
     let mut y_offset = 80.0;
-    
+
     for mech in game_state.mechs.values() {
         let team_color = match mech.team {
             TeamId::Red => RED,
             TeamId::Blue => BLUE,
         };
-        
-        draw_text(&format!("{:?} Mech", mech.team), 10.0, y_offset, 18.0, team_color);
-        
+
+        draw_text(
+            &format!("{:?} Mech", mech.team),
+            10.0,
+            y_offset,
+            18.0,
+            team_color,
+        );
+
         // Health bar
-        render_status_bar(10.0, y_offset + 5.0, 200.0, 10.0, mech.health as f32 / 100.0, GREEN);
-        
+        render_status_bar(
+            10.0,
+            y_offset + 5.0,
+            200.0,
+            10.0,
+            mech.health as f32 / 100.0,
+            GREEN,
+        );
+
         // Shield bar
-        render_status_bar(10.0, y_offset + 17.0, 200.0, 10.0, mech.shield as f32 / 50.0, SKYBLUE);
-        
+        render_status_bar(
+            10.0,
+            y_offset + 17.0,
+            200.0,
+            10.0,
+            mech.shield as f32 / 50.0,
+            SKYBLUE,
+        );
+
         y_offset += 40.0;
     }
 }
@@ -56,23 +81,26 @@ fn render_status_bar(x: f32, y: f32, width: f32, height: f32, fill_ratio: f32, c
 fn render_control_hints(game_state: &GameState) {
     // Basic controls
     draw_text(
-        "WASD: Move | Space: Action | Q: Exit Mech", 
-        10.0, 
-        screen_height() - 20.0, 
-        16.0, 
-        WHITE
+        "WASD: Move | Space: Action | Q: Exit Mech",
+        10.0,
+        screen_height() - 20.0,
+        16.0,
+        WHITE,
     );
-    
+
     // Context-specific hints
     if let PlayerLocation::InsideMech { floor, .. } = game_state.player_location {
         draw_text(
-            &format!("Current Floor: {} | Up/Down arrows at ladders to change floors", floor + 1),
+            &format!(
+                "Current Floor: {} | Up/Down arrows at ladders to change floors",
+                floor + 1
+            ),
             10.0,
             screen_height() - 40.0,
             16.0,
-            WHITE
+            WHITE,
         );
-        
+
         // Station controls hint
         if is_player_at_station(game_state) {
             draw_text(
@@ -80,7 +108,7 @@ fn render_control_hints(game_state: &GameState) {
                 10.0,
                 screen_height() - 60.0,
                 16.0,
-                YELLOW
+                YELLOW,
             );
         }
     }
@@ -88,7 +116,9 @@ fn render_control_hints(game_state: &GameState) {
 
 fn is_player_at_station(game_state: &GameState) -> bool {
     if let Some(player_id) = game_state.player_id {
-        game_state.stations.values()
+        game_state
+            .stations
+            .values()
             .any(|station| station.operated_by == Some(player_id))
     } else {
         false

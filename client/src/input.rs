@@ -27,7 +27,7 @@ impl InputHandler {
         // Movement - combine multiple directions for diagonal movement
         let mut movement_x = 0.0;
         let mut movement_y = 0.0;
-        
+
         if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
             movement_y -= 1.0;
         }
@@ -40,14 +40,14 @@ impl InputHandler {
         if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
             movement_x += 1.0;
         }
-        
+
         // Normalize diagonal movement
         if movement_x != 0.0 || movement_y != 0.0 {
             let magnitude = ((movement_x * movement_x + movement_y * movement_y) as f32).sqrt();
             movement_x /= magnitude;
             movement_y /= magnitude;
         }
-        
+
         state.movement = (movement_x, movement_y);
 
         // Action key (Space) - detect press, not hold

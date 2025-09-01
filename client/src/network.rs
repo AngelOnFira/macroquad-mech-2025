@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
-use ws::{connect, Handler, Sender, Result, Message, CloseCode, Error};
 use uuid::Uuid;
+use ws::{connect, CloseCode, Error, Handler, Message, Result, Sender};
 
-use shared::*;
 use crate::game_state::GameState;
+use shared::*;
 
 pub struct NetworkClient {
     sender: Sender,
@@ -13,23 +13,24 @@ pub struct NetworkClient {
 impl NetworkClient {
     pub fn connect(url: &str, game_state: Arc<Mutex<GameState>>) -> Result<Self> {
         let (tx, rx) = std::sync::mpsc::channel();
-        
+
         let url_clone = url.to_string();
         thread::spawn(move || {
             connect(url_clone, |out| {
                 // Send the sender through the channel
                 tx.send(out.clone()).unwrap();
-                
+
                 ClientHandler {
                     out,
                     game_state: Arc::clone(&game_state),
                 }
-            }).unwrap();
+            })
+            .unwrap();
         });
 
         // Get the sender from the connection
         let sender = rx.recv().unwrap();
-        
+
         Ok(NetworkClient { sender })
     }
 
@@ -68,24 +69,36 @@ impl ClientHandler {
         let mut game = self.game_state.lock().unwrap();
 
         match msg {
-            ServerMessage::JoinedGame { player_id, team, spawn_position } => {
+            ServerMessage::JoinedGame {
+                player_id,
+                team,
+                spawn_position,
+            } => {
                 game.player_id = Some(player_id);
                 game.player_team = Some(team);
                 game.player_location = PlayerLocation::OutsideWorld(spawn_position.to_world_pos());
                 log::info!("Joined game as player {} on team {:?}", player_id, team);
             }
 
-            ServerMessage::GameState { players, mechs, resources, projectiles } => {
+            ServerMessage::GameState {
+                players,
+                mechs,
+                resources,
+                projectiles,
+            } => {
                 // Update full game state
                 game.players.clear();
                 for (id, player) in players {
-                    game.players.insert(id, crate::game_state::PlayerData {
-                        _id: player.id,
-                        name: player.name,
-                        team: player.team,
-                        location: player.location,
-                        carrying_resource: player.carrying_resource,
-                    });
+                    game.players.insert(
+                        id,
+                        crate::game_state::PlayerData {
+                            _id: player.id,
+                            name: player.name,
+                            team: player.team,
+                            location: player.location,
+                            carrying_resource: player.carrying_resource,
+                        },
+                    );
                 }
 
                 game.mechs.clear();
@@ -104,20 +117,25 @@ impl ClientHandler {
 
                     // Build floor layouts
                     for floor_idx in 0..MECH_FLOORS {
-                        mech_state.floors.push(crate::game_state::MechFloor::new(floor_idx as u8));
+                        mech_state
+                            .floors
+                            .push(crate::game_state::MechFloor::new(floor_idx as u8));
                     }
 
                     // Update stations
                     for station in mech.stations {
-                        game.stations.insert(station.id, crate::game_state::StationState {
-                            _id: station.id,
-                            mech_id: mech.id,
-                            floor: station.floor,
-                            position: station.position,
-                            station_type: station.station_type,
-                            occupied: station.operated_by.is_some(),
-                            operated_by: station.operated_by,
-                        });
+                        game.stations.insert(
+                            station.id,
+                            crate::game_state::StationState {
+                                _id: station.id,
+                                mech_id: mech.id,
+                                floor: station.floor,
+                                position: station.position,
+                                station_type: station.station_type,
+                                occupied: station.operated_by.is_some(),
+                                operated_by: station.operated_by,
+                            },
+                        );
                     }
 
                     game.mechs.insert(id, mech_state);
@@ -142,7 +160,10 @@ impl ClientHandler {
                 }
             }
 
-            ServerMessage::PlayerMoved { player_id, location } => {
+            ServerMessage::PlayerMoved {
+                player_id,
+                location,
+            } => {
                 if player_id == game.player_id.unwrap_or(Uuid::nil()) {
                     // Check if we're transitioning between outside and inside mech
                     let should_transition = match (&game.player_location, &location) {
@@ -172,27 +193,40 @@ impl ClientHandler {
                 }
             }
 
-            ServerMessage::PlayerPickedUpResource { player_id, resource_type, resource_id } => {
+            ServerMessage::PlayerPickedUpResource {
+                player_id,
+                resource_type,
+                resource_id,
+            } => {
                 if let Some(player) = game.players.get_mut(&player_id) {
                     player.carrying_resource = Some(resource_type);
                 }
                 game.resources.retain(|r| r.id != resource_id);
             }
 
-            ServerMessage::PlayerDroppedResource { player_id, resource_type, position } => {
+            ServerMessage::PlayerDroppedResource {
+                player_id,
+                resource_type,
+                position,
+            } => {
                 if let Some(player) = game.players.get_mut(&player_id) {
                     player.carrying_resource = None;
                 }
                 // Could add visual effect here
             }
 
-            ServerMessage::PlayerEnteredStation { player_id, station_id } => {
+            ServerMessage::PlayerEnteredStation {
+                player_id,
+                station_id,
+            } => {
                 if player_id == game.player_id.unwrap_or(Uuid::nil()) {
                     // Check if it's a pilot station
-                    let pilot_station_info = game.stations.get(&station_id)
+                    let pilot_station_info = game
+                        .stations
+                        .get(&station_id)
                         .filter(|s| s.station_type == StationType::Pilot)
                         .map(|s| s.mech_id);
-                    
+
                     if let Some(mech_id) = pilot_station_info {
                         // Open pilot window
                         game.ui_state.pilot_station_open = true;
@@ -207,7 +241,10 @@ impl ClientHandler {
                 }
             }
 
-            ServerMessage::PlayerExitedStation { player_id, station_id } => {
+            ServerMessage::PlayerExitedStation {
+                player_id,
+                station_id,
+            } => {
                 if player_id == game.player_id.unwrap_or(Uuid::nil()) {
                     // Close pilot window if it was open
                     if game.ui_state.pilot_station_id == Some(station_id) {
@@ -223,14 +260,22 @@ impl ClientHandler {
                 }
             }
 
-            ServerMessage::MechMoved { mech_id, position, world_position } => {
+            ServerMessage::MechMoved {
+                mech_id,
+                position,
+                world_position,
+            } => {
                 if let Some(mech) = game.mechs.get_mut(&mech_id) {
                     mech.position = position;
                     mech.world_position = world_position;
                 }
             }
 
-            ServerMessage::MechDamaged { mech_id, damage: _, health_remaining } => {
+            ServerMessage::MechDamaged {
+                mech_id,
+                damage: _,
+                health_remaining,
+            } => {
                 if let Some(mech) = game.mechs.get_mut(&mech_id) {
                     mech.health = health_remaining;
                 }
@@ -242,7 +287,12 @@ impl ClientHandler {
                 }
             }
 
-            ServerMessage::WeaponFired { mech_id, weapon_type, target_position, projectile_id } => {
+            ServerMessage::WeaponFired {
+                mech_id,
+                weapon_type,
+                target_position,
+                projectile_id,
+            } => {
                 // Add visual effect
                 game.weapon_effects.push(crate::game_state::WeaponEffect {
                     mech_id,
@@ -258,7 +308,11 @@ impl ClientHandler {
                 // Could add explosion effect
             }
 
-            ServerMessage::ResourceSpawned { resource_id, position, resource_type } => {
+            ServerMessage::ResourceSpawned {
+                resource_id,
+                position,
+                resource_type,
+            } => {
                 game.resources.push(crate::game_state::ResourceState {
                     id: resource_id,
                     position,
@@ -270,11 +324,17 @@ impl ClientHandler {
                 game.players.remove(&player_id);
             }
 
-            ServerMessage::MechUpgraded { mech_id, upgrade_type, new_level } => {
+            ServerMessage::MechUpgraded {
+                mech_id,
+                upgrade_type,
+                new_level,
+            } => {
                 if let Some(mech) = game.mechs.get_mut(&mech_id) {
                     match upgrade_type {
                         shared::UpgradeType::Laser => mech.upgrades.laser_level = new_level,
-                        shared::UpgradeType::Projectile => mech.upgrades.projectile_level = new_level,
+                        shared::UpgradeType::Projectile => {
+                            mech.upgrades.projectile_level = new_level
+                        }
                         shared::UpgradeType::Shield => mech.upgrades.shield_level = new_level,
                         shared::UpgradeType::Engine => mech.upgrades.engine_level = new_level,
                     }
@@ -282,14 +342,22 @@ impl ClientHandler {
                 // Could add visual effect for upgrade completion
             }
 
-            ServerMessage::MechRepaired { mech_id, health_restored: _, new_health } => {
+            ServerMessage::MechRepaired {
+                mech_id,
+                health_restored: _,
+                new_health,
+            } => {
                 if let Some(mech) = game.mechs.get_mut(&mech_id) {
                     mech.health = new_health;
                 }
                 // Could add visual effect for repair
             }
-            
-            ServerMessage::PlayerKilled { player_id, killer: _, respawn_position } => {
+
+            ServerMessage::PlayerKilled {
+                player_id,
+                killer: _,
+                respawn_position,
+            } => {
                 if player_id == game.player_id.unwrap_or(Uuid::nil()) {
                     // Player died - respawn them
                     game.player_location = PlayerLocation::OutsideWorld(respawn_position);
@@ -303,20 +371,23 @@ impl ClientHandler {
             ServerMessage::TileUpdate { position, visual } => {
                 game.visible_tiles.insert(position, visual);
             }
-            
+
             ServerMessage::TileBatch { tiles } => {
                 for (position, visual) in tiles {
                     game.visible_tiles.insert(position, visual);
                 }
             }
-            
-            ServerMessage::VisibilityUpdate { visible_tiles, player_position: _ } => {
+
+            ServerMessage::VisibilityUpdate {
+                visible_tiles,
+                player_position: _,
+            } => {
                 game.visible_tiles.clear();
                 for (position, visual) in visible_tiles {
                     game.visible_tiles.insert(position, visual);
                 }
             }
-            
+
             _ => {
                 // Handle other messages as needed
             }
