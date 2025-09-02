@@ -83,7 +83,10 @@ impl Profiler {
 
     #[cfg(feature = "profiling")]
     pub fn record_scope_time(&mut self, scope_name: &'static str, time_ms: f64) {
-        let timer = self.scope_times.entry(scope_name).or_insert_with(ScopeTimer::new);
+        let timer = self
+            .scope_times
+            .entry(scope_name)
+            .or_insert_with(ScopeTimer::new);
         timer.add_sample(time_ms);
     }
 
@@ -164,7 +167,11 @@ impl Profiler {
 
         // Sort scopes by average time (descending)
         let mut sorted_scopes: Vec<_> = self.scope_times.iter().collect();
-        sorted_scopes.sort_by(|a, b| b.1.get_average().partial_cmp(&a.1.get_average()).unwrap_or(std::cmp::Ordering::Equal));
+        sorted_scopes.sort_by(|a, b| {
+            b.1.get_average()
+                .partial_cmp(&a.1.get_average())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         info!("📊 Scope Timing (Top 10):");
         for (scope_name, timer) in sorted_scopes.iter().take(10) {
@@ -188,7 +195,11 @@ impl Profiler {
 
         // Sort scopes by average time (descending)
         let mut sorted_scopes: Vec<_> = self.scope_times.iter().collect();
-        sorted_scopes.sort_by(|a, b| b.1.get_average().partial_cmp(&a.1.get_average()).unwrap_or(std::cmp::Ordering::Equal));
+        sorted_scopes.sort_by(|a, b| {
+            b.1.get_average()
+                .partial_cmp(&a.1.get_average())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         println!("📊 Scope Timing (Top 10):");
         for (scope_name, timer) in sorted_scopes.iter().take(10) {

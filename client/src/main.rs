@@ -23,7 +23,6 @@ use rendering::Renderer;
 #[cfg(feature = "profiling")]
 use profiling::scope;
 
-
 #[cfg(not(target_arch = "wasm32"))]
 use network::NetworkClient;
 #[cfg(target_arch = "wasm32")]
@@ -161,107 +160,107 @@ async fn main() {
             let network_start = profiler.start_scope("network");
             #[cfg(feature = "profiling")]
             scope!("network");
-            
+
             if let Some(ref client) = network_client {
-            // Check if we're operating a station
-            let (operating_engine, operating_pilot) = {
-                let game = game_state.lock().unwrap();
-                if let Some(player_id) = game.player_id {
-                    let operating_engine = game.stations.values().any(|station| {
-                        station.operated_by == Some(player_id)
-                            && station.station_type == shared::types::StationType::Engine
-                    });
-                    let operating_pilot = game.stations.values().any(|station| {
-                        station.operated_by == Some(player_id)
-                            && station.station_type == shared::types::StationType::Pilot
-                    });
-                    (operating_engine, operating_pilot)
-                } else {
-                    (false, false)
-                }
-            };
-
-            if operating_engine || operating_pilot {
-                // Send engine control for both engine and pilot stations
-                if input.has_input() {
-                    client.send_message(ClientMessage::EngineControl {
-                        movement: input.movement,
-                    });
-                }
-            } else {
-                // Normal player movement
-                if input.has_input() {
-                    client.send_message(ClientMessage::PlayerInput {
-                        movement: input.movement,
-                        action_key_pressed: input.action_pressed,
-                    });
-                }
-            }
-
-            if input.exit_mech_pressed {
-                client.send_message(ClientMessage::ExitMech);
-            }
-
-            // Handle station input (number keys 1-5)
-            for i in 1..=5 {
-                let key = match i {
-                    1 => KeyCode::Key1,
-                    2 => KeyCode::Key2,
-                    3 => KeyCode::Key3,
-                    4 => KeyCode::Key4,
-                    5 => KeyCode::Key5,
-                    _ => continue,
+                // Check if we're operating a station
+                let (operating_engine, operating_pilot) = {
+                    let game = game_state.lock().unwrap();
+                    if let Some(player_id) = game.player_id {
+                        let operating_engine = game.stations.values().any(|station| {
+                            station.operated_by == Some(player_id)
+                                && station.station_type == shared::types::StationType::Engine
+                        });
+                        let operating_pilot = game.stations.values().any(|station| {
+                            station.operated_by == Some(player_id)
+                                && station.station_type == shared::types::StationType::Pilot
+                        });
+                        (operating_engine, operating_pilot)
+                    } else {
+                        (false, false)
+                    }
                 };
 
-                if is_key_pressed(key) {
-                    client.send_message(ClientMessage::StationInput {
-                        button_index: i - 1,
-                    });
-                }
-            }
-        }
-
-        // Handle pilot window interactions
-        {
-            let mut game = game_state.lock().unwrap();
-
-            // Handle ESC key to close pilot window
-            if is_key_pressed(KeyCode::Escape) && game.ui_state.pilot_station_open {
-                game.ui_state.pilot_station_open = false;
-                game.ui_state.pilot_station_id = None;
-                game.ui_state.operating_mech_id = None;
-
-                // Exit station
-                if let Some(ref client) = network_client {
-                    client.send_message(ClientMessage::ExitStation);
-                }
-            }
-
-            // Handle mouse clicks on pilot window
-            if is_mouse_button_pressed(MouseButton::Left) {
-                let (mouse_x, mouse_y) = mouse_position();
-                match rendering::is_pilot_window_clicked(&game, mouse_x, mouse_y) {
-                    rendering::PilotWindowClick::Close => {
-                        game.ui_state.pilot_station_open = false;
-                        game.ui_state.pilot_station_id = None;
-                        game.ui_state.operating_mech_id = None;
-
-                        // Exit station
-                        if let Some(ref client) = network_client {
-                            client.send_message(ClientMessage::ExitStation);
-                        }
+                if operating_engine || operating_pilot {
+                    // Send engine control for both engine and pilot stations
+                    if input.has_input() {
+                        client.send_message(ClientMessage::EngineControl {
+                            movement: input.movement,
+                        });
                     }
-                    _ => {}
+                } else {
+                    // Normal player movement
+                    if input.has_input() {
+                        client.send_message(ClientMessage::PlayerInput {
+                            movement: input.movement,
+                            action_key_pressed: input.action_pressed,
+                        });
+                    }
+                }
+
+                if input.exit_mech_pressed {
+                    client.send_message(ClientMessage::ExitMech);
+                }
+
+                // Handle station input (number keys 1-5)
+                for i in 1..=5 {
+                    let key = match i {
+                        1 => KeyCode::Key1,
+                        2 => KeyCode::Key2,
+                        3 => KeyCode::Key3,
+                        4 => KeyCode::Key4,
+                        5 => KeyCode::Key5,
+                        _ => continue,
+                    };
+
+                    if is_key_pressed(key) {
+                        client.send_message(ClientMessage::StationInput {
+                            button_index: i - 1,
+                        });
+                    }
                 }
             }
-        }
+
+            // Handle pilot window interactions
+            {
+                let mut game = game_state.lock().unwrap();
+
+                // Handle ESC key to close pilot window
+                if is_key_pressed(KeyCode::Escape) && game.ui_state.pilot_station_open {
+                    game.ui_state.pilot_station_open = false;
+                    game.ui_state.pilot_station_id = None;
+                    game.ui_state.operating_mech_id = None;
+
+                    // Exit station
+                    if let Some(ref client) = network_client {
+                        client.send_message(ClientMessage::ExitStation);
+                    }
+                }
+
+                // Handle mouse clicks on pilot window
+                if is_mouse_button_pressed(MouseButton::Left) {
+                    let (mouse_x, mouse_y) = mouse_position();
+                    match rendering::is_pilot_window_clicked(&game, mouse_x, mouse_y) {
+                        rendering::PilotWindowClick::Close => {
+                            game.ui_state.pilot_station_open = false;
+                            game.ui_state.pilot_station_id = None;
+                            game.ui_state.operating_mech_id = None;
+
+                            // Exit station
+                            if let Some(ref client) = network_client {
+                                client.send_message(ClientMessage::ExitStation);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
 
             // Update network client (for web)
             #[cfg(target_arch = "wasm32")]
             if let Some(ref mut client) = network_client {
                 client.update();
             }
-            
+
             profiler.end_scope("network", network_start);
         }
 
@@ -270,7 +269,7 @@ async fn main() {
             let game_update_start = profiler.start_scope("game_update");
             #[cfg(feature = "profiling")]
             scope!("game_update");
-            
+
             let mut game = game_state.lock().unwrap();
             game.update(get_frame_time());
             drop(game); // Release lock before profiler call
@@ -282,7 +281,7 @@ async fn main() {
             let render_start = profiler.start_scope("render");
             #[cfg(feature = "profiling")]
             scope!("render");
-            
+
             clear_background(BLACK);
             {
                 let game = game_state.lock().unwrap();
@@ -304,10 +303,10 @@ async fn main() {
 
         // Render profiler UI overlay
         profiler.render_ui();
-        
+
         // End frame timing before logging stats
         profiler.end_scope("frame", frame_start);
-        
+
         // Log profiling stats to console
         profiler.log_frame_stats();
 

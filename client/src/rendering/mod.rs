@@ -14,7 +14,6 @@ use shared::types::*;
 #[cfg(feature = "profiling")]
 use profiling::scope;
 
-
 pub use pilot_station::{is_pilot_window_clicked, PilotWindowClick};
 
 pub struct Renderer {
@@ -29,7 +28,7 @@ impl Renderer {
     pub fn render(&self, game_state: &GameState) {
         #[cfg(feature = "profiling")]
         scope!("renderer");
-        
+
         // Apply camera transform
         let cam_x = -game_state.camera_offset.0;
         let cam_y = -game_state.camera_offset.1;
@@ -38,7 +37,7 @@ impl Renderer {
         if let Some(transition) = &game_state.transition {
             #[cfg(feature = "profiling")]
             scope!("transition");
-            
+
             self.render_transition(game_state, transition, cam_x, cam_y);
         } else {
             // Normal rendering
@@ -47,7 +46,7 @@ impl Renderer {
                     {
                         #[cfg(feature = "profiling")]
                         scope!("world_view");
-                        
+
                         world::render_world_view_with_vision(
                             game_state,
                             cam_x,
@@ -58,19 +57,19 @@ impl Renderer {
                     {
                         #[cfg(feature = "profiling")]
                         scope!("effects");
-                        
+
                         effects::render_effects(game_state, cam_x, cam_y);
                     }
                 }
                 PlayerLocation::InsideMech { mech_id, floor, .. } => {
                     #[cfg(feature = "profiling")]
                     scope!("mech_interior");
-                    
+
                     if let Some(mech) = game_state.mechs.get(&mech_id) {
                         {
                             #[cfg(feature = "profiling")]
                             scope!("mech_tiles");
-                            
+
                             mech_interior::render_mech_interior_with_vision(
                                 game_state,
                                 mech,
@@ -83,7 +82,7 @@ impl Renderer {
                         {
                             #[cfg(feature = "profiling")]
                             scope!("mech_stations");
-                            
+
                             mech_interior::render_stations_on_floor_with_vision(
                                 game_state,
                                 mech_id,
@@ -96,7 +95,7 @@ impl Renderer {
                         {
                             #[cfg(feature = "profiling")]
                             scope!("mech_players");
-                            
+
                             mech_interior::render_players_on_floor_with_vision(
                                 game_state,
                                 mech_id,
@@ -115,7 +114,7 @@ impl Renderer {
         {
             #[cfg(feature = "profiling")]
             scope!("ui");
-            
+
             ui::render_ui(game_state);
         }
 
@@ -123,7 +122,7 @@ impl Renderer {
         {
             #[cfg(feature = "profiling")]
             scope!("pilot_station");
-            
+
             pilot_station::render_pilot_station_window(game_state);
         }
     }
@@ -137,7 +136,7 @@ impl Renderer {
     ) {
         #[cfg(feature = "profiling")]
         scope!("transition");
-        
+
         use crate::game_state::TransitionType;
         use macroquad::prelude::*;
 

@@ -7,7 +7,6 @@ use shared::{constants::*, coordinates::MechDoorPositions, types::*};
 #[cfg(feature = "profiling")]
 use profiling::scope;
 
-
 pub fn render_world_view(game_state: &GameState, cam_x: f32, cam_y: f32) {
     render_world_view_with_vision(game_state, cam_x, cam_y, None);
 }

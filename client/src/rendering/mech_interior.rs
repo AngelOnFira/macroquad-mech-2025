@@ -8,7 +8,6 @@ use uuid::Uuid;
 #[cfg(feature = "profiling")]
 use profiling::scope;
 
-
 pub fn render_mech_interior(
     game_state: &GameState,
     mech: &MechState,
@@ -29,14 +28,14 @@ pub fn render_mech_interior_with_vision(
 ) {
     #[cfg(feature = "profiling")]
     scope!("mech_interior_tiles");
-    
+
     // Render the mech interior using world coordinate mapping
     // This allows mech interiors to be seen from the outside through windows/doors
 
     {
         #[cfg(feature = "profiling")]
         scope!("basic_tiles");
-        
+
         for y in 0..FLOOR_HEIGHT_TILES {
             for x in 0..FLOOR_WIDTH_TILES {
                 let interior_pos = TilePos::new(x, y);
@@ -53,21 +52,25 @@ pub fn render_mech_interior_with_vision(
                 // Check if this interior tile is visible
                 let mut visibility = 1.0;
                 if let Some(vision) = vision_system {
-                    visibility = vision.get_interior_visibility(mech.id, current_floor, interior_pos);
+                    visibility =
+                        vision.get_interior_visibility(mech.id, current_floor, interior_pos);
                     if visibility < 0.05 {
                         continue; // Don't render invisible interior tiles
                     }
                 }
 
                 // Basic floor rendering (will be replaced by server tiles eventually)
-                let mut base_color =
-                    if x == 0 || x == FLOOR_WIDTH_TILES - 1 || y == 0 || y == FLOOR_HEIGHT_TILES - 1 {
-                        // Wall
-                        LIGHTGRAY
-                    } else {
-                        // Floor
-                        DARKGRAY
-                    };
+                let mut base_color = if x == 0
+                    || x == FLOOR_WIDTH_TILES - 1
+                    || y == 0
+                    || y == FLOOR_HEIGHT_TILES - 1
+                {
+                    // Wall
+                    LIGHTGRAY
+                } else {
+                    // Floor
+                    DARKGRAY
+                };
 
                 // Apply fog of war
                 if let Some(_vision) = vision_system {
@@ -77,7 +80,8 @@ pub fn render_mech_interior_with_vision(
                 draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, base_color);
 
                 // Grid lines for floors
-                if !(x == 0 || x == FLOOR_WIDTH_TILES - 1 || y == 0 || y == FLOOR_HEIGHT_TILES - 1) {
+                if !(x == 0 || x == FLOOR_WIDTH_TILES - 1 || y == 0 || y == FLOOR_HEIGHT_TILES - 1)
+                {
                     let mut grid_color = GRAY;
                     if let Some(_vision) = vision_system {
                         grid_color = FogOfWarRenderer::apply_fog_to_color(grid_color, visibility);
