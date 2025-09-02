@@ -14,6 +14,9 @@ use shared::types::*;
 #[cfg(feature = "profiling")]
 use profiling::scope;
 
+#[cfg(feature = "profiling")]
+use tracing::info_span;
+
 pub use pilot_station::{is_pilot_window_clicked, PilotWindowClick};
 
 pub struct Renderer {
@@ -27,6 +30,8 @@ impl Renderer {
 
     pub fn render(&self, game_state: &GameState) {
         #[cfg(feature = "profiling")]
+        let _renderer_span = info_span!("renderer").entered();
+        #[cfg(feature = "profiling")]
         scope!("renderer");
 
         // Apply camera transform
@@ -36,6 +41,8 @@ impl Renderer {
         // Check if we're in a transition
         if let Some(transition) = &game_state.transition {
             #[cfg(feature = "profiling")]
+            let _transition_span = info_span!("transition").entered();
+            #[cfg(feature = "profiling")]
             scope!("transition");
 
             self.render_transition(game_state, transition, cam_x, cam_y);
@@ -44,6 +51,8 @@ impl Renderer {
             match game_state.player_location {
                 PlayerLocation::OutsideWorld(_) => {
                     {
+                        #[cfg(feature = "profiling")]
+                        let _world_view_span = info_span!("world_view").entered();
                         #[cfg(feature = "profiling")]
                         scope!("world_view");
 
@@ -55,6 +64,8 @@ impl Renderer {
                         );
                     }
                     {
+                        #[cfg(feature = "profiling")]
+                        let _effects_span = info_span!("effects").entered();
                         #[cfg(feature = "profiling")]
                         scope!("effects");
 

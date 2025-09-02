@@ -13,3 +13,8 @@ anyhow = "1.0"
 
 # Profiling dependencies
 profiling = "1.0"
+
+# Tracing dependencies for structured profiling
+tracing = "0.1"
+tracing-subscriber = "0.3"
+tracing-tree = "0.4"

@@ -6,7 +6,7 @@ use shared::*;
 mod demo_mode;
 mod game_state;
 mod input;
-mod profiler;
+mod tracing_profiler;
 mod rendering;
 mod vision;
 
@@ -17,11 +17,14 @@ mod network_web_macroquad;
 
 use game_state::GameState;
 use input::InputHandler;
-use profiler::Profiler;
+use tracing_profiler::TracingProfiler;
 use rendering::Renderer;
 
 #[cfg(feature = "profiling")]
 use profiling::scope;
+
+#[cfg(feature = "profiling")]
+use tracing_profiler::{info_span};
 
 #[cfg(not(target_arch = "wasm32"))]
 use network::NetworkClient;
@@ -44,7 +47,9 @@ async fn main() {
     let game_state = Arc::new(Mutex::new(GameState::new()));
     let renderer = Renderer::new();
     let mut input_handler = InputHandler::new();
-    let mut profiler = Profiler::new();
+    let mut profiler = TracingProfiler::new();
+
+    info!("Game state initialized");
 
     // Initialize network client
     let mut network_client: Option<NetworkClient>;
@@ -130,7 +135,8 @@ async fn main() {
     info!("Starting main game loop with profiling enabled");
 
     loop {
-        let frame_start = profiler.start_scope("frame");
+        #[cfg(feature = "profiling")]
+        let _frame_span = info_span!("frame").entered();
         #[cfg(feature = "profiling")]
         scope!("frame");
 
@@ -147,17 +153,17 @@ async fn main() {
 
         // Handle input
         let input = {
-            let input_start = profiler.start_scope("input");
+            #[cfg(feature = "profiling")]
+            let _input_span = info_span!("input").entered();
             #[cfg(feature = "profiling")]
             scope!("input");
-            let result = input_handler.update();
-            profiler.end_scope("input", input_start);
-            result
+            input_handler.update()
         };
 
         // Send input to server
         {
-            let network_start = profiler.start_scope("network");
+            #[cfg(feature = "profiling")]
+            let _network_span = info_span!("network").entered();
             #[cfg(feature = "profiling")]
             scope!("network");
 
@@ -261,24 +267,23 @@ async fn main() {
                 client.update();
             }
 
-            profiler.end_scope("network", network_start);
         }
 
         // Update game state
         {
-            let game_update_start = profiler.start_scope("game_update");
+            #[cfg(feature = "profiling")]
+            let _game_update_span = info_span!("game_update").entered();
             #[cfg(feature = "profiling")]
             scope!("game_update");
 
             let mut game = game_state.lock().unwrap();
             game.update(get_frame_time());
-            drop(game); // Release lock before profiler call
-            profiler.end_scope("game_update", game_update_start);
         }
 
         // Render
         {
-            let render_start = profiler.start_scope("render");
+            #[cfg(feature = "profiling")]
+            let _render_span = info_span!("render").entered();
             #[cfg(feature = "profiling")]
             scope!("render");
 
@@ -287,7 +292,6 @@ async fn main() {
                 let game = game_state.lock().unwrap();
                 renderer.render(&game);
             }
-            profiler.end_scope("render", render_start);
         }
 
         // Draw connection status
@@ -304,8 +308,7 @@ async fn main() {
         // Render profiler UI overlay
         profiler.render_ui();
 
-        // End frame timing before logging stats
-        profiler.end_scope("frame", frame_start);
+        // Frame timing is automatically handled by RAII span guard
 
         // Log profiling stats to console
         profiler.log_frame_stats();

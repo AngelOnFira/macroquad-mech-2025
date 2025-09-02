@@ -21,11 +21,15 @@ shared = { path = "../shared" }
 macroquad = "0.4"
 serde = { workspace = true }
 serde_json = { workspace = true }
-log = { workspace = true }
 url = "2.5"
 
 # Profiling dependencies
 profiling = { workspace = true, optional = true }
+
+# Tracing dependencies for structured profiling
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+tracing-tree = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 uuid = { workspace = true }
@@ -35,9 +39,11 @@ env_logger = "0.11"
 # WebAssembly dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 uuid = { version = "1.10", features = ["serde"] }  # No "v4" or "js" features - avoid wasm-bindgen
+tracing-wasm = { git = "https://github.com/angelonfira/tracing-wasm", optional = true }
 
 [features]
 default = ["native", "profiling"]
 native = []
 web = []
-profiling = ["dep:profiling"]
+profiling = ["dep:profiling", "dep:tracing", "dep:tracing-subscriber", "dep:tracing-tree"]
+profiling-wasm = ["profiling", "dep:tracing-wasm"]
