@@ -24,6 +24,9 @@ serde_json = { workspace = true }
 log = { workspace = true }
 url = "2.5"
 
+# Profiling dependencies
+profiling = { workspace = true, optional = true }
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 uuid = { workspace = true }
 ws = { version = "0.9" }
@@ -34,6 +37,7 @@ env_logger = "0.11"
 uuid = { version = "1.10", features = ["serde"] }  # No "v4" or "js" features - avoid wasm-bindgen
 
 [features]
-default = ["native"]
+default = ["native", "profiling"]
 native = []
 web = []
+profiling = ["dep:profiling"]

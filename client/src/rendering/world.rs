@@ -4,6 +4,10 @@ use crate::vision::{ClientVisionSystem, FogOfWarRenderer};
 use macroquad::prelude::*;
 use shared::{constants::*, coordinates::MechDoorPositions, types::*};
 
+#[cfg(feature = "profiling")]
+use profiling::scope;
+
+
 pub fn render_world_view(game_state: &GameState, cam_x: f32, cam_y: f32) {
     render_world_view_with_vision(game_state, cam_x, cam_y, None);
 }
@@ -14,47 +18,83 @@ pub fn render_world_view_with_vision(
     cam_y: f32,
     vision_system: Option<&ClientVisionSystem>,
 ) {
-    render_grass_background(cam_x, cam_y, vision_system);
-    render_arena_boundaries(cam_x, cam_y);
-    render_mechs(game_state, cam_x, cam_y, vision_system);
-    render_world_tiles(game_state, cam_x, cam_y, vision_system);
-    render_resources(game_state, cam_x, cam_y, vision_system);
-    render_projectiles(game_state, cam_x, cam_y, vision_system);
-    render_players_in_world(game_state, cam_x, cam_y, vision_system);
+    {
+        #[cfg(feature = "profiling")]
+        scope!("grass_background");
+        render_grass_background(cam_x, cam_y, vision_system);
+    }
+    {
+        #[cfg(feature = "profiling")]
+        scope!("arena_boundaries");
+        render_arena_boundaries(cam_x, cam_y);
+    }
+    {
+        #[cfg(feature = "profiling")]
+        scope!("mechs");
+        render_mechs(game_state, cam_x, cam_y, vision_system);
+    }
+    {
+        #[cfg(feature = "profiling")]
+        scope!("world_tiles");
+        render_world_tiles(game_state, cam_x, cam_y, vision_system);
+    }
+    {
+        #[cfg(feature = "profiling")]
+        scope!("resources");
+        render_resources(game_state, cam_x, cam_y, vision_system);
+    }
+    {
+        #[cfg(feature = "profiling")]
+        scope!("projectiles");
+        render_projectiles(game_state, cam_x, cam_y, vision_system);
+    }
+    {
+        #[cfg(feature = "profiling")]
+        scope!("players");
+        render_players_in_world(game_state, cam_x, cam_y, vision_system);
+    }
 
     // Render fog overlay for completely invisible areas
-    if let Some(vision) = vision_system {
-        render_fog_overlay(vision, cam_x, cam_y);
+    {
+        #[cfg(feature = "profiling")]
+        scope!("fog_overlay");
+        if let Some(vision) = vision_system {
+            render_fog_overlay(vision, cam_x, cam_y);
+        }
     }
 
     // Debug info
-    draw_text(
-        &format!("Camera: ({:.1}, {:.1})", -cam_x, -cam_y),
-        10.0,
-        30.0,
-        20.0,
-        WHITE,
-    );
-    draw_text(
-        &format!(
-            "Mechs: {}, Players: {}",
-            game_state.mechs.len(),
-            game_state.players.len()
-        ),
-        10.0,
-        50.0,
-        20.0,
-        WHITE,
-    );
-    if let Some(player_id) = game_state.player_id {
-        if let PlayerLocation::OutsideWorld(pos) = game_state.player_location {
-            draw_text(
-                &format!("Player pos: ({:.1}, {:.1})", pos.x, pos.y),
-                10.0,
-                70.0,
-                20.0,
-                WHITE,
-            );
+    {
+        #[cfg(feature = "profiling")]
+        scope!("debug_text");
+        draw_text(
+            &format!("Camera: ({:.1}, {:.1})", -cam_x, -cam_y),
+            10.0,
+            30.0,
+            20.0,
+            WHITE,
+        );
+        draw_text(
+            &format!(
+                "Mechs: {}, Players: {}",
+                game_state.mechs.len(),
+                game_state.players.len()
+            ),
+            10.0,
+            50.0,
+            20.0,
+            WHITE,
+        );
+        if let Some(player_id) = game_state.player_id {
+            if let PlayerLocation::OutsideWorld(pos) = game_state.player_location {
+                draw_text(
+                    &format!("Player pos: ({:.1}, {:.1})", pos.x, pos.y),
+                    10.0,
+                    70.0,
+                    20.0,
+                    WHITE,
+                );
+            }
         }
     }
 }

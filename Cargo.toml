@@ -10,3 +10,6 @@ log = "0.4"
 uuid = { version = "1.10", features = ["serde"] }  # No "v4" feature - let each crate add what it needs
 thiserror = "1.0"
 anyhow = "1.0"
+
+# Profiling dependencies
+profiling = "1.0"

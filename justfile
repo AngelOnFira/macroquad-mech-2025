@@ -176,6 +176,7 @@ release-client:
 
 release-web:
     cd client && ./build-simple.sh --release
+    cd dist && python3 -m http.server 8080
 
 # Watch for changes and rebuild
 watch:

@@ -6,6 +6,7 @@ use shared::*;
 mod demo_mode;
 mod game_state;
 mod input;
+mod profiler;
 mod rendering;
 mod vision;
 
@@ -16,7 +17,12 @@ mod network_web_macroquad;
 
 use game_state::GameState;
 use input::InputHandler;
+use profiler::Profiler;
 use rendering::Renderer;
+
+#[cfg(feature = "profiling")]
+use profiling::scope;
+
 
 #[cfg(not(target_arch = "wasm32"))]
 use network::NetworkClient;
@@ -39,6 +45,7 @@ async fn main() {
     let game_state = Arc::new(Mutex::new(GameState::new()));
     let renderer = Renderer::new();
     let mut input_handler = InputHandler::new();
+    let mut profiler = Profiler::new();
 
     // Initialize network client
     let mut network_client: Option<NetworkClient>;
@@ -121,23 +128,15 @@ async fn main() {
         });
     }
 
-    // Profiling data
-    struct FrameProfileData {
-        input_time: f64,
-        network_time: f64,
-        game_update_time: f64,
-        render_time: f64,
-        total_frame_time: f64,
-    }
-
-    let mut frame_count = 0u32;
-    let mut profile_history: Vec<FrameProfileData> = Vec::with_capacity(10);
-    let mut last_profile_text = String::new();
-
     info!("Starting main game loop with profiling enabled");
 
     loop {
-        let frame_start = get_time();
+        let frame_start = profiler.start_scope("frame");
+        #[cfg(feature = "profiling")]
+        scope!("frame");
+
+        profiler.new_frame();
+        profiler.handle_input();
 
         // Check for demo mode
         if is_key_pressed(KeyCode::D) && is_key_down(KeyCode::LeftControl) {
@@ -148,13 +147,22 @@ async fn main() {
         }
 
         // Handle input
-        let input_start = get_time();
-        let input = input_handler.update();
-        let input_time = get_time() - input_start;
+        let input = {
+            let input_start = profiler.start_scope("input");
+            #[cfg(feature = "profiling")]
+            scope!("input");
+            let result = input_handler.update();
+            profiler.end_scope("input", input_start);
+            result
+        };
 
         // Send input to server
-        let network_start = get_time();
-        if let Some(ref client) = network_client {
+        {
+            let network_start = profiler.start_scope("network");
+            #[cfg(feature = "profiling")]
+            scope!("network");
+            
+            if let Some(ref client) = network_client {
             // Check if we're operating a station
             let (operating_engine, operating_pilot) = {
                 let game = game_state.lock().unwrap();
@@ -248,29 +256,40 @@ async fn main() {
             }
         }
 
-        // Update network client (for web)
-        #[cfg(target_arch = "wasm32")]
-        if let Some(ref mut client) = network_client {
-            client.update();
+            // Update network client (for web)
+            #[cfg(target_arch = "wasm32")]
+            if let Some(ref mut client) = network_client {
+                client.update();
+            }
+            
+            profiler.end_scope("network", network_start);
         }
-        let network_time = get_time() - network_start;
 
         // Update game state
-        let game_update_start = get_time();
         {
+            let game_update_start = profiler.start_scope("game_update");
+            #[cfg(feature = "profiling")]
+            scope!("game_update");
+            
             let mut game = game_state.lock().unwrap();
             game.update(get_frame_time());
+            drop(game); // Release lock before profiler call
+            profiler.end_scope("game_update", game_update_start);
         }
-        let game_update_time = get_time() - game_update_start;
 
         // Render
-        let render_start = get_time();
-        clear_background(BLACK);
         {
-            let game = game_state.lock().unwrap();
-            renderer.render(&game);
+            let render_start = profiler.start_scope("render");
+            #[cfg(feature = "profiling")]
+            scope!("render");
+            
+            clear_background(BLACK);
+            {
+                let game = game_state.lock().unwrap();
+                renderer.render(&game);
+            }
+            profiler.end_scope("render", render_start);
         }
-        let render_time = get_time() - render_start;
 
         // Draw connection status
         if network_client.is_none() {
@@ -283,63 +302,15 @@ async fn main() {
             );
         }
 
-        // Draw profiling info on screen
-        if !last_profile_text.is_empty() {
-            draw_text(&last_profile_text, 10.0, 300.0, 20.0, GREEN);
-        }
+        // Render profiler UI overlay
+        profiler.render_ui();
+        
+        // End frame timing before logging stats
+        profiler.end_scope("frame", frame_start);
+        
+        // Log profiling stats to console
+        profiler.log_frame_stats();
 
         next_frame().await;
-
-        // Profiling - collect frame data
-        let total_frame_time = get_time() - frame_start;
-        let frame_data = FrameProfileData {
-            input_time,
-            network_time,
-            game_update_time,
-            render_time,
-            total_frame_time,
-        };
-
-        profile_history.push(frame_data);
-        frame_count += 1;
-
-        // Print profiling data every 10 frames
-        if frame_count % 10 == 0 {
-            let avg_input = profile_history.iter().map(|f| f.input_time).sum::<f64>()
-                / profile_history.len() as f64;
-            let avg_network = profile_history.iter().map(|f| f.network_time).sum::<f64>()
-                / profile_history.len() as f64;
-            let avg_game_update = profile_history
-                .iter()
-                .map(|f| f.game_update_time)
-                .sum::<f64>()
-                / profile_history.len() as f64;
-            let avg_render = profile_history.iter().map(|f| f.render_time).sum::<f64>()
-                / profile_history.len() as f64;
-            let avg_total = profile_history
-                .iter()
-                .map(|f| f.total_frame_time)
-                .sum::<f64>()
-                / profile_history.len() as f64;
-
-            let profile_msg = format!("Profiling: Input: {:.2}ms | Net: {:.2}ms | Update: {:.2}ms | Render: {:.2}ms | FPS: {:.0}", 
-                avg_input * 1000.0,
-                avg_network * 1000.0,
-                avg_game_update * 1000.0,
-                avg_render * 1000.0,
-                1.0 / avg_total
-            );
-
-            last_profile_text = profile_msg.clone();
-
-            info!("{}", profile_msg);
-
-            // Also output to console for WASM debugging
-            #[cfg(target_arch = "wasm32")]
-            println!("{}", profile_msg);
-
-            // Clear history for next batch
-            profile_history.clear();
-        }
     }
 }
