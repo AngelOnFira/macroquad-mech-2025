@@ -70,6 +70,13 @@ impl Renderer {
         // Apply camera transform
         let cam_x = -game_state.camera_offset.0;
         let cam_y = -game_state.camera_offset.1;
+        
+        // Only use vision system if fog of war is enabled
+        let vision_system = if flags.render_fog {
+            Some(&game_state.vision_system)
+        } else {
+            None
+        };
 
         // Check if we're in a transition
         if let Some(transition) = &game_state.transition {
@@ -78,7 +85,7 @@ impl Renderer {
             #[cfg(feature = "profiling")]
             scope!("transition");
 
-            self.render_transition(game_state, transition, cam_x, cam_y);
+            self.render_transition(game_state, transition, cam_x, cam_y, vision_system);
         } else {
             // Normal rendering
             match game_state.player_location {
@@ -93,7 +100,7 @@ impl Renderer {
                             game_state,
                             cam_x,
                             cam_y,
-                            Some(&game_state.vision_system),
+                            vision_system,
                             flags,
                         );
                     }
@@ -124,7 +131,7 @@ impl Renderer {
                                     floor,
                                     cam_x,
                                     cam_y,
-                                    Some(&game_state.vision_system),
+                                    vision_system,
                                 );
                             }
                         }
@@ -139,7 +146,7 @@ impl Renderer {
                                     floor,
                                     cam_x,
                                     cam_y,
-                                    Some(&game_state.vision_system),
+                                    vision_system,
                                 );
                             }
                         }
@@ -154,7 +161,7 @@ impl Renderer {
                                     floor,
                                     cam_x,
                                     cam_y,
-                                    Some(&game_state.vision_system),
+                                    vision_system,
                                 );
                             }
                         }
@@ -186,6 +193,7 @@ impl Renderer {
         transition: &crate::game_state::TransitionState,
         cam_x: f32,
         cam_y: f32,
+        vision_system: Option<&crate::vision::ClientVisionSystem>,
     ) {
         #[cfg(feature = "profiling")]
         scope!("transition");
@@ -214,7 +222,7 @@ impl Renderer {
                     game_state,
                     cam_x,
                     cam_y,
-                    Some(&game_state.vision_system),
+                    vision_system,
                 );
                 effects::render_effects(game_state, cam_x, cam_y);
             }
@@ -226,7 +234,7 @@ impl Renderer {
                         *floor,
                         cam_x,
                         cam_y,
-                        Some(&game_state.vision_system),
+                        vision_system,
                     );
                     mech_interior::render_stations_on_floor_with_vision(
                         game_state,
@@ -234,7 +242,7 @@ impl Renderer {
                         *floor,
                         cam_x,
                         cam_y,
-                        Some(&game_state.vision_system),
+                        vision_system,
                     );
                     mech_interior::render_players_on_floor_with_vision(
                         game_state,
@@ -242,7 +250,7 @@ impl Renderer {
                         *floor,
                         cam_x,
                         cam_y,
-                        Some(&game_state.vision_system),
+                        vision_system,
                     );
                 }
             }
@@ -266,7 +274,7 @@ impl Renderer {
                         game_state,
                         cam_x,
                         cam_y,
-                        Some(&game_state.vision_system),
+                        vision_system,
                     );
                     effects::render_effects(game_state, cam_x, cam_y);
                 }
@@ -278,7 +286,7 @@ impl Renderer {
                             *floor,
                             cam_x,
                             cam_y,
-                            Some(&game_state.vision_system),
+                            vision_system,
                         );
                         mech_interior::render_stations_on_floor_with_vision(
                             game_state,
@@ -286,7 +294,7 @@ impl Renderer {
                             *floor,
                             cam_x,
                             cam_y,
-                            Some(&game_state.vision_system),
+                            vision_system,
                         );
                         mech_interior::render_players_on_floor_with_vision(
                             game_state,
@@ -294,7 +302,7 @@ impl Renderer {
                             *floor,
                             cam_x,
                             cam_y,
-                            Some(&game_state.vision_system),
+                            vision_system,
                         );
                     }
                 }

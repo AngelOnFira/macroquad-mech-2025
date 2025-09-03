@@ -73,40 +73,7 @@ pub fn render_world_view_with_vision_and_flags(
         }
     }
 
-    // Debug info
-    {
-        #[cfg(feature = "profiling")]
-        scope!("debug_text");
-        draw_text(
-            &format!("Camera: ({:.1}, {:.1})", -cam_x, -cam_y),
-            10.0,
-            30.0,
-            20.0,
-            WHITE,
-        );
-        draw_text(
-            &format!(
-                "Mechs: {}, Players: {}",
-                game_state.mechs.len(),
-                game_state.players.len()
-            ),
-            10.0,
-            50.0,
-            20.0,
-            WHITE,
-        );
-        if let Some(player_id) = game_state.player_id {
-            if let PlayerLocation::OutsideWorld(pos) = game_state.player_location {
-                draw_text(
-                    &format!("Player pos: ({:.1}, {:.1})", pos.x, pos.y),
-                    10.0,
-                    70.0,
-                    20.0,
-                    WHITE,
-                );
-            }
-        }
-    }
+    // Debug info removed - now shown in debug overlay instead
 }
 
 fn render_grass_background(cam_x: f32, cam_y: f32, vision_system: Option<&ClientVisionSystem>) {

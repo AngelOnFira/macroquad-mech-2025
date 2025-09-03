@@ -12,8 +12,12 @@ use std::collections::VecDeque;
 #[cfg(debug_assertions)]
 pub struct DebugOverlay {
     // Performance tracking
-    frame_times: VecDeque<f32>,
-    fps_history: VecDeque<f32>,
+    frame_times: VecDeque<(f32, f32)>, // (elapsed_time, frame_time_ms)
+    fps_history: VecDeque<(f32, f32)>, // (elapsed_time, fps)
+    elapsed_time: f32, // Total elapsed time since start
+    
+    // Smoothing for stability
+    fps_smoothing_buffer: VecDeque<f32>, // Raw FPS values for smoothing
     
     // UI state
     show_performance: bool,
@@ -49,6 +53,8 @@ impl DebugOverlay {
         Self {
             frame_times: VecDeque::with_capacity(120),
             fps_history: VecDeque::with_capacity(120),
+            elapsed_time: 0.0,
+            fps_smoothing_buffer: VecDeque::with_capacity(10), // 10-frame smoothing
             
             show_performance: true,
             show_server_state: true,
@@ -77,14 +83,31 @@ impl DebugOverlay {
     }
     
     pub fn update(&mut self, _game_state: &GameState, frame_time: f32) {
-        // Update performance metrics
-        self.frame_times.push_back(frame_time * 1000.0); // Convert to ms
+        // Update elapsed time
+        self.elapsed_time += frame_time;
+        
+        // Store time-based performance metrics
+        let frame_time_ms = frame_time * 1000.0;
+        self.frame_times.push_back((self.elapsed_time, frame_time_ms));
         if self.frame_times.len() > 120 {
             self.frame_times.pop_front();
         }
         
-        let fps = get_fps() as f32;
-        self.fps_history.push_back(fps);
+        // Smooth FPS data to reduce noise
+        let raw_fps = get_fps() as f32;
+        self.fps_smoothing_buffer.push_back(raw_fps);
+        if self.fps_smoothing_buffer.len() > 10 {
+            self.fps_smoothing_buffer.pop_front();
+        }
+        
+        // Calculate smoothed FPS
+        let smoothed_fps = if !self.fps_smoothing_buffer.is_empty() {
+            self.fps_smoothing_buffer.iter().sum::<f32>() / self.fps_smoothing_buffer.len() as f32
+        } else {
+            raw_fps
+        };
+        
+        self.fps_history.push_back((self.elapsed_time, smoothed_fps));
         if self.fps_history.len() > 120 {
             self.fps_history.pop_front();
         }
@@ -132,29 +155,43 @@ impl DebugOverlay {
         ui.heading("Performance");
         ui.indent("performance_indent", |ui| {
             // FPS display
-            let current_fps = self.fps_history.back().copied().unwrap_or(0.0);
+            let current_fps = self.fps_history.back().map(|(_, fps)| *fps).unwrap_or(0.0);
             ui.label(format!("FPS: {:.1}", current_fps));
             
             // Frame time display
-            let current_frame_time = self.frame_times.back().copied().unwrap_or(0.0);
+            let current_frame_time = self.frame_times.back().map(|(_, time)| *time).unwrap_or(0.0);
             ui.label(format!("Frame Time: {:.2}ms", current_frame_time));
             
-            // Performance statistics
-            if !self.fps_history.is_empty() {
-                let min_fps = self.fps_history.iter().copied().fold(f32::INFINITY, f32::min);
-                let max_fps = self.fps_history.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-                let avg_fps: f32 = self.fps_history.iter().sum::<f32>() / self.fps_history.len() as f32;
-                
-                ui.label(format!("FPS - Min: {:.1}, Max: {:.1}, Avg: {:.1}", min_fps, max_fps, avg_fps));
-            }
-            
-            if !self.frame_times.is_empty() {
-                let min_time = self.frame_times.iter().copied().fold(f32::INFINITY, f32::min);
-                let max_time = self.frame_times.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-                let avg_time: f32 = self.frame_times.iter().sum::<f32>() / self.frame_times.len() as f32;
-                
-                ui.label(format!("Frame Time (ms) - Min: {:.2}, Max: {:.2}, Avg: {:.2}", min_time, max_time, avg_time));
-            }
+            // Performance statistics in two columns
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.strong("FPS Stats:");
+                    if !self.fps_history.is_empty() {
+                        let fps_values: Vec<f32> = self.fps_history.iter().map(|(_, fps)| *fps).collect();
+                        let min_fps = fps_values.iter().copied().fold(f32::INFINITY, f32::min);
+                        let max_fps = fps_values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                        let avg_fps: f32 = fps_values.iter().sum::<f32>() / fps_values.len() as f32;
+                        
+                        ui.label(format!("Min: {:.1}", min_fps));
+                        ui.label(format!("Max: {:.1}", max_fps));
+                        ui.label(format!("Avg: {:.1}", avg_fps));
+                    }
+                });
+                ui.separator();
+                ui.vertical(|ui| {
+                    ui.strong("Frame Time (ms):");
+                    if !self.frame_times.is_empty() {
+                        let time_values: Vec<f32> = self.frame_times.iter().map(|(_, time)| *time).collect();
+                        let min_time = time_values.iter().copied().fold(f32::INFINITY, f32::min);
+                        let max_time = time_values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                        let avg_time: f32 = time_values.iter().sum::<f32>() / time_values.len() as f32;
+                        
+                        ui.label(format!("Min: {:.2}", min_time));
+                        ui.label(format!("Max: {:.2}", max_time));
+                        ui.label(format!("Avg: {:.2}", avg_time));
+                    }
+                });
+            });
             
             ui.separator();
             
@@ -162,25 +199,44 @@ impl DebugOverlay {
             if !self.fps_history.is_empty() {
                 use egui_plot::{Plot, Line, PlotPoints};
                 
+                // Show last 30 seconds of data
+                let time_window = 30.0;
+                let x_max = self.elapsed_time;
+                let x_min = (x_max - time_window).max(0.0);
+                
                 let plot = Plot::new("fps_plot")
                     .height(80.0)
-                    .show_axes([false, true])
-                    .show_grid([false, true])
+                    .show_axes([true, true])
+                    .show_grid([true, true])
                     .auto_bounds([false, true])
+                    .include_x(x_min as f64)
+                    .include_x(x_max as f64)
                     .allow_zoom(false)
                     .allow_drag(false)
-                    .allow_scroll(false);
+                    .allow_scroll(false)
+                    .x_axis_label("Time (s)")
+                    .y_axis_label("FPS");
                     
                 plot.show(ui, |plot_ui| {
-                    let fps_points: PlotPoints = self.fps_history.iter()
-                        .enumerate()
-                        .map(|(i, &fps)| [i as f64, fps as f64])
-                        .collect();
-                        
-                    let line = Line::new(fps_points)
-                        .name("FPS")
-                        .color(egui::Color32::GREEN);
-                    plot_ui.line(line);
+                    // Only show graph if we have multiple data points
+                    if self.fps_history.len() > 1 {
+                        let fps_points: PlotPoints = self.fps_history.iter()
+                            .map(|(time, fps)| [*time as f64, *fps as f64])
+                            .collect();
+                            
+                        let line = Line::new(fps_points)
+                            .name("FPS")
+                            .color(egui::Color32::GREEN);
+                        plot_ui.line(line);
+                    } else {
+                        // Show loading message when we don't have enough data
+                        plot_ui.text(
+                            egui_plot::Text::new(
+                                egui_plot::PlotPoint::new(0.5, 30.0), 
+                                "Collecting data..."
+                            )
+                        );
+                    }
                 });
             }
             
@@ -188,25 +244,44 @@ impl DebugOverlay {
             if !self.frame_times.is_empty() {
                 use egui_plot::{Plot, Line, PlotPoints};
                 
+                // Show last 30 seconds of data
+                let time_window = 30.0;
+                let x_max = self.elapsed_time;
+                let x_min = (x_max - time_window).max(0.0);
+                
                 let plot = Plot::new("frame_time_plot")
                     .height(80.0)
-                    .show_axes([false, true])
-                    .show_grid([false, true])
+                    .show_axes([true, true])
+                    .show_grid([true, true])
                     .auto_bounds([false, true])
+                    .include_x(x_min as f64)
+                    .include_x(x_max as f64)
                     .allow_zoom(false)
                     .allow_drag(false)
-                    .allow_scroll(false);
+                    .allow_scroll(false)
+                    .x_axis_label("Time (s)")
+                    .y_axis_label("Frame Time (ms)");
                     
                 plot.show(ui, |plot_ui| {
-                    let time_points: PlotPoints = self.frame_times.iter()
-                        .enumerate()
-                        .map(|(i, &time)| [i as f64, time as f64])
-                        .collect();
-                        
-                    let line = Line::new(time_points)
-                        .name("Frame Time (ms)")
-                        .color(egui::Color32::YELLOW);
-                    plot_ui.line(line);
+                    // Only show graph if we have multiple data points
+                    if self.frame_times.len() > 1 {
+                        let time_points: PlotPoints = self.frame_times.iter()
+                            .map(|(time, frame_ms)| [*time as f64, *frame_ms as f64])
+                            .collect();
+                            
+                        let line = Line::new(time_points)
+                            .name("Frame Time (ms)")
+                            .color(egui::Color32::YELLOW);
+                        plot_ui.line(line);
+                    } else {
+                        // Show loading message when we don't have enough data
+                        plot_ui.text(
+                            egui_plot::Text::new(
+                                egui_plot::PlotPoint::new(0.5, 16.0), 
+                                "Collecting data..."
+                            )
+                        );
+                    }
                 });
             }
         });
@@ -239,14 +314,21 @@ impl DebugOverlay {
             
             ui.separator();
             
-            // Entity counts
+            // Entity counts in two columns
             ui.strong("Entity Counts:");
-            ui.label(format!("Players: {}", game_state.players.len()));
-            ui.label(format!("Mechs: {}", game_state.mechs.len()));
-            ui.label(format!("Stations: {}", game_state.stations.len()));
-            ui.label(format!("Resources: {}", game_state.resources.len()));
-            ui.label(format!("Projectiles: {}", game_state.projectiles.len()));
-            ui.label(format!("Visible Tiles: {}", game_state.visible_tiles.len()));
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(format!("Players: {}", game_state.players.len()));
+                    ui.label(format!("Mechs: {}", game_state.mechs.len()));
+                    ui.label(format!("Stations: {}", game_state.stations.len()));
+                });
+                ui.separator();
+                ui.vertical(|ui| {
+                    ui.label(format!("Resources: {}", game_state.resources.len()));
+                    ui.label(format!("Projectiles: {}", game_state.projectiles.len()));
+                    ui.label(format!("Visible Tiles: {}", game_state.visible_tiles.len()));
+                });
+            });
             
             ui.separator();
             
@@ -295,15 +377,23 @@ impl DebugOverlay {
     fn render_rendering_toggles_panel(&mut self, ui: &mut Ui) {
         ui.heading("Rendering Toggles");
         ui.indent("rendering_toggles_indent", |ui| {
-            ui.checkbox(&mut self.render_tiles, "Render Tiles");
-            ui.checkbox(&mut self.render_mechs, "Render Mechs");
-            ui.checkbox(&mut self.render_players, "Render Players");
-            ui.checkbox(&mut self.render_stations, "Render Stations");
-            ui.checkbox(&mut self.render_resources, "Render Resources");
-            ui.checkbox(&mut self.render_projectiles, "Render Projectiles");
-            ui.checkbox(&mut self.render_effects, "Render Effects");
-            ui.checkbox(&mut self.render_fog, "Render Fog of War");
-            ui.checkbox(&mut self.render_ui, "Render UI");
+            // Rendering toggles in two columns
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.checkbox(&mut self.render_tiles, "Render Tiles");
+                    ui.checkbox(&mut self.render_mechs, "Render Mechs");
+                    ui.checkbox(&mut self.render_players, "Render Players");
+                    ui.checkbox(&mut self.render_stations, "Render Stations");
+                    ui.checkbox(&mut self.render_resources, "Render Resources");
+                });
+                ui.separator();
+                ui.vertical(|ui| {
+                    ui.checkbox(&mut self.render_projectiles, "Render Projectiles");
+                    ui.checkbox(&mut self.render_effects, "Render Effects");
+                    ui.checkbox(&mut self.render_fog, "Render Fog of War");
+                    ui.checkbox(&mut self.render_ui, "Render UI");
+                });
+            });
             
             ui.separator();
             
