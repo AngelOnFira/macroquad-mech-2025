@@ -1,7 +1,11 @@
 use super::utils::*;
 use crate::game_state::*;
 use macroquad::prelude::*;
-use shared::{constants::*, types::*};
+use shared::{
+    constants::*,
+    coordinates::{TilePos, ViewportCalculations, WorldPos},
+    types::*,
+};
 
 pub fn render_effects(game_state: &GameState, cam_x: f32, cam_y: f32) {
     render_weapon_effects(game_state, cam_x, cam_y);
@@ -15,8 +19,11 @@ fn render_weapon_effects(game_state: &GameState, cam_x: f32, cam_y: f32) {
                 let mech_center = get_mech_center(mech);
                 let start_x = cam_x + mech_center.x;
                 let start_y = cam_y + mech_center.y;
-                let end_x = cam_x + effect.target.x as f32 * TILE_SIZE + TILE_SIZE / 2.0;
-                let end_y = cam_y + effect.target.y as f32 * TILE_SIZE + TILE_SIZE / 2.0;
+                let target_tile = TilePos::new(effect.target.x, effect.target.y);
+                let (end_x, end_y) = ViewportCalculations::tile_center_to_screen(
+                    target_tile, 
+                    WorldPos::new(cam_x, cam_y)
+                );
 
                 draw_line(
                     start_x,

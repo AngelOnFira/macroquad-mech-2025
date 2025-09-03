@@ -1,7 +1,10 @@
 use super::primitives::{ArrowRenderer, ArrowStyle};
 use crate::vision::FogOfWarRenderer;
 use macroquad::prelude::*;
-use shared::{Direction, Material, StationType, TileVisual, TILE_SIZE};
+use shared::{
+    coordinates::{TilePos, ViewportCalculations, WorldPos},
+    Direction, Material, StationType, TileVisual, TILE_SIZE,
+};
 
 /// Render a tile using the hybrid tile visual system
 pub fn render_tile_visual(tile: &TileVisual, x: f32, y: f32, size: f32) {
@@ -180,10 +183,11 @@ pub fn render_tile_grid(
         visible_tiles.iter().cloned().collect();
 
     for (tile_x, tile_y, visual) in tiles {
-        let world_x = *tile_x as f32 * TILE_SIZE;
-        let world_y = *tile_y as f32 * TILE_SIZE;
-        let screen_x = world_x - camera_x;
-        let screen_y = world_y - camera_y;
+        let tile_pos = TilePos::new(*tile_x, *tile_y);
+        let (screen_x, screen_y) = ViewportCalculations::tile_to_screen(
+            tile_pos, 
+            WorldPos::new(-camera_x, -camera_y)
+        );
 
         // Skip tiles outside screen
         if screen_x < -TILE_SIZE

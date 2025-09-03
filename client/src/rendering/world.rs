@@ -2,7 +2,7 @@ use super::utils::*;
 use crate::game_state::*;
 use crate::vision::{ClientVisionSystem, FogOfWarRenderer};
 use macroquad::prelude::*;
-use shared::{constants::*, coordinates::MechDoorPositions, types::*};
+use shared::{constants::*, coordinates::{MechDoorPositions, ViewportCalculations, TileRegion}, types::*};
 
 #[cfg(feature = "profiling")]
 use profiling::scope;
@@ -102,43 +102,49 @@ fn render_grass_background(cam_x: f32, cam_y: f32, vision_system: Option<&Client
     let grass_color = Color::new(0.2, 0.6, 0.2, 1.0);
     let grass_tile_size = TILE_SIZE * 2.0;
 
-    // Calculate visible area with some padding
+    // Calculate visible grass tiles using custom tile size
     let screen_w = screen_width();
     let screen_h = screen_height();
-    let start_x = ((-cam_x / grass_tile_size).floor()) as i32 - 1;
-    let start_y = ((-cam_y / grass_tile_size).floor()) as i32 - 1;
-    let end_x = ((-cam_x + screen_w) / grass_tile_size).ceil() as i32 + 1;
-    let end_y = ((-cam_y + screen_h) / grass_tile_size).ceil() as i32 + 1;
+    let camera_offset = WorldPos::new(-cam_x, -cam_y);
+    
+    let grass_region = ViewportCalculations::get_visible_range_with_tile_size(
+        camera_offset,
+        screen_w,
+        screen_h,
+        grass_tile_size,
+        1, // 1 tile padding
+    );
 
-    for ty in start_y..end_y {
-        for tx in start_x..end_x {
-            let x = tx as f32 * grass_tile_size;
-            let y = ty as f32 * grass_tile_size;
+    for grass_tile_pos in grass_region.iter() {
+        let grass_world_pos = WorldPos::new(
+            grass_tile_pos.x as f32 * grass_tile_size, 
+            grass_tile_pos.y as f32 * grass_tile_size
+        );
 
-            // Vary grass color slightly for texture
-            let variation = ((tx * 17 + ty * 13) % 20) as f32 / 200.0 - 0.05;
-            let mut tile_color = Color::new(
-                (grass_color.r + variation).clamp(0.0, 1.0),
-                (grass_color.g + variation).clamp(0.0, 1.0),
-                (grass_color.b + variation).clamp(0.0, 1.0),
-                1.0,
-            );
+        // Vary grass color slightly for texture
+        let variation = ((grass_tile_pos.x * 17 + grass_tile_pos.y * 13) % 20) as f32 / 200.0 - 0.05;
+        let mut tile_color = Color::new(
+            (grass_color.r + variation).clamp(0.0, 1.0),
+            (grass_color.g + variation).clamp(0.0, 1.0),
+            (grass_color.b + variation).clamp(0.0, 1.0),
+            1.0,
+        );
 
-            // Apply fog of war if vision system is available
-            if let Some(vision) = vision_system {
-                let tile_pos = TilePos::new((x / TILE_SIZE) as i32, (y / TILE_SIZE) as i32);
-                let visibility = vision.get_visibility(tile_pos);
-                tile_color = FogOfWarRenderer::apply_fog_to_color(tile_color, visibility);
-            }
-
-            draw_rectangle(
-                cam_x + x,
-                cam_y + y,
-                grass_tile_size,
-                grass_tile_size,
-                tile_color,
-            );
+        // Apply fog of war if vision system is available
+        if let Some(vision) = vision_system {
+            let tile_pos = grass_world_pos.to_tile();
+            let visibility = vision.get_visibility(tile_pos);
+            tile_color = FogOfWarRenderer::apply_fog_to_color(tile_color, visibility);
         }
+
+        let (screen_x, screen_y) = ViewportCalculations::world_to_screen(grass_world_pos, WorldPos::new(cam_x, cam_y));
+        draw_rectangle(
+            screen_x,
+            screen_y,
+            grass_tile_size,
+            grass_tile_size,
+            tile_color,
+        );
     }
 }
 
@@ -278,8 +284,8 @@ fn render_world_tiles(
 }
 
 fn render_door_tile(x: i32, y: i32, team_color: Color, cam_x: f32, cam_y: f32) {
-    let tile_x = cam_x + x as f32 * TILE_SIZE;
-    let tile_y = cam_y + y as f32 * TILE_SIZE;
+    let door_tile = TilePos::new(x, y);
+    let (tile_x, tile_y) = ViewportCalculations::tile_to_screen(door_tile, WorldPos::new(cam_x, cam_y));
 
     // Door background (darker than mech)
     draw_rectangle(
@@ -334,20 +340,25 @@ fn render_resources(
 ) {
     for resource in &game_state.resources {
         let mut color = get_resource_color(resource.resource_type);
+        let resource_tile = TilePos::new(resource.position.x, resource.position.y);
 
         // Apply fog of war if vision system is available
         if let Some(vision) = vision_system {
-            let tile_pos = TilePos::new(resource.position.x, resource.position.y);
-            let visibility = vision.get_visibility(tile_pos);
+            let visibility = vision.get_visibility(resource_tile);
             if visibility < 0.05 {
                 continue; // Don't render invisible resources
             }
             color = FogOfWarRenderer::apply_fog_to_color(color, visibility);
         }
 
+        let (center_x, center_y) = ViewportCalculations::tile_center_to_screen(
+            resource_tile, 
+            WorldPos::new(cam_x, cam_y)
+        );
+
         draw_circle(
-            cam_x + resource.position.x as f32 * TILE_SIZE + TILE_SIZE / 2.0,
-            cam_y + resource.position.y as f32 * TILE_SIZE + TILE_SIZE / 2.0,
+            center_x,
+            center_y,
             TILE_SIZE / 3.0,
             color,
         );
@@ -362,10 +373,11 @@ fn render_projectiles(
 ) {
     for projectile in &game_state.projectiles {
         let mut color = YELLOW;
+        let projectile_world_pos = WorldPos::new(projectile.position.x, projectile.position.y);
 
         // Apply fog of war if vision system is available
         if let Some(vision) = vision_system {
-            let tile_pos = WorldPos::new(projectile.position.x, projectile.position.y).to_tile();
+            let tile_pos = projectile_world_pos.to_tile();
             let visibility = vision.get_visibility(tile_pos);
             if visibility < 0.05 {
                 continue; // Don't render invisible projectiles
@@ -373,12 +385,12 @@ fn render_projectiles(
             color = FogOfWarRenderer::apply_fog_to_color(color, visibility);
         }
 
-        draw_circle(
-            cam_x + projectile.position.x,
-            cam_y + projectile.position.y,
-            5.0,
-            color,
+        let (screen_x, screen_y) = ViewportCalculations::world_to_screen(
+            projectile_world_pos,
+            WorldPos::new(cam_x, cam_y)
         );
+
+        draw_circle(screen_x, screen_y, 5.0, color);
     }
 }
 
@@ -440,42 +452,38 @@ const FOG_FADE_DISTANCE: i32 = 3;
 const VISION_RANGE: i32 = 3;
 
 fn render_fog_overlay(vision_system: &ClientVisionSystem, cam_x: f32, cam_y: f32) {
-    // Calculate visible area
+    // Calculate visible area using viewport calculations
     let screen_w = screen_width();
     let screen_h = screen_height();
-    let start_x = ((-cam_x / TILE_SIZE).floor()) as i32 - VISION_RANGE;
-    let start_y = ((-cam_y / TILE_SIZE).floor()) as i32 - VISION_RANGE;
-    let end_x = ((-cam_x + screen_w) / TILE_SIZE).ceil() as i32 + VISION_RANGE;
-    let end_y = ((-cam_y + screen_h) / TILE_SIZE).ceil() as i32 + VISION_RANGE;
-
-    // info!("Fog overlay range: ({}, {}) to ({}, {})", start_x, start_y, end_x, end_y);
+    let camera_offset = WorldPos::new(-cam_x, -cam_y);
+    let visible_region = ViewportCalculations::get_visible_tile_range(
+        camera_offset, 
+        screen_w, 
+        screen_h, 
+        VISION_RANGE
+    );
 
     // Render fog overlay for invisible tiles
-    for ty in start_y..end_y {
-        for tx in start_x..end_x {
-            let tile_pos = TilePos::new(tx, ty);
+    for tile_pos in visible_region.iter() {
+        if !vision_system.is_visible(tile_pos) {
+            let (tile_x, tile_y) = ViewportCalculations::tile_to_screen(tile_pos, WorldPos::new(cam_x, cam_y));
 
-            if !vision_system.is_visible(tile_pos) {
-                let tile_x = cam_x + tx as f32 * TILE_SIZE;
-                let tile_y = cam_y + ty as f32 * TILE_SIZE;
+            // Use edge fade for smooth fog transitions
+            let edge_fade = FogOfWarRenderer::calculate_edge_fade(tile_pos, vision_system, FOG_FADE_DISTANCE);
+            if edge_fade > 0.0 {
+                let fog_alpha = (1.0 - edge_fade) * 0.8; // Max 80% opacity
+                let fog_color = Color::new(0.0, 0.0, 0.0, fog_alpha);
 
-                // Use edge fade for smooth fog transitions
-                let edge_fade = FogOfWarRenderer::calculate_edge_fade(tile_pos, vision_system, FOG_FADE_DISTANCE);
-                if edge_fade > 0.0 {
-                    let fog_alpha = (1.0 - edge_fade) * 0.8; // Max 80% opacity
-                    let fog_color = Color::new(0.0, 0.0, 0.0, fog_alpha);
-
-                    draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, fog_color);
-                } else {
-                    // Completely fogged area
-                    draw_rectangle(
-                        tile_x,
-                        tile_y,
-                        TILE_SIZE,
-                        TILE_SIZE,
-                        FogOfWarRenderer::get_fog_overlay_color(),
-                    );
-                }
+                draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, fog_color);
+            } else {
+                // Completely fogged area
+                draw_rectangle(
+                    tile_x,
+                    tile_y,
+                    TILE_SIZE,
+                    TILE_SIZE,
+                    FogOfWarRenderer::get_fog_overlay_color(),
+                );
             }
         }
     }

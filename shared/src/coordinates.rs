@@ -739,6 +739,66 @@ impl Iterator for TileRegionIterator {
     }
 }
 
+/// Viewport calculation utilities for tile-based rendering
+pub struct ViewportCalculations;
+
+impl ViewportCalculations {
+    /// Calculate the visible tile range for a camera position and screen size with custom tile size
+    pub fn get_visible_range_with_tile_size(
+        camera_offset: WorldPos,
+        screen_width: f32,
+        screen_height: f32,
+        tile_size: f32,
+        padding_tiles: i32,
+    ) -> TileRegion {
+        let start_x = ((-camera_offset.x / tile_size).floor()) as i32 - padding_tiles;
+        let start_y = ((-camera_offset.y / tile_size).floor()) as i32 - padding_tiles;
+        let end_x = ((-camera_offset.x + screen_width) / tile_size).ceil() as i32 + padding_tiles;
+        let end_y = ((-camera_offset.y + screen_height) / tile_size).ceil() as i32 + padding_tiles;
+
+        TileRegion::new(TilePos::new(start_x, start_y), TilePos::new(end_x, end_y))
+    }
+
+    /// Calculate the visible tile range for a camera position and screen size (using standard TILE_SIZE)
+    pub fn get_visible_tile_range(
+        camera_offset: WorldPos,
+        screen_width: f32,
+        screen_height: f32,
+        padding_tiles: i32,
+    ) -> TileRegion {
+        Self::get_visible_range_with_tile_size(camera_offset, screen_width, screen_height, TILE_SIZE, padding_tiles)
+    }
+
+    /// Calculate visible tile range with default padding
+    pub fn get_visible_tile_range_default(
+        camera_offset: WorldPos,
+        screen_width: f32,
+        screen_height: f32,
+    ) -> TileRegion {
+        Self::get_visible_tile_range(camera_offset, screen_width, screen_height, 1)
+    }
+
+    /// Calculate screen position from world position with camera offset
+    pub fn world_to_screen(world_pos: WorldPos, camera_offset: WorldPos) -> (f32, f32) {
+        (
+            camera_offset.x + world_pos.x,
+            camera_offset.y + world_pos.y,
+        )
+    }
+
+    /// Calculate tile screen position with camera offset
+    pub fn tile_to_screen(tile_pos: TilePos, camera_offset: WorldPos) -> (f32, f32) {
+        let world_pos = tile_pos.to_world();
+        Self::world_to_screen(world_pos, camera_offset)
+    }
+
+    /// Calculate tile center screen position with camera offset
+    pub fn tile_center_to_screen(tile_pos: TilePos, camera_offset: WorldPos) -> (f32, f32) {
+        let world_pos = tile_pos.to_world_center();
+        Self::world_to_screen(world_pos, camera_offset)
+    }
+}
+
 /// Relative positioning utilities within tiles
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RelativePosition {
