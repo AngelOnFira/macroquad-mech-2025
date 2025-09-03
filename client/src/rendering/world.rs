@@ -83,7 +83,7 @@ fn render_grass_background(cam_x: f32, cam_y: f32, vision_system: Option<&Client
     // Calculate visible grass tiles using custom tile size
     let screen_w = screen_width();
     let screen_h = screen_height();
-    let camera_offset = WorldPos::new(-cam_x, -cam_y);
+    let camera_offset = WorldPos::new(cam_x, cam_y);
     
     let grass_region = ViewportCalculations::get_visible_range_with_tile_size(
         camera_offset,
