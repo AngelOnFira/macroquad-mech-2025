@@ -280,6 +280,13 @@ async fn main() {
             game.update(get_frame_time());
         }
 
+        egui_macroquad::ui(|egui_ctx| {
+            egui::Window::new("egui ❤ macroquad")
+                .show(egui_ctx, |ui| {
+                    ui.label("Test");
+                });
+        });
+
         // Render
         {
             #[cfg(feature = "profiling")]
@@ -312,6 +319,8 @@ async fn main() {
 
         // Log profiling stats to console
         profiler.log_frame_stats();
+
+        egui_macroquad::draw();
 
         next_frame().await;
     }

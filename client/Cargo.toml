@@ -33,6 +33,10 @@ tracing-subscriber = { git = "https://github.com/AngelOnFira/tracing", optional 
 tracing-tree = { git = "https://github.com/AngelOnFira/tracing-tree", optional = true }
 wasm-timer = "0.2.5"
 
+# EGUI dependencies
+egui = "0.31"
+egui-macroquad = "0.17.3"
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 uuid = { workspace = true }
 ws = { version = "0.9" }
