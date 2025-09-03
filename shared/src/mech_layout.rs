@@ -140,18 +140,8 @@ impl MechLayoutGenerator {
     fn get_stations_for_floor(floor_idx: usize) -> Vec<(TilePos, StationType)> {
         match floor_idx {
             0 => vec![
-                (
-                    TilePos::new(STATION_POSITIONS[0][0].0, STATION_POSITIONS[0][0].1),
-                    StationType::Engine,
-                ),
-                (
-                    TilePos::new(STATION_POSITIONS[0][1].0, STATION_POSITIONS[0][1].1),
-                    StationType::Electrical,
-                ),
-                (
-                    TilePos::new(STATION_POSITIONS[0][2].0, STATION_POSITIONS[0][2].1),
-                    StationType::Upgrade,
-                ),
+                // Floor 0 is kept mostly empty for initial testing
+                // Stations are moved to higher floors
                 // Note: Cargo/resource drop-off area will be added as entities, not stations
             ],
             1 => vec![
@@ -167,13 +157,27 @@ impl MechLayoutGenerator {
                     TilePos::new(STATION_POSITIONS[1][2].0, STATION_POSITIONS[1][2].1),
                     StationType::Shield,
                 ),
+                // Moved from floor 0 for testing
+                (
+                    TilePos::new(STATION_POSITIONS[0][0].0, STATION_POSITIONS[0][0].1),
+                    StationType::Engine,
+                ),
             ],
             2 => vec![
                 (
                     TilePos::new(STATION_POSITIONS[2][0].0, STATION_POSITIONS[2][0].1),
                     StationType::Repair,
                 ),
-                (TilePos::new(10, 5), StationType::Pilot), // Center of floor 2 for pilot station
+                (TilePos::new(10, 3), StationType::Pilot), // Center of floor 2 for pilot station
+                // Moved from floor 0 for testing
+                (
+                    TilePos::new(STATION_POSITIONS[0][1].0, STATION_POSITIONS[0][1].1),
+                    StationType::Electrical,
+                ),
+                (
+                    TilePos::new(STATION_POSITIONS[0][2].0, STATION_POSITIONS[0][2].1),
+                    StationType::Upgrade,
+                ),
             ],
             _ => vec![],
         }
