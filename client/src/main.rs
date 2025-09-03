@@ -9,6 +9,7 @@ mod input;
 mod tracing_profiler;
 mod rendering;
 mod vision;
+mod debug_overlay;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod network;
@@ -18,7 +19,8 @@ mod network_web_macroquad;
 use game_state::GameState;
 use input::InputHandler;
 use tracing_profiler::TracingProfiler;
-use rendering::Renderer;
+use rendering::{Renderer, RenderFlags};
+use debug_overlay::DebugOverlay;
 
 #[cfg(feature = "profiling")]
 use profiling::scope;
@@ -48,6 +50,7 @@ async fn main() {
     let renderer = Renderer::new();
     let mut input_handler = InputHandler::new();
     let mut profiler = TracingProfiler::new();
+    let mut debug_overlay = DebugOverlay::new();
 
     info!("Game state initialized");
 
@@ -280,11 +283,15 @@ async fn main() {
             game.update(get_frame_time());
         }
 
+        // Update debug overlay
+        {
+            let game = game_state.lock().unwrap();
+            debug_overlay.update(&game, get_frame_time());
+        }
+        
         egui_macroquad::ui(|egui_ctx| {
-            egui::Window::new("egui ❤ macroquad")
-                .show(egui_ctx, |ui| {
-                    ui.label("Test");
-                });
+            let game = game_state.lock().unwrap();
+            debug_overlay.render_ui(egui_ctx, &game);
         });
 
         // Render
@@ -297,7 +304,18 @@ async fn main() {
             clear_background(BLACK);
             {
                 let game = game_state.lock().unwrap();
-                renderer.render(&game);
+                let render_flags = RenderFlags {
+                    render_mechs: debug_overlay.render_mechs,
+                    render_players: debug_overlay.render_players,
+                    render_resources: debug_overlay.render_resources,
+                    render_projectiles: debug_overlay.render_projectiles,
+                    render_effects: debug_overlay.render_effects,
+                    render_ui: debug_overlay.render_ui,
+                    render_fog: debug_overlay.render_fog,
+                    render_tiles: debug_overlay.render_tiles,
+                    render_stations: debug_overlay.render_stations,
+                };
+                renderer.render_with_flags(&game, &render_flags);
             }
         }
 

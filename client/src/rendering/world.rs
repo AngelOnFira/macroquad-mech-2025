@@ -1,4 +1,5 @@
 use super::utils::*;
+use super::RenderFlags;
 use crate::game_state::*;
 use crate::vision::{ClientVisionSystem, FogOfWarRenderer};
 use macroquad::prelude::*;
@@ -17,44 +18,54 @@ pub fn render_world_view_with_vision(
     cam_y: f32,
     vision_system: Option<&ClientVisionSystem>,
 ) {
-    {
+    render_world_view_with_vision_and_flags(game_state, cam_x, cam_y, vision_system, &RenderFlags::default());
+}
+
+pub fn render_world_view_with_vision_and_flags(
+    game_state: &GameState,
+    cam_x: f32,
+    cam_y: f32,
+    vision_system: Option<&ClientVisionSystem>,
+    flags: &RenderFlags,
+) {
+    if flags.render_tiles {
         #[cfg(feature = "profiling")]
         scope!("grass_background");
         render_grass_background(cam_x, cam_y, vision_system);
     }
-    {
+    if flags.render_tiles {
         #[cfg(feature = "profiling")]
         scope!("arena_boundaries");
         render_arena_boundaries(cam_x, cam_y);
     }
-    {
+    if flags.render_mechs {
         #[cfg(feature = "profiling")]
         scope!("mechs");
         render_mechs(game_state, cam_x, cam_y, vision_system);
     }
-    {
+    if flags.render_tiles {
         #[cfg(feature = "profiling")]
         scope!("world_tiles");
         render_world_tiles(game_state, cam_x, cam_y, vision_system);
     }
-    {
+    if flags.render_resources {
         #[cfg(feature = "profiling")]
         scope!("resources");
         render_resources(game_state, cam_x, cam_y, vision_system);
     }
-    {
+    if flags.render_projectiles {
         #[cfg(feature = "profiling")]
         scope!("projectiles");
         render_projectiles(game_state, cam_x, cam_y, vision_system);
     }
-    {
+    if flags.render_players {
         #[cfg(feature = "profiling")]
         scope!("players");
         render_players_in_world(game_state, cam_x, cam_y, vision_system);
     }
 
     // Render fog overlay for completely invisible areas
-    {
+    if flags.render_fog {
         #[cfg(feature = "profiling")]
         scope!("fog_overlay");
         if let Some(vision) = vision_system {

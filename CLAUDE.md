@@ -197,6 +197,26 @@ Key differences:
 - Web connects to page origin, native to localhost
 - Web uses console logging, native uses env_logger
 
+### ⚠️ Important WASM Dependency Constraint
+
+**Macroquad is incompatible with `wasm-bindgen`-based dependencies.**
+
+When adding new dependencies for web features, avoid crates that depend on `wasm-bindgen`. This includes:
+- `egui_plot` - Uses wasm-bindgen internally
+- Many web-specific utility crates
+- Direct `wasm-bindgen` or `web-sys` usage in dependencies
+
+**Why**: Macroquad uses its own WebAssembly loader and build system that conflicts with wasm-bindgen's approach.
+
+**Alternatives**:
+- Use macroquad's built-in features when possible
+- Implement simple custom solutions (like ASCII charts instead of complex plots)
+- Check if pure Rust alternatives exist
+- Consider feature flags to disable problematic dependencies in WASM builds
+
+**Current known incompatible dependencies that were removed**:
+- `egui_plot` - Replaced with simple ASCII charts and text-based metrics
+
 ## Tile Math and Rendering Abstractions
 
 **Use these abstractions instead of manual calculations to ensure consistency and maintainability.**

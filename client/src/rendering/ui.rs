@@ -3,7 +3,8 @@ use macroquad::prelude::*;
 use shared::types::*;
 
 pub fn render_ui(game_state: &GameState) {
-    render_team_and_location_info(game_state);
+    // Team and location info moved to debug overlay to avoid overlap
+    // render_team_and_location_info(game_state);
     render_mech_status_bars(game_state);
     render_control_hints(game_state);
 }

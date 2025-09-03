@@ -11,6 +11,35 @@ mod world;
 use crate::game_state::*;
 use shared::types::*;
 
+#[derive(Clone)]
+pub struct RenderFlags {
+    pub render_mechs: bool,
+    pub render_players: bool,
+    pub render_resources: bool,
+    pub render_projectiles: bool,
+    pub render_effects: bool,
+    pub render_ui: bool,
+    pub render_fog: bool,
+    pub render_tiles: bool,
+    pub render_stations: bool,
+}
+
+impl Default for RenderFlags {
+    fn default() -> Self {
+        Self {
+            render_mechs: true,
+            render_players: true,
+            render_resources: true,
+            render_projectiles: true,
+            render_effects: true,
+            render_ui: true,
+            render_fog: true,
+            render_tiles: true,
+            render_stations: true,
+        }
+    }
+}
+
 #[cfg(feature = "profiling")]
 use profiling::scope;
 
@@ -29,6 +58,10 @@ impl Renderer {
     }
 
     pub fn render(&self, game_state: &GameState) {
+        self.render_with_flags(game_state, &RenderFlags::default());
+    }
+    
+    pub fn render_with_flags(&self, game_state: &GameState, flags: &RenderFlags) {
         #[cfg(feature = "profiling")]
         let _renderer_span = info_span!("renderer").entered();
         #[cfg(feature = "profiling")]
@@ -56,11 +89,12 @@ impl Renderer {
                         #[cfg(feature = "profiling")]
                         scope!("world_view");
 
-                        world::render_world_view_with_vision(
+                        world::render_world_view_with_vision_and_flags(
                             game_state,
                             cam_x,
                             cam_y,
                             Some(&game_state.vision_system),
+                            flags,
                         );
                     }
                     {
@@ -69,7 +103,9 @@ impl Renderer {
                         #[cfg(feature = "profiling")]
                         scope!("effects");
 
-                        effects::render_effects(game_state, cam_x, cam_y);
+                        if flags.render_effects {
+                            effects::render_effects(game_state, cam_x, cam_y);
+                        }
                     }
                 }
                 PlayerLocation::InsideMech { mech_id, floor, .. } => {
@@ -81,40 +117,46 @@ impl Renderer {
                             #[cfg(feature = "profiling")]
                             scope!("mech_tiles");
 
-                            mech_interior::render_mech_interior_with_vision(
-                                game_state,
-                                mech,
-                                floor,
-                                cam_x,
-                                cam_y,
-                                Some(&game_state.vision_system),
-                            );
+                            if flags.render_tiles {
+                                mech_interior::render_mech_interior_with_vision(
+                                    game_state,
+                                    mech,
+                                    floor,
+                                    cam_x,
+                                    cam_y,
+                                    Some(&game_state.vision_system),
+                                );
+                            }
                         }
                         {
                             #[cfg(feature = "profiling")]
                             scope!("mech_stations");
 
-                            mech_interior::render_stations_on_floor_with_vision(
-                                game_state,
-                                mech_id,
-                                floor,
-                                cam_x,
-                                cam_y,
-                                Some(&game_state.vision_system),
-                            );
+                            if flags.render_stations {
+                                mech_interior::render_stations_on_floor_with_vision(
+                                    game_state,
+                                    mech_id,
+                                    floor,
+                                    cam_x,
+                                    cam_y,
+                                    Some(&game_state.vision_system),
+                                );
+                            }
                         }
                         {
                             #[cfg(feature = "profiling")]
                             scope!("mech_players");
 
-                            mech_interior::render_players_on_floor_with_vision(
-                                game_state,
-                                mech_id,
-                                floor,
-                                cam_x,
-                                cam_y,
-                                Some(&game_state.vision_system),
-                            );
+                            if flags.render_players {
+                                mech_interior::render_players_on_floor_with_vision(
+                                    game_state,
+                                    mech_id,
+                                    floor,
+                                    cam_x,
+                                    cam_y,
+                                    Some(&game_state.vision_system),
+                                );
+                            }
                         }
                     }
                 }
@@ -122,7 +164,7 @@ impl Renderer {
         }
 
         // Render UI overlay
-        {
+        if flags.render_ui {
             #[cfg(feature = "profiling")]
             scope!("ui");
 
@@ -130,7 +172,7 @@ impl Renderer {
         }
 
         // Render pilot station window if open
-        {
+        if flags.render_ui {
             #[cfg(feature = "profiling")]
             scope!("pilot_station");
 
