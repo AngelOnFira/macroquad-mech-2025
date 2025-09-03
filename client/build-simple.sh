@@ -3,8 +3,8 @@
 
 set -e
 
-PROFILE="debug"
-CARGO_FLAGS=""
+PROFILE="debug-opt"
+CARGO_FLAGS="--profile debug-opt"
 FEATURES="web,profiling-wasm"
 if [[ "$1" == "--release" ]]; then
     PROFILE="release"

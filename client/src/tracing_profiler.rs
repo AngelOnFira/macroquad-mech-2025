@@ -72,7 +72,19 @@ impl TracingProfiler {
         #[cfg(feature = "profiling-wasm")]
         {
             info!("🔍 Tracing profiler enabled with tracing-wasm");
-            tracing_wasm::set_as_global_default();
+            // tracing_wasm::set_as_global_default();
+
+            // use tracing_subscriber::{prelude::*, Registry};
+            // use tracing_tree::HierarchicalLayer;
+            // use tracing_wasm::{WASMLayer, WASMLayerConfig};
+
+            // tracing_subscriber::registry()
+            //     .with(HierarchicalLayer::new(2))
+            //     // .with(WASMLayer::new(WASMLayerConfig::default()))
+            //     .init();
+
+            // let subscriber = Registry::default().with(HierarchicalLayer::new(2));
+            // tracing::subscriber::set_global_default(subscriber).unwrap();
         }
 
         #[cfg(not(feature = "profiling-wasm"))]

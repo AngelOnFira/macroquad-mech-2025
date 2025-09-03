@@ -436,14 +436,19 @@ fn render_players_in_world(
     }
 }
 
+const FOG_FADE_DISTANCE: i32 = 3;
+const VISION_RANGE: i32 = 3;
+
 fn render_fog_overlay(vision_system: &ClientVisionSystem, cam_x: f32, cam_y: f32) {
     // Calculate visible area
     let screen_w = screen_width();
     let screen_h = screen_height();
-    let start_x = ((-cam_x / TILE_SIZE).floor()) as i32 - 2;
-    let start_y = ((-cam_y / TILE_SIZE).floor()) as i32 - 2;
-    let end_x = ((-cam_x + screen_w) / TILE_SIZE).ceil() as i32 + 2;
-    let end_y = ((-cam_y + screen_h) / TILE_SIZE).ceil() as i32 + 2;
+    let start_x = ((-cam_x / TILE_SIZE).floor()) as i32 - VISION_RANGE;
+    let start_y = ((-cam_y / TILE_SIZE).floor()) as i32 - VISION_RANGE;
+    let end_x = ((-cam_x + screen_w) / TILE_SIZE).ceil() as i32 + VISION_RANGE;
+    let end_y = ((-cam_y + screen_h) / TILE_SIZE).ceil() as i32 + VISION_RANGE;
+
+    // info!("Fog overlay range: ({}, {}) to ({}, {})", start_x, start_y, end_x, end_y);
 
     // Render fog overlay for invisible tiles
     for ty in start_y..end_y {
@@ -455,7 +460,7 @@ fn render_fog_overlay(vision_system: &ClientVisionSystem, cam_x: f32, cam_y: f32
                 let tile_y = cam_y + ty as f32 * TILE_SIZE;
 
                 // Use edge fade for smooth fog transitions
-                let edge_fade = FogOfWarRenderer::calculate_edge_fade(tile_pos, vision_system, 3);
+                let edge_fade = FogOfWarRenderer::calculate_edge_fade(tile_pos, vision_system, FOG_FADE_DISTANCE);
                 if edge_fade > 0.0 {
                     let fog_alpha = (1.0 - edge_fade) * 0.8; // Max 80% opacity
                     let fog_color = Color::new(0.0, 0.0, 0.0, fog_alpha);

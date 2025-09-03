@@ -18,3 +18,18 @@ profiling = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-tree = "0.4"
+
+# Profile for optimized debug builds - smaller binaries but still debuggable
+[profile.debug-opt]
+inherits = "dev"
+opt-level = 2              # Enable optimizations for performance
+debug = true               # Keep debug symbols for profiling
+lto = "thin"              # Thin LTO for better optimization without excessive compile time
+codegen-units = 1         # Reduce parallel codegen for better optimization
+panic = "abort"           # Smaller binaries by avoiding unwinding
+strip = false             # Keep debug symbols
+overflow-checks = true   # Disable overflow checks for performance
+
+# Additional optimizations for WASM specifically
+[profile.debug-opt.package."*"]
+opt-level = 2

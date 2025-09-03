@@ -157,7 +157,7 @@ dependencies = [
  "serde_json",
  "shared",
  "tokio",
- "tracing",
+ "tracing 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid",
 ]
 
@@ -276,7 +276,7 @@ dependencies = [
  "objc2 0.6.2",
  "objc2-app-kit 0.3.1",
  "objc2-foundation 0.3.1",
- "parking_lot",
+ "parking_lot 0.12.4",
  "percent-encoding",
  "windows-sys 0.60.2",
  "x11rb",
@@ -548,7 +548,7 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
- "tracing",
+ "tracing 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -569,7 +569,7 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
- "tracing",
+ "tracing 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -834,17 +834,19 @@ name = "client"
 version = "0.1.0"
 dependencies = [
  "env_logger",
+ "log",
  "macroquad",
  "profiling",
  "serde",
  "serde_json",
  "shared",
- "tracing",
- "tracing-subscriber",
+ "tracing 0.1.41 (git+https://github.com/AngelOnFira/tracing)",
+ "tracing-subscriber 0.3.20 (git+https://github.com/AngelOnFira/tracing)",
  "tracing-tree",
  "tracing-wasm",
  "url",
  "uuid",
+ "wasm-timer",
  "ws",
 ]
 
@@ -1151,7 +1153,7 @@ dependencies = [
  "objc2 0.5.2",
  "objc2-app-kit 0.2.2",
  "objc2-foundation 0.2.2",
- "parking_lot",
+ "parking_lot 0.12.4",
  "percent-encoding",
  "raw-window-handle",
  "static_assertions",
@@ -1305,7 +1307,7 @@ dependencies = [
  "epaint_default_fonts",
  "log",
  "nohash-hasher",
- "parking_lot",
+ "parking_lot 0.12.4",
 ]
 
 [[package]]
@@ -2098,6 +2100,15 @@ checksum = "f2481980430f9f78649238835720ddccc57e52df14ffce1c6f37391d61b563e9"
 dependencies = [
  "equivalent",
  "hashbrown",
+]
+
+[[package]]
+name = "instant"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
+dependencies = [
+ "cfg-if 1.0.3",
 ]
 
 [[package]]
@@ -2948,12 +2959,37 @@ checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
 
 [[package]]
 name = "parking_lot"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
+dependencies = [
+ "instant",
+ "lock_api",
+ "parking_lot_core 0.8.6",
+]
+
+[[package]]
+name = "parking_lot"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70d58bf43669b5795d1576d0641cfb6fbb2057bf629506267a92807158584a13"
 dependencies = [
  "lock_api",
- "parking_lot_core",
+ "parking_lot_core 0.9.11",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60a2cfe6f0ad2bfc16aefa463b497d5c7a5ecd44a23efa72aa342d90177356dc"
+dependencies = [
+ "cfg-if 1.0.3",
+ "instant",
+ "libc",
+ "redox_syscall 0.2.16",
+ "smallvec",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -3249,6 +3285,15 @@ name = "raw-window-handle"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
+
+[[package]]
+name = "redox_syscall"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
+dependencies = [
+ "bitflags 1.3.2",
+]
 
 [[package]]
 name = "redox_syscall"
@@ -3782,7 +3827,7 @@ dependencies = [
  "io-uring",
  "libc",
  "mio 1.0.4",
- "parking_lot",
+ "parking_lot 0.12.4",
  "pin-project-lite",
  "signal-hook-registry",
  "slab",
@@ -3844,7 +3889,7 @@ dependencies = [
  "tokio",
  "tower-layer",
  "tower-service",
- "tracing",
+ "tracing 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3867,8 +3912,18 @@ checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
 dependencies = [
  "log",
  "pin-project-lite",
- "tracing-attributes",
- "tracing-core",
+ "tracing-attributes 0.1.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tracing-core 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "tracing"
+version = "0.1.41"
+source = "git+https://github.com/AngelOnFira/tracing#61f70021472072d69d029846b348563db0c14b5a"
+dependencies = [
+ "pin-project-lite",
+ "tracing-attributes 0.1.30 (git+https://github.com/AngelOnFira/tracing)",
+ "tracing-core 0.1.34 (git+https://github.com/AngelOnFira/tracing)",
 ]
 
 [[package]]
@@ -3883,10 +3938,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-attributes"
+version = "0.1.30"
+source = "git+https://github.com/AngelOnFira/tracing#61f70021472072d69d029846b348563db0c14b5a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
 name = "tracing-core"
 version = "0.1.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
+dependencies = [
+ "once_cell",
+]
+
+[[package]]
+name = "tracing-core"
+version = "0.1.34"
+source = "git+https://github.com/AngelOnFira/tracing#61f70021472072d69d029846b348563db0c14b5a"
 dependencies = [
  "once_cell",
  "valuable",
@@ -3895,12 +3968,11 @@ dependencies = [
 [[package]]
 name = "tracing-log"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
+source = "git+https://github.com/AngelOnFira/tracing#61f70021472072d69d029846b348563db0c14b5a"
 dependencies = [
  "log",
  "once_cell",
- "tracing-core",
+ "tracing-core 0.1.34 (git+https://github.com/AngelOnFira/tracing)",
 ]
 
 [[package]]
@@ -3909,24 +3981,34 @@ version = "0.3.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2054a14f5307d601f88daf0553e1cbf472acc4f2c51afab632431cdcd72124d5"
 dependencies = [
+ "sharded-slab",
+ "thread_local",
+ "tracing-core 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.20"
+source = "git+https://github.com/AngelOnFira/tracing#61f70021472072d69d029846b348563db0c14b5a"
+dependencies = [
  "nu-ansi-term",
  "sharded-slab",
  "smallvec",
  "thread_local",
- "tracing-core",
+ "tracing-core 0.1.34 (git+https://github.com/AngelOnFira/tracing)",
  "tracing-log",
+ "web-time",
 ]
 
 [[package]]
 name = "tracing-tree"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f459ca79f1b0d5f71c54ddfde6debfc59c8b6eeb46808ae492077f739dc7b49c"
+source = "git+https://github.com/AngelOnFira/tracing-tree#589eaf8344721a5ace9280a3074db5e2cc77bf2e"
 dependencies = [
  "nu-ansi-term",
- "tracing-core",
+ "tracing-core 0.1.34 (git+https://github.com/AngelOnFira/tracing)",
  "tracing-log",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.20 (git+https://github.com/AngelOnFira/tracing)",
 ]
 
 [[package]]
@@ -3934,8 +4016,8 @@ name = "tracing-wasm"
 version = "0.2.1"
 source = "git+https://github.com/angelonfira/tracing-wasm#2fe21589861bcdca38f1b95727d06516b8742a7c"
 dependencies = [
- "tracing",
- "tracing-subscriber",
+ "tracing 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tracing-subscriber 0.3.20 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4175,6 +4257,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-timer"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be0ecb0db480561e9a7642b5d3e4187c128914e58aa84330b9493e3eb68c5e7f"
+dependencies = [
+ "futures",
+ "js-sys",
+ "parking_lot 0.11.2",
+ "pin-utils",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "wayland-backend"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4330,7 +4427,7 @@ dependencies = [
  "document-features",
  "js-sys",
  "log",
- "parking_lot",
+ "parking_lot 0.12.4",
  "profiling",
  "raw-window-handle",
  "smallvec",
@@ -4358,7 +4455,7 @@ dependencies = [
  "log",
  "naga",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.12.4",
  "profiling",
  "raw-window-handle",
  "rustc-hash 1.1.0",
@@ -4396,7 +4493,7 @@ dependencies = [
  "ndk-sys 0.5.0+25.2.9519653",
  "objc",
  "once_cell",
- "parking_lot",
+ "parking_lot 0.12.4",
  "profiling",
  "raw-window-handle",
  "renderdoc-sys",
@@ -4869,7 +4966,7 @@ dependencies = [
  "sctk-adwaita",
  "smithay-client-toolkit",
  "smol_str",
- "tracing",
+ "tracing 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-segmentation",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -5060,7 +5157,7 @@ dependencies = [
  "serde_repr",
  "sha1",
  "static_assertions",
- "tracing",
+ "tracing 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "uds_windows",
  "windows-sys 0.52.0",
  "xdg-home",
