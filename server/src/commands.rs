@@ -80,37 +80,68 @@ impl Command for PlayerInputCommand {
 
         // Handle movement
         if self.movement.0 != 0.0 || self.movement.1 != 0.0 {
-            // Update player position directly
-            if let Some(player) = game.players.get_mut(&player_id) {
-                let movement_speed = shared::balance::PLAYER_MOVE_SPEED; // tiles per second
-                let delta_time = shared::network_constants::FRAME_DELTA_SECONDS; // Use frame delta for consistent movement
+            let movement_speed = shared::balance::PLAYER_MOVE_SPEED; // tiles per second
+            let delta_time = shared::network_constants::FRAME_DELTA_SECONDS; // Use frame delta for consistent movement
 
-                // Calculate movement delta
-                let delta_x = self.movement.0 * movement_speed * TILE_SIZE * delta_time;
-                let delta_y = self.movement.1 * movement_speed * TILE_SIZE * delta_time;
+            // Calculate movement delta
+            let delta_x = self.movement.0 * movement_speed * TILE_SIZE * delta_time;
+            let delta_y = self.movement.1 * movement_speed * TILE_SIZE * delta_time;
 
-                // Update position based on current location
-                match &mut player.location {
+            // Collect tile event info before modifying player
+            let mut tile_event_to_add: Option<shared::tile_entity::TileEvent> = None;
+            
+            // Get player location and calculate new position
+            let (new_location, should_check_tile) = if let Some(player) = game.players.get(&player_id) {
+                let mut new_pos = match &player.location {
                     PlayerLocation::OutsideWorld(pos) => {
+                        let mut new_pos = *pos;
                         // Move in world space
-                        pos.x += delta_x;
-                        pos.y += delta_y;
+                        new_pos.x += delta_x;
+                        new_pos.y += delta_y;
 
                         // Keep within world bounds
-                        pos.x = pos.x.max(0.0).min((ARENA_WIDTH_TILES as f32) * TILE_SIZE);
-                        pos.y = pos.y.max(0.0).min((ARENA_HEIGHT_TILES as f32) * TILE_SIZE);
+                        new_pos.x = new_pos.x.max(0.0).min((ARENA_WIDTH_TILES as f32) * TILE_SIZE);
+                        new_pos.y = new_pos.y.max(0.0).min((ARENA_HEIGHT_TILES as f32) * TILE_SIZE);
+                        
+                        (PlayerLocation::OutsideWorld(new_pos), true)
                     }
-                    PlayerLocation::InsideMech { pos, .. } => {
+                    PlayerLocation::InsideMech { mech_id, floor, pos } => {
+                        let mut new_pos = *pos;
                         // Move within mech interior bounds
-                        pos.x += delta_x;
-                        pos.y += delta_y;
+                        new_pos.x += delta_x;
+                        new_pos.y += delta_y;
 
-                        // Keep within mech interior bounds (simplified - could add proper collision)
-                        let mech_bounds = (MECH_SIZE_TILES as f32) * TILE_SIZE;
-                        pos.x = pos.x.max(0.0).min(mech_bounds);
-                        pos.y = pos.y.max(0.0).min(mech_bounds);
+                        // Keep within proper mech floor bounds
+                        let floor_width_pixels = (shared::FLOOR_WIDTH_TILES as f32) * TILE_SIZE;
+                        let floor_height_pixels = (shared::FLOOR_HEIGHT_TILES as f32) * TILE_SIZE;
+                        new_pos.x = new_pos.x.max(0.0).min(floor_width_pixels);
+                        new_pos.y = new_pos.y.max(0.0).min(floor_height_pixels);
+                        
+                        (PlayerLocation::InsideMech { mech_id: *mech_id, floor: *floor, pos: new_pos }, false)
+                    }
+                };
+                new_pos
+            } else {
+                return Ok(());
+            };
+
+            // Check for tile events at new position (only for OutsideWorld)
+            if should_check_tile {
+                if let PlayerLocation::OutsideWorld(pos) = new_location {
+                    let tile_pos = pos.to_tile_pos();
+                    if let Some(tile_content) = game.tile_map.get_world_tile(tile_pos) {
+                        if let shared::tile_entity::TileContent::Static(static_tile) = tile_content {
+                            if let Some(tile_event) = static_tile.on_enter(player_id) {
+                                tile_event_to_add = Some(tile_event);
+                            }
+                        }
                     }
                 }
+            }
+
+            // Update player position
+            if let Some(player) = game.players.get_mut(&player_id) {
+                player.location = new_location;
 
                 // Send movement update to all players
                 let _ = tx.send((
@@ -120,6 +151,15 @@ impl Command for PlayerInputCommand {
                         location: player.location,
                     },
                 ));
+            }
+
+            // Add tile event to system after player update is complete
+            if let Some(tile_event) = tile_event_to_add {
+                if let Some(tile_system) = game.system_manager
+                    .get_system_mut::<crate::systems::tile_behavior::TileBehaviorSystem>() 
+                {
+                    tile_system.event_queue.push(tile_event);
+                }
             }
         }
 

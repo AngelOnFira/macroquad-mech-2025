@@ -175,8 +175,20 @@ pub async fn handle_exit_mech(
     player_id: Uuid,
     tx: &broadcast::Sender<(Uuid, ServerMessage)>,
 ) {
-    if let Some(player) = game.players.get_mut(&player_id) {
+    // First extract mech_id without mutable borrow
+    let mech_id_to_exit = if let Some(player) = game.players.get(&player_id) {
         if let PlayerLocation::InsideMech { mech_id, .. } = player.location {
+            Some(mech_id)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if let Some(mech_id) = mech_id_to_exit {
+        // Get mutable player reference now that we're ready to modify
+        if let Some(player) = game.players.get_mut(&player_id) {
             // Exit station if operating one
             if let Some(station_id) = player.operating_station.take() {
                 for mech in game.mechs.values_mut() {
@@ -194,19 +206,44 @@ pub async fn handle_exit_mech(
                 }
             }
 
-            // Place player outside mech
-            if let Some(mech) = game.mechs.get(&mech_id) {
-                let exit_tile = mech.position.offset(-2, 0);
-                let exit_pos = exit_tile.to_world();
-                player.location = PlayerLocation::OutsideWorld(exit_pos);
-                let _ = tx.send((
-                    Uuid::nil(),
-                    ServerMessage::PlayerMoved {
-                        player_id,
-                        location: player.location,
-                    },
-                ));
+        }
+        
+        // Calculate exit position without holding any borrows
+        let exit_pos = if let Some(mech) = game.mechs.get(&mech_id) {
+            use shared::coordinates::MechDoorPositions;
+            
+            let doors = MechDoorPositions::from_mech_position(mech.position);
+            let left_door_pos = doors.left_door.to_world_pos();
+            let right_door_pos = doors.right_door.to_world_pos();
+            
+            // Check positions safely
+            let left_safe = is_position_safe(game, left_door_pos);
+            let right_safe = is_position_safe(game, right_door_pos);
+            
+            // Choose exit position
+            if left_safe {
+                left_door_pos
+            } else if right_safe {
+                right_door_pos
+            } else {
+                // Fallback to left door even if not safe
+                left_door_pos
             }
+        } else {
+            // Fallback position if mech not found
+            shared::WorldPos::new(100.0, 100.0)
+        };
+
+        // Now update player position
+        if let Some(player) = game.players.get_mut(&player_id) {
+            player.location = PlayerLocation::OutsideWorld(exit_pos);
+            let _ = tx.send((
+                Uuid::nil(),
+                ServerMessage::PlayerMoved {
+                    player_id,
+                    location: player.location,
+                },
+            ));
         }
     }
 }
@@ -585,4 +622,39 @@ fn check_and_consume_resources(
     } else {
         false
     }
+}
+
+/// Check if a position is safe for a player to exit to
+/// Simple check - could be enhanced to check for other players, walls, etc.
+fn is_position_safe(game: &Game, pos: shared::WorldPos) -> bool {
+    use shared::*;
+    
+    // Check if position is within world bounds
+    let tile_pos = pos.to_tile_pos();
+    if tile_pos.x < 0 || tile_pos.x >= ARENA_WIDTH_TILES || tile_pos.y < 0 || tile_pos.y >= ARENA_HEIGHT_TILES {
+        return false;
+    }
+    
+    // Check if there's already another player at this position
+    for player in game.players.values() {
+        if let PlayerLocation::OutsideWorld(player_pos) = player.location {
+            if player_pos.to_tile_pos() == tile_pos {
+                return false;
+            }
+        }
+    }
+    
+    // Check if this tile is walkable (not a wall or obstacle)
+    if let Some(tile_content) = game.tile_map.get_world_tile(tile_pos) {
+        match tile_content {
+            shared::tile_entity::TileContent::Static(static_tile) => {
+                if !static_tile.is_walkable() {
+                    return false;
+                }
+            }
+            _ => {} // Entity tiles are generally walkable
+        }
+    }
+    
+    true
 }

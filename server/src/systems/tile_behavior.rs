@@ -384,6 +384,68 @@ impl GameSystem for TileBehaviorSystem {
                         _ => {}
                     }
                 }
+                TileEvent::BeginTransition {
+                    actor,
+                    zone_id: _,
+                    transition_type,
+                } => {
+                    match transition_type {
+                        shared::tile_entity::TransitionType::MechEntrance { stage: _ } => {
+                            // Find which mech the player is trying to enter
+                            if let Some(player) = game.players.get(&actor) {
+                                if let PlayerLocation::OutsideWorld(pos) = player.location {
+                                    let tile_pos = pos.to_tile_pos();
+                                    
+                                    // Find the mech that owns this door tile
+                                    for (mech_id, mech) in &game.mechs {
+                                        let doors = MechDoorPositions::from_mech_position(mech.position);
+                                        if tile_pos == doors.left_door || tile_pos == doors.right_door {
+                                            // Check team access
+                                            if mech.team == player.team {
+                                                // Generate MechEntered event
+                                                messages.push(ServerMessage::PlayerMoved {
+                                                    player_id: actor,
+                                                    location: PlayerLocation::InsideMech {
+                                                        mech_id: *mech_id,
+                                                        floor: 0,
+                                                        pos: doors.get_entry_position(tile_pos),
+                                                    },
+                                                });
+                                                
+                                                // Update player location in game state
+                                                if let Some(player) = game.players.get_mut(&actor) {
+                                                    player.location = PlayerLocation::InsideMech {
+                                                        mech_id: *mech_id,
+                                                        floor: 0,
+                                                        pos: doors.get_entry_position(tile_pos),
+                                                    };
+                                                }
+                                                
+                                                log::info!(
+                                                    "Player {} entered mech {} via door at {:?}",
+                                                    actor,
+                                                    mech_id,
+                                                    tile_pos
+                                                );
+                                            } else {
+                                                log::debug!(
+                                                    "Player {} denied entry to enemy mech {}",
+                                                    actor,
+                                                    mech_id
+                                                );
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            // Handle other transition types later (ladders, stairs)
+                            log::debug!("Unhandled transition type: {:?}", transition_type);
+                        }
+                    }
+                }
                 _ => {}
             }
         }
