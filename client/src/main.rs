@@ -7,6 +7,7 @@ mod debug_overlay;
 mod demo_mode;
 mod game_state;
 mod input;
+mod spatial_testing;
 mod rendering;
 mod tracing_profiler;
 mod vision;
@@ -47,10 +48,11 @@ async fn main() {
 
     // Initialize game state
     let game_state = Arc::new(Mutex::new(GameState::new()));
-    let renderer = Renderer::new();
+    let mut renderer = Renderer::new();
     let mut input_handler = InputHandler::new();
     let mut profiler = TracingProfiler::new();
     let mut debug_overlay = DebugOverlay::new();
+    let mut spatial_test_suite = spatial_testing::SpatialTestSuite::new();
 
     info!("Game state initialized");
 
@@ -153,6 +155,10 @@ async fn main() {
             demo.run().await;
             info!("Exited demo mode");
         }
+
+        // Spatial debug is now controlled through the debug overlay UI (Spatial tab)
+
+        // Spatial testing is now controlled through the debug overlay UI (Spatial tab)
 
         // Handle input
         let input = {
@@ -288,9 +294,15 @@ async fn main() {
             debug_overlay.update(&game, get_frame_time());
         }
 
+        // Auto-record spatial testing measurements
+        {
+            let game = game_state.lock().unwrap();
+            spatial_test_suite.auto_record_if_testing(&game);
+        }
+
         egui_macroquad::ui(|egui_ctx| {
             let game = game_state.lock().unwrap();
-            debug_overlay.render_ui(egui_ctx, &game);
+            debug_overlay.render_ui(egui_ctx, &game, &mut spatial_test_suite);
         });
 
         // Render
@@ -313,6 +325,13 @@ async fn main() {
                     render_fog: debug_overlay.render_fog,
                     render_tiles: debug_overlay.render_tiles,
                     render_stations: debug_overlay.render_stations,
+                    
+                    spatial_debug_enabled: debug_overlay.spatial_debug_enabled,
+                    show_coordinate_transforms: debug_overlay.show_coordinate_transforms,
+                    show_mech_bounds: debug_overlay.show_mech_bounds,
+                    show_door_positions: debug_overlay.show_door_positions,
+                    show_coordinate_grid: debug_overlay.show_coordinate_grid,
+                    show_floor_offsets: debug_overlay.show_floor_offsets,
                 };
                 renderer.render_with_flags(&game, &render_flags);
             }

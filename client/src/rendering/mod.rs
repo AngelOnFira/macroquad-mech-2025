@@ -4,6 +4,7 @@ pub mod hybrid_tiles;
 mod mech_interior;
 mod pilot_station;
 pub mod primitives;
+pub mod spatial_debug;
 mod ui;
 mod utils;
 mod world;
@@ -22,6 +23,14 @@ pub struct RenderFlags {
     pub render_fog: bool,
     pub render_tiles: bool,
     pub render_stations: bool,
+    
+    // Spatial debug rendering
+    pub spatial_debug_enabled: bool,
+    pub show_coordinate_transforms: bool,
+    pub show_mech_bounds: bool,
+    pub show_door_positions: bool,
+    pub show_coordinate_grid: bool,
+    pub show_floor_offsets: bool,
 }
 
 impl Default for RenderFlags {
@@ -36,6 +45,13 @@ impl Default for RenderFlags {
             render_fog: true,
             render_tiles: true,
             render_stations: true,
+            
+            spatial_debug_enabled: false,
+            show_coordinate_transforms: false,
+            show_mech_bounds: false,
+            show_door_positions: false,
+            show_coordinate_grid: false,
+            show_floor_offsets: false,
         }
     }
 }
@@ -50,15 +66,14 @@ pub use pilot_station::{is_pilot_window_clicked, PilotWindowClick};
 
 pub struct Renderer {
     // Could store textures and other rendering resources here
+    pub spatial_debug: spatial_debug::SpatialDebugRenderer,
 }
 
 impl Renderer {
     pub fn new() -> Self {
-        Self {}
-    }
-
-    pub fn render(&self, game_state: &GameState) {
-        self.render_with_flags(game_state, &RenderFlags::default());
+        Self {
+            spatial_debug: spatial_debug::SpatialDebugRenderer::new(),
+        }
     }
 
     pub fn render_with_flags(&self, game_state: &GameState, flags: &RenderFlags) {
@@ -78,51 +93,32 @@ impl Renderer {
             None
         };
 
-        // Check if we're in a transition
-        if let Some(transition) = &game_state.transition {
+        // Unified world rendering - always render everything in world space
+        {
             #[cfg(feature = "profiling")]
-            let _transition_span = info_span!("transition").entered();
+            let _unified_render_span = info_span!("unified_world_render").entered();
             #[cfg(feature = "profiling")]
-            scope!("transition");
+            scope!("unified_world_render");
 
-            self.render_transition(game_state, transition, cam_x, cam_y, vision_system);
-        } else {
-            // Normal rendering
-            match game_state.player_location {
-                PlayerLocation::OutsideWorld(_) => {
-                    {
-                        #[cfg(feature = "profiling")]
-                        let _world_view_span = info_span!("world_view").entered();
-                        #[cfg(feature = "profiling")]
-                        scope!("world_view");
+            // ALWAYS render world layer (base layer)
+            if flags.render_tiles {
+                world::render_world_view_with_vision_and_flags(
+                    game_state,
+                    cam_x,
+                    cam_y,
+                    vision_system,
+                    flags,
+                );
+            }
 
-                        world::render_world_view_with_vision_and_flags(
-                            game_state,
-                            cam_x,
-                            cam_y,
-                            vision_system,
-                            flags,
-                        );
-                    }
-                    {
-                        #[cfg(feature = "profiling")]
-                        let _effects_span = info_span!("effects").entered();
-                        #[cfg(feature = "profiling")]
-                        scope!("effects");
-
-                        if flags.render_effects {
-                            effects::render_effects(game_state, cam_x, cam_y);
-                        }
-                    }
-                }
-                PlayerLocation::InsideMech { mech_id, floor, .. } => {
-                    #[cfg(feature = "profiling")]
-                    scope!("mech_interior");
-
-                    if let Some(mech) = game_state.mechs.get(&mech_id) {
+            // ALWAYS render all mech interiors in their world positions
+            if flags.render_tiles || flags.render_stations || flags.render_players {
+                for mech in game_state.mechs.values() {
+                    // Render all floors of this mech in world space
+                    for floor in 0..shared::MECH_FLOORS as u8 {
                         {
                             #[cfg(feature = "profiling")]
-                            scope!("mech_tiles");
+                            scope!("mech_interior_world_space");
 
                             if flags.render_tiles {
                                 mech_interior::render_mech_interior_with_vision(
@@ -134,30 +130,22 @@ impl Renderer {
                                     vision_system,
                                 );
                             }
-                        }
-                        {
-                            #[cfg(feature = "profiling")]
-                            scope!("mech_stations");
 
                             if flags.render_stations {
                                 mech_interior::render_stations_on_floor_with_vision(
                                     game_state,
-                                    mech_id,
+                                    mech.id,
                                     floor,
                                     cam_x,
                                     cam_y,
                                     vision_system,
                                 );
                             }
-                        }
-                        {
-                            #[cfg(feature = "profiling")]
-                            scope!("mech_players");
 
                             if flags.render_players {
                                 mech_interior::render_players_on_floor_with_vision(
                                     game_state,
-                                    mech_id,
+                                    mech.id,
                                     floor,
                                     cam_x,
                                     cam_y,
@@ -167,6 +155,13 @@ impl Renderer {
                         }
                     }
                 }
+            }
+
+            // Render effects in world space
+            if flags.render_effects {
+                #[cfg(feature = "profiling")]
+                scope!("effects");
+                effects::render_effects(game_state, cam_x, cam_y);
             }
         }
 
@@ -185,127 +180,42 @@ impl Renderer {
 
             pilot_station::render_pilot_station_window(game_state);
         }
-    }
 
-    fn render_transition(
-        &self,
-        game_state: &GameState,
-        transition: &crate::game_state::TransitionState,
-        cam_x: f32,
-        cam_y: f32,
-        vision_system: Option<&crate::vision::ClientVisionSystem>,
-    ) {
-        #[cfg(feature = "profiling")]
-        scope!("transition");
+        // Render spatial debug overlays (if enabled in debug overlay)
+        if flags.spatial_debug_enabled {
+            #[cfg(feature = "profiling")]
+            scope!("spatial_debug");
 
-        use crate::game_state::TransitionType;
-        use macroquad::prelude::*;
-
-        // For entering mech: fade from outside to inside
-        // For exiting mech: fade from inside to outside
-
-        let (first_alpha, second_alpha) = match transition.transition_type {
-            TransitionType::EnteringMech => {
-                // Fade out the outside world, fade in the mech interior
-                (1.0 - transition.progress, transition.progress)
+            if flags.show_coordinate_grid {
+                self.spatial_debug.render_coordinate_grid(cam_x, cam_y);
             }
-            TransitionType::ExitingMech => {
-                // Fade out the mech interior, fade in the outside world
-                (1.0 - transition.progress, transition.progress)
+            
+            if flags.show_mech_bounds {
+                self.spatial_debug.render_mech_spatial_bounds(game_state, cam_x, cam_y);
             }
-        };
+            
+            if flags.show_door_positions {
+                self.spatial_debug.render_door_entry_points(game_state, cam_x, cam_y);
+            }
+            
+            if flags.show_floor_offsets {
+                self.spatial_debug.render_floor_offsets(game_state, cam_x, cam_y);
+            }
 
-        // Render the first view (what we're transitioning from)
-        match &transition.from_location {
-            PlayerLocation::OutsideWorld(_) => {
-                world::render_world_view_with_vision(game_state, cam_x, cam_y, vision_system);
-                effects::render_effects(game_state, cam_x, cam_y);
-            }
-            PlayerLocation::InsideMech { mech_id, floor, .. } => {
-                if let Some(mech) = game_state.mechs.get(&mech_id) {
-                    mech_interior::render_mech_interior_with_vision(
+            // Render coordinate mapping if player is inside a mech and coordinate transforms are enabled
+            if flags.show_coordinate_transforms {
+                if let PlayerLocation::InsideMech { mech_id, floor, pos } = game_state.player_location {
+                    self.spatial_debug.render_coordinate_mapping(
                         game_state,
-                        mech,
-                        *floor,
+                        mech_id,
+                        pos,
+                        floor,
                         cam_x,
                         cam_y,
-                        vision_system,
-                    );
-                    mech_interior::render_stations_on_floor_with_vision(
-                        game_state,
-                        *mech_id,
-                        *floor,
-                        cam_x,
-                        cam_y,
-                        vision_system,
-                    );
-                    mech_interior::render_players_on_floor_with_vision(
-                        game_state,
-                        *mech_id,
-                        *floor,
-                        cam_x,
-                        cam_y,
-                        vision_system,
                     );
                 }
             }
         }
-
-        // Apply fade overlay for the first view
-        draw_rectangle(
-            0.0,
-            0.0,
-            screen_width(),
-            screen_height(),
-            Color::new(0.0, 0.0, 0.0, 1.0 - first_alpha),
-        );
-
-        // If we're far enough into the transition, start rendering the second view
-        if transition.progress > 0.3 {
-            // Render the second view (what we're transitioning to)
-            match &transition.to_location {
-                PlayerLocation::OutsideWorld(_) => {
-                    world::render_world_view_with_vision(game_state, cam_x, cam_y, vision_system);
-                    effects::render_effects(game_state, cam_x, cam_y);
-                }
-                PlayerLocation::InsideMech { mech_id, floor, .. } => {
-                    if let Some(mech) = game_state.mechs.get(&mech_id) {
-                        mech_interior::render_mech_interior_with_vision(
-                            game_state,
-                            mech,
-                            *floor,
-                            cam_x,
-                            cam_y,
-                            vision_system,
-                        );
-                        mech_interior::render_stations_on_floor_with_vision(
-                            game_state,
-                            *mech_id,
-                            *floor,
-                            cam_x,
-                            cam_y,
-                            vision_system,
-                        );
-                        mech_interior::render_players_on_floor_with_vision(
-                            game_state,
-                            *mech_id,
-                            *floor,
-                            cam_x,
-                            cam_y,
-                            vision_system,
-                        );
-                    }
-                }
-            }
-
-            // Apply fade overlay for the second view
-            draw_rectangle(
-                0.0,
-                0.0,
-                screen_width(),
-                screen_height(),
-                Color::new(0.0, 0.0, 0.0, 1.0 - second_alpha),
-            );
-        }
     }
+
 }

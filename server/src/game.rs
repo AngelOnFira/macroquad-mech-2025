@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::entity_storage::EntityStorage;
 use crate::spatial_collision::SpatialCollisionManager;
 use crate::systems::SystemManager;
+use crate::testing_modes::TestingManager;
 use shared::components::{Position, Station};
 use shared::mech_layout::MechLayoutGenerator;
 use shared::object_pool::PoolManager;
@@ -27,6 +28,7 @@ pub struct Game {
     pub tile_map: TileMap,
     pub entity_storage: EntityStorage,
     pub vision_system: VisionSystem,
+    pub testing_manager: TestingManager,
 }
 
 pub struct Player {
@@ -144,10 +146,49 @@ impl Game {
             tile_map,
             entity_storage: EntityStorage::new(),
             vision_system: VisionSystem::new(),
+            testing_manager: TestingManager::new_normal(),
         };
 
         // Initialize mechs and update tiles
         game.create_initial_mechs();
+
+        game
+    }
+
+    /// Create a new game with testing configuration
+    pub fn new_with_testing(testing_config: crate::testing_modes::TestingConfig) -> Self {
+        // Initialize the hybrid tile map
+        let mut tile_map = TileMap::new();
+        // Initialize world with grass tiles
+        for x in 0..ARENA_WIDTH_TILES {
+            for y in 0..ARENA_HEIGHT_TILES {
+                tile_map.set_world_tile(
+                    TilePos::new(x as i32, y as i32),
+                    TileContent::Static(StaticTile::Grass),
+                );
+            }
+        }
+        let mut game = Self {
+            players: HashMap::new(),
+            mechs: HashMap::new(),
+            projectiles: HashMap::new(),
+            active_effects: HashMap::new(),
+            tick_count: 0,
+            spatial_collision: SpatialCollisionManager::new(),
+            station_registry: StationRegistry::new(),
+            pool_manager: PoolManager::new(),
+            system_manager: SystemManager::new(),
+            tile_map,
+            entity_storage: EntityStorage::new(),
+            vision_system: VisionSystem::new(),
+            testing_manager: TestingManager::new(testing_config),
+        };
+
+        // Initialize mechs and update tiles
+        game.create_initial_mechs();
+        
+        // Record initial positions for testing comparison
+        game.testing_manager.record_initial_positions(&game.mechs);
 
         game
     }

@@ -16,7 +16,6 @@ pub struct GameState {
     pub weapon_effects: Vec<WeaponEffect>,
     pub camera_offset: (f32, f32),
     pub ui_state: UIState,
-    pub transition: Option<TransitionState>,
     pub visible_tiles: HashMap<TilePos, TileVisual>,
     pub vision_system: ClientVisionSystem,
 }
@@ -27,19 +26,6 @@ pub struct UIState {
     pub operating_mech_id: Option<Uuid>,
 }
 
-pub struct TransitionState {
-    pub _active: bool,
-    pub transition_type: TransitionType,
-    pub progress: f32, // 0.0 to 1.0
-    pub from_location: PlayerLocation,
-    pub to_location: PlayerLocation,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum TransitionType {
-    EnteringMech,
-    ExitingMech,
-}
 
 pub struct PlayerData {
     pub _id: Uuid,
@@ -122,7 +108,6 @@ impl GameState {
                 pilot_station_id: None,
                 operating_mech_id: None,
             },
-            transition: None,
             visible_tiles: HashMap::new(),
             vision_system: ClientVisionSystem::new(),
         }
@@ -135,26 +120,11 @@ impl GameState {
             effect.timer > 0.0
         });
 
-        // Update transition
-        if let Some(transition) = &mut self.transition {
-            transition.progress += delta * 2.0; // 0.5 second transition
-            if transition.progress >= 1.0 {
-                self.transition = None;
-            }
-        }
-
         // Update vision system
         self.update_vision();
 
         // Update camera to follow player
-        let target_location = if let Some(transition) = &self.transition {
-            // During transition, use target location for camera
-            &transition.to_location
-        } else {
-            &self.player_location
-        };
-
-        match target_location {
+        match &self.player_location {
             PlayerLocation::OutsideWorld(pos) => {
                 self.camera_offset = (pos.x - screen_width() / 2.0, pos.y - screen_height() / 2.0);
             }

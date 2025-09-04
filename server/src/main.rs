@@ -21,6 +21,7 @@ mod game;
 mod game_tests;
 mod spatial_collision;
 mod systems;
+mod testing_modes;
 
 use client::handle_client;
 use game::Game;
@@ -47,12 +48,24 @@ struct AddAIResponse {
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
+    
+    // Parse command line arguments for testing modes
+    let args: Vec<String> = std::env::args().collect();
+    let testing_config = testing_modes::parse_testing_args(&args)
+        .unwrap_or_else(|| testing_modes::TestingConfig::create_normal_config());
+    
+    log::info!("Starting server in mode: {}", testing_config.testing_mode_name);
+    if testing_config.slow_mech_movement {
+        log::info!("Testing mode: mechs will move at {:.1} tiles/sec in direction {:?}", 
+                  testing_config.mech_movement_speed, 
+                  testing_config.mech_movement_direction);
+    }
 
     // Create broadcast channel for game messages
     let (tx, _) = broadcast::channel(BROADCAST_CHANNEL_SIZE);
 
-    // Initialize game state
-    let game = Arc::new(RwLock::new(Game::new()));
+    // Initialize game state with testing configuration
+    let game = Arc::new(RwLock::new(Game::new_with_testing(testing_config)));
 
     // Initialize 2 mechs for testing
     {

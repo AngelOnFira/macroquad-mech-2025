@@ -8,6 +8,8 @@ use macroquad::prelude::get_fps;
 use shared::{tile_entity::TileVisual, types::*, StationType};
 #[cfg(debug_assertions)]
 use std::collections::VecDeque;
+#[cfg(debug_assertions)]
+use uuid;
 
 #[cfg(debug_assertions)]
 pub struct DebugOverlay {
@@ -25,6 +27,20 @@ pub struct DebugOverlay {
     show_mini_map: bool,
     show_network: bool,
     show_rendering_toggles: bool,
+    show_spatial_debug: bool,
+
+    // Spatial debug controls
+    pub spatial_debug_enabled: bool,
+    pub show_coordinate_transforms: bool,
+    pub show_mech_bounds: bool,
+    pub show_door_positions: bool,
+    pub show_coordinate_grid: bool,
+    pub show_floor_offsets: bool,
+
+    // Spatial testing state
+    test_report: String,
+    show_test_report: bool,
+    last_test_result: Option<String>,
 
     // Server state tracking
     last_server_message: String,
@@ -61,6 +77,18 @@ impl DebugOverlay {
             show_mini_map: false,
             show_network: true,
             show_rendering_toggles: true,
+            show_spatial_debug: true,
+
+            spatial_debug_enabled: false,
+            show_coordinate_transforms: false,
+            show_mech_bounds: true,
+            show_door_positions: true,
+            show_coordinate_grid: false,
+            show_floor_offsets: true,
+
+            test_report: String::new(),
+            show_test_report: false,
+            last_test_result: None,
 
             last_server_message: String::new(),
             message_history: VecDeque::with_capacity(20),
@@ -115,7 +143,7 @@ impl DebugOverlay {
         }
     }
 
-    pub fn render_ui(&mut self, ctx: &Context, game_state: &GameState) {
+    pub fn render_ui(&mut self, ctx: &Context, game_state: &GameState, spatial_test_suite: &mut crate::spatial_testing::SpatialTestSuite) {
         // Main debug window
         Window::new("Debug Overlay")
             .resizable(true)
@@ -127,6 +155,7 @@ impl DebugOverlay {
                     ui.toggle_value(&mut self.show_mini_map, "Mini Map");
                     ui.toggle_value(&mut self.show_network, "Network");
                     ui.toggle_value(&mut self.show_rendering_toggles, "Rendering");
+                    ui.toggle_value(&mut self.show_spatial_debug, "Spatial");
                 });
 
                 ui.separator();
@@ -150,7 +179,42 @@ impl DebugOverlay {
                 if self.show_rendering_toggles {
                     self.render_rendering_toggles_panel(ui);
                 }
+
+                if self.show_spatial_debug {
+                    self.render_spatial_debug_panel(ui, game_state, spatial_test_suite);
+                }
             });
+
+        // Separate window for test report
+        if self.show_test_report && !self.test_report.is_empty() {
+            let mut should_close = false;
+            
+            Window::new("Spatial Test Report")
+                .resizable(true)
+                .collapsible(true)
+                .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.button("Clear Report").clicked() {
+                            self.test_report.clear();
+                        }
+                        if ui.button("Close").clicked() {
+                            should_close = true;
+                        }
+                    });
+                    
+                    ui.separator();
+                    
+                    ScrollArea::vertical()
+                        .max_height(400.0)
+                        .show(ui, |ui| {
+                            ui.monospace(&self.test_report);
+                        });
+                });
+            
+            if should_close {
+                self.show_test_report = false;
+            }
+        }
     }
 
     fn render_performance_panel(&mut self, ui: &mut Ui) {
@@ -436,6 +500,157 @@ impl DebugOverlay {
                 self.render_effects = false;
                 self.render_fog = false;
                 self.render_ui = false;
+            }
+        });
+    }
+
+    fn render_spatial_debug_panel(&mut self, ui: &mut Ui, game_state: &GameState, spatial_test_suite: &mut crate::spatial_testing::SpatialTestSuite) {
+        ui.heading("Spatial Debug");
+        ui.indent("spatial_debug_indent", |ui| {
+            // Master toggle for spatial debug rendering
+            ui.checkbox(&mut self.spatial_debug_enabled, "Enable Spatial Debug Rendering");
+            
+            ui.separator();
+            
+            // Spatial debug controls in two columns
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.checkbox(&mut self.show_coordinate_transforms, "Coordinate Transforms");
+                    ui.checkbox(&mut self.show_mech_bounds, "Mech Bounds");
+                    ui.checkbox(&mut self.show_door_positions, "Door Positions");
+                });
+                ui.separator();
+                ui.vertical(|ui| {
+                    ui.checkbox(&mut self.show_coordinate_grid, "Coordinate Grid");
+                    ui.checkbox(&mut self.show_floor_offsets, "Floor Offsets");
+                });
+            });
+
+            ui.separator();
+
+            // Player location info
+            ui.heading("Player Location Info");
+            ui.indent("player_location_indent", |ui| {
+                match &game_state.player_location {
+                    PlayerLocation::OutsideWorld(pos) => {
+                        ui.label(format!("Location: Outside World"));
+                        ui.label(format!("World Position: ({:.1}, {:.1})", pos.x, pos.y));
+                        ui.label(format!("Tile Position: ({}, {})", 
+                            (pos.x / shared::TILE_SIZE) as i32, 
+                            (pos.y / shared::TILE_SIZE) as i32
+                        ));
+                    }
+                    PlayerLocation::InsideMech { mech_id, floor, pos } => {
+                        ui.label(format!("Location: Inside Mech"));
+                        ui.label(format!("Mech ID: {:.8}", mech_id.to_string()));
+                        ui.label(format!("Floor: {}", floor));
+                        ui.label(format!("Interior Position: ({:.1}, {:.1})", pos.x, pos.y));
+                        
+                        // Calculate world position using the coordinate system
+                        if let Some(mech) = game_state.mechs.get(mech_id) {
+                            // Convert interior pos to tile pos for the calculation
+                            let interior_tile_pos = shared::TilePos::new(
+                                (pos.x / shared::TILE_SIZE) as i32,
+                                (pos.y / shared::TILE_SIZE) as i32
+                            );
+                            let world_tile_pos = shared::MechInteriorCoordinates::interior_to_world(
+                                mech.position, *floor, interior_tile_pos
+                            );
+                            let world_pos = world_tile_pos.to_world_pos();
+                            ui.label(format!("Calculated World Position: ({:.1}, {:.1})", world_pos.x, world_pos.y));
+                        }
+                    }
+                }
+            });
+
+            ui.separator();
+
+            // Testing controls
+            ui.heading("Spatial Testing");
+            ui.indent("spatial_testing_indent", |ui| {
+                // Current test status
+                if spatial_test_suite.is_testing() {
+                    if let Some(test_name) = spatial_test_suite.current_test_name() {
+                        ui.colored_label(egui::Color32::GREEN, format!("🧪 Running Test: {}", test_name));
+                        
+                        if ui.button("Stop Current Test").clicked() {
+                            if let Some(result) = spatial_test_suite.finish_current_test() {
+                                self.last_test_result = Some(format!(
+                                    "{} - {}: {}", 
+                                    result.test_name,
+                                    if result.success { "PASSED" } else { "FAILED" },
+                                    result.details
+                                ));
+                            }
+                        }
+                    }
+                } else {
+                    ui.label("No test currently running");
+                }
+                
+                ui.separator();
+                
+                // Test control buttons
+                ui.horizontal(|ui| {
+                    if ui.button("Start Coordinate Test").clicked() {
+                        if spatial_test_suite.is_testing() {
+                            if let Some(result) = spatial_test_suite.finish_current_test() {
+                                self.last_test_result = Some(format!(
+                                    "{} - {}: {}", 
+                                    result.test_name,
+                                    if result.success { "PASSED" } else { "FAILED" },
+                                    result.details
+                                ));
+                            }
+                        }
+                        spatial_test_suite.start_coordinate_transform_test(2.0);
+                    }
+                    
+                    if ui.button("Start Movement Test").clicked() {
+                        if spatial_test_suite.is_testing() {
+                            if let Some(result) = spatial_test_suite.finish_current_test() {
+                                self.last_test_result = Some(format!(
+                                    "{} - {}: {}", 
+                                    result.test_name,
+                                    if result.success { "PASSED" } else { "FAILED" },
+                                    result.details
+                                ));
+                            }
+                        }
+                        spatial_test_suite.start_relative_movement_test(uuid::Uuid::nil(), 5.0);
+                    }
+                });
+                
+                if ui.button("Generate Test Report").clicked() {
+                    self.test_report = spatial_test_suite.generate_report();
+                    self.show_test_report = true;
+                }
+                
+                // Show last test result
+                if let Some(ref result) = self.last_test_result {
+                    ui.separator();
+                    ui.label("Last Test Result:");
+                    ui.label(result);
+                }
+            });
+
+            ui.separator();
+
+            // Quick actions
+            if ui.button("Show All Debug Info").clicked() {
+                self.show_coordinate_transforms = true;
+                self.show_mech_bounds = true;
+                self.show_door_positions = true;
+                self.show_coordinate_grid = true;
+                self.show_floor_offsets = true;
+            }
+
+            if ui.button("Hide All Debug Info").clicked() {
+                self.show_coordinate_transforms = false;
+                self.show_mech_bounds = false;
+                self.show_door_positions = false;
+                self.show_coordinate_grid = false;
+                self.show_floor_offsets = false;
             }
         });
     }

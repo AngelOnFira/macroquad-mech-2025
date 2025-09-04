@@ -165,27 +165,7 @@ impl ClientHandler {
                 location,
             } => {
                 if player_id == game.player_id.unwrap_or(Uuid::nil()) {
-                    // Check if we're transitioning between outside and inside mech
-                    let should_transition = match (&game.player_location, &location) {
-                        (PlayerLocation::OutsideWorld(_), PlayerLocation::InsideMech { .. }) => {
-                            Some(crate::game_state::TransitionType::EnteringMech)
-                        }
-                        (PlayerLocation::InsideMech { .. }, PlayerLocation::OutsideWorld(_)) => {
-                            Some(crate::game_state::TransitionType::ExitingMech)
-                        }
-                        _ => None,
-                    };
-
-                    if let Some(transition_type) = should_transition {
-                        game.transition = Some(crate::game_state::TransitionState {
-                            _active: true,
-                            transition_type,
-                            progress: 0.0,
-                            from_location: game.player_location,
-                            to_location: location,
-                        });
-                    }
-
+                    // Directly update player location - no transitions needed
                     game.player_location = location;
                 }
                 if let Some(player) = game.players.get_mut(&player_id) {
