@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use shared::*;
 
+mod app_state;
 mod demo_mode;
 mod game_state;
 mod input;
@@ -11,11 +12,15 @@ mod rendering;
 mod vision;
 mod debug_overlay;
 
+#[cfg(test)]
+mod app_state_integration_test;
+
 #[cfg(not(target_arch = "wasm32"))]
 mod network;
 #[cfg(target_arch = "wasm32")]
 mod network_web_macroquad;
 
+use app_state::AppState;
 use game_state::GameState;
 use input::InputHandler;
 use tracing_profiler::TracingProfiler;
@@ -45,14 +50,15 @@ async fn main() {
         info!("WASM client starting...");
     }
 
-    // Initialize game state
-    let game_state = Arc::new(Mutex::new(GameState::new()));
+    // Initialize shared game state and app state
+    let shared_game_state = Arc::new(Mutex::new(GameState::new()));
+    let app_state = Arc::new(Mutex::new(AppState::new())); // Start with MainMenu
     let renderer = Renderer::new();
     let mut input_handler = InputHandler::new();
     let mut profiler = TracingProfiler::new();
     let mut debug_overlay = DebugOverlay::new();
 
-    info!("Game state initialized");
+    info!("App state initialized with MainMenu, shared game state ready");
 
     // Initialize network client
     let mut network_client: Option<NetworkClient>;
@@ -63,7 +69,7 @@ async fn main() {
 
         let network_client_arc = Arc::new(Mutex::new(None));
         let net_clone = Arc::clone(&network_client_arc);
-        let game_clone = Arc::clone(&game_state);
+        let game_clone = Arc::clone(&shared_game_state);
 
         // Connect to server in separate thread
         thread::spawn(move || {
@@ -94,7 +100,7 @@ async fn main() {
 
         info!("Connecting to {}", server_url);
 
-        network_client = match NetworkClient::connect(&server_url, Arc::clone(&game_state)) {
+        network_client = match NetworkClient::connect(&server_url, Arc::clone(&shared_game_state)) {
             Ok(client) => {
                 info!("WebSocket created, waiting for connection...");
                 Some(client)
@@ -122,18 +128,7 @@ async fn main() {
         connection_wait += 1;
     }
 
-    // Send join request
-    if let Some(ref client) = network_client {
-        // Generate a random player name for demo
-        let player_name = format!(
-            "Player{}",
-            rand::gen_range(PLAYER_NAME_MIN_ID, PLAYER_NAME_MAX_ID)
-        );
-        client.send_message(ClientMessage::JoinGame {
-            player_name,
-            preferred_team: None,
-        });
-    }
+    // Don't automatically join game - wait for player to start from menu
 
     info!("Starting main game loop with profiling enabled");
 
@@ -154,6 +149,80 @@ async fn main() {
             info!("Exited demo mode");
         }
 
+        // Handle menu navigation
+        {
+            let mut app = app_state.lock().unwrap();
+            match &*app {
+                AppState::MainMenu => {
+                    if is_key_pressed(KeyCode::Enter) {
+                        // Start game - transition from MainMenu to Game
+                        let new_game_state = GameState::new();
+                        let shared_game_state_copy = GameState::new();
+                        if let Err(e) = app.transition_to_game(new_game_state) {
+                            error!("Failed to transition to game: {}", e);
+                        } else {
+                            info!("Transitioned from MainMenu to Game");
+                            // Update shared game state
+                            drop(app);
+                            *shared_game_state.lock().unwrap() = shared_game_state_copy;
+                            
+                            // Send join request when starting game
+                            if let Some(ref client) = network_client {
+                                let player_name = format!(
+                                    "Player{}",
+                                    rand::gen_range(PLAYER_NAME_MIN_ID, PLAYER_NAME_MAX_ID)
+                                );
+                                client.send_message(ClientMessage::JoinGame {
+                                    player_name,
+                                    preferred_team: None,
+                                });
+                                info!("Sent join request for new game");
+                            }
+                        }
+                    } else if is_key_pressed(KeyCode::S) {
+                        if let Err(e) = app.transition_to_settings() {
+                            error!("Failed to transition to settings: {}", e);
+                        } else {
+                            info!("Transitioned from MainMenu to Settings");
+                        }
+                    }
+                }
+                AppState::Settings { .. } => {
+                    if is_key_pressed(KeyCode::Escape) {
+                        if let Err(e) = app.return_from_settings() {
+                            error!("Failed to return from settings: {}", e);
+                        } else {
+                            info!("Returned from Settings");
+                        }
+                    }
+                }
+                AppState::Game(_) => {
+                    if is_key_pressed(KeyCode::Escape) {
+                        if let Err(e) = app.pause_game() {
+                            error!("Failed to pause game: {}", e);
+                        } else {
+                            info!("Game paused");
+                        }
+                    }
+                }
+                AppState::Paused(_) => {
+                    if is_key_pressed(KeyCode::Escape) {
+                        if let Err(e) = app.resume_game() {
+                            error!("Failed to resume game: {}", e);
+                        } else {
+                            info!("Game resumed");
+                        }
+                    } else if is_key_pressed(KeyCode::Q) {
+                        if let Err(e) = app.transition_to_main_menu() {
+                            error!("Failed to transition to main menu: {}", e);
+                        } else {
+                            info!("Returned to main menu from pause");
+                        }
+                    }
+                }
+            }
+        }
+
         // Handle input
         let input = {
             #[cfg(feature = "profiling")]
@@ -171,19 +240,24 @@ async fn main() {
             scope!("network");
 
             if let Some(ref client) = network_client {
-                // Check if we're operating a station
+                // Check if we're operating a station (only when in game state)
                 let (operating_engine, operating_pilot) = {
-                    let game = game_state.lock().unwrap();
-                    if let Some(player_id) = game.player_id {
-                        let operating_engine = game.stations.values().any(|station| {
-                            station.operated_by == Some(player_id)
-                                && station.station_type == shared::types::StationType::Engine
-                        });
-                        let operating_pilot = game.stations.values().any(|station| {
-                            station.operated_by == Some(player_id)
-                                && station.station_type == shared::types::StationType::Pilot
-                        });
-                        (operating_engine, operating_pilot)
+                    let app = app_state.lock().unwrap();
+                    if app.is_in_game() {
+                        let game = shared_game_state.lock().unwrap();
+                        if let Some(player_id) = game.player_id {
+                            let operating_engine = game.stations.values().any(|station| {
+                                station.operated_by == Some(player_id)
+                                    && station.station_type == shared::types::StationType::Engine
+                            });
+                            let operating_pilot = game.stations.values().any(|station| {
+                                station.operated_by == Some(player_id)
+                                    && station.station_type == shared::types::StationType::Pilot
+                            });
+                            (operating_engine, operating_pilot)
+                        } else {
+                            (false, false)
+                        }
                     } else {
                         (false, false)
                     }
@@ -229,37 +303,41 @@ async fn main() {
                 }
             }
 
-            // Handle pilot window interactions
+            // Handle pilot window interactions (only when in game state)
             {
-                let mut game = game_state.lock().unwrap();
+                let app = app_state.lock().unwrap();
+                if app.is_in_game() {
+                    drop(app); // Release the app_state lock before acquiring shared_game_state
+                    let mut game = shared_game_state.lock().unwrap();
 
-                // Handle ESC key to close pilot window
-                if is_key_pressed(KeyCode::Escape) && game.ui_state.pilot_station_open {
-                    game.ui_state.pilot_station_open = false;
-                    game.ui_state.pilot_station_id = None;
-                    game.ui_state.operating_mech_id = None;
+                    // Handle ESC key to close pilot window
+                    if is_key_pressed(KeyCode::Escape) && game.ui_state.pilot_station_open {
+                        game.ui_state.pilot_station_open = false;
+                        game.ui_state.pilot_station_id = None;
+                        game.ui_state.operating_mech_id = None;
 
-                    // Exit station
-                    if let Some(ref client) = network_client {
-                        client.send_message(ClientMessage::ExitStation);
-                    }
-                }
-
-                // Handle mouse clicks on pilot window
-                if is_mouse_button_pressed(MouseButton::Left) {
-                    let (mouse_x, mouse_y) = mouse_position();
-                    match rendering::is_pilot_window_clicked(&game, mouse_x, mouse_y) {
-                        rendering::PilotWindowClick::Close => {
-                            game.ui_state.pilot_station_open = false;
-                            game.ui_state.pilot_station_id = None;
-                            game.ui_state.operating_mech_id = None;
-
-                            // Exit station
-                            if let Some(ref client) = network_client {
-                                client.send_message(ClientMessage::ExitStation);
-                            }
+                        // Exit station
+                        if let Some(ref client) = network_client {
+                            client.send_message(ClientMessage::ExitStation);
                         }
-                        _ => {}
+                    }
+
+                    // Handle mouse clicks on pilot window
+                    if is_mouse_button_pressed(MouseButton::Left) {
+                        let (mouse_x, mouse_y) = mouse_position();
+                        match rendering::is_pilot_window_clicked(&game, mouse_x, mouse_y) {
+                            rendering::PilotWindowClick::Close => {
+                                game.ui_state.pilot_station_open = false;
+                                game.ui_state.pilot_station_id = None;
+                                game.ui_state.operating_mech_id = None;
+
+                                // Exit station
+                                if let Some(ref client) = network_client {
+                                    client.send_message(ClientMessage::ExitStation);
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 }
             }
@@ -272,29 +350,50 @@ async fn main() {
 
         }
 
-        // Update game state
+        // Update state based on current AppState
         {
             #[cfg(feature = "profiling")]
-            let _game_update_span = info_span!("game_update").entered();
+            let _state_update_span = info_span!("state_update").entered();
             #[cfg(feature = "profiling")]
-            scope!("game_update");
+            scope!("state_update");
 
-            let mut game = game_state.lock().unwrap();
-            game.update(get_frame_time());
+            let app = app_state.lock().unwrap();
+            match &*app {
+                AppState::Game(_) => {
+                    // Update game state when in Game mode
+                    drop(app); // Release app_state lock before acquiring shared_game_state
+                    let mut game = shared_game_state.lock().unwrap();
+                    game.update(get_frame_time());
+                }
+                AppState::Paused(_) => {
+                    // Don't update game state when paused, but keep network updates
+                }
+                AppState::MainMenu | AppState::Settings { .. } => {
+                    // Menu states don't need game state updates
+                }
+            }
         }
 
         // Update debug overlay
         {
-            let game = game_state.lock().unwrap();
-            debug_overlay.update(&game, get_frame_time());
+            let app = app_state.lock().unwrap();
+            if app.is_in_game() || app.is_paused() {
+                drop(app);
+                let game = shared_game_state.lock().unwrap();
+                debug_overlay.update(&game, get_frame_time());
+            }
         }
         
         egui_macroquad::ui(|egui_ctx| {
-            let game = game_state.lock().unwrap();
-            debug_overlay.render_ui(egui_ctx, &game);
+            let app = app_state.lock().unwrap();
+            if app.is_in_game() || app.is_paused() {
+                drop(app);
+                let game = shared_game_state.lock().unwrap();
+                debug_overlay.render_ui(egui_ctx, &game);
+            }
         });
 
-        // Render
+        // Render based on current AppState
         {
             #[cfg(feature = "profiling")]
             let _render_span = info_span!("render").entered();
@@ -302,20 +401,109 @@ async fn main() {
             scope!("render");
 
             clear_background(BLACK);
-            {
-                let game = game_state.lock().unwrap();
-                let render_flags = RenderFlags {
-                    render_mechs: debug_overlay.render_mechs,
-                    render_players: debug_overlay.render_players,
-                    render_resources: debug_overlay.render_resources,
-                    render_projectiles: debug_overlay.render_projectiles,
-                    render_effects: debug_overlay.render_effects,
-                    render_ui: debug_overlay.render_ui,
-                    render_fog: debug_overlay.render_fog,
-                    render_tiles: debug_overlay.render_tiles,
-                    render_stations: debug_overlay.render_stations,
-                };
-                renderer.render_with_flags(&game, &render_flags);
+            
+            let app = app_state.lock().unwrap();
+            match &*app {
+                AppState::Game(_) | AppState::Paused(_) => {
+                    // Render game when in Game or Paused state
+                    drop(app); // Release app_state lock before acquiring shared_game_state
+                    let game = shared_game_state.lock().unwrap();
+                    let render_flags = RenderFlags {
+                        render_mechs: debug_overlay.render_mechs,
+                        render_players: debug_overlay.render_players,
+                        render_resources: debug_overlay.render_resources,
+                        render_projectiles: debug_overlay.render_projectiles,
+                        render_effects: debug_overlay.render_effects,
+                        render_ui: debug_overlay.render_ui,
+                        render_fog: debug_overlay.render_fog,
+                        render_tiles: debug_overlay.render_tiles,
+                        render_stations: debug_overlay.render_stations,
+                    };
+                    renderer.render_with_flags(&game, &render_flags);
+                    
+                    // Draw pause overlay if paused
+                    if matches!(&*app_state.lock().unwrap(), AppState::Paused(_)) {
+                        let screen_center_x = screen_width() / 2.0;
+                        let screen_center_y = screen_height() / 2.0;
+                        
+                        // Draw semi-transparent overlay
+                        draw_rectangle(0.0, 0.0, screen_width(), screen_height(), macroquad::prelude::Color::new(0.0, 0.0, 0.0, 0.5));
+                        
+                        draw_text(
+                            "PAUSED",
+                            screen_center_x - 50.0,
+                            screen_center_y - 30.0,
+                            32.0,
+                            WHITE,
+                        );
+                        draw_text(
+                            "Press ESC to resume",
+                            screen_center_x - 80.0,
+                            screen_center_y + 10.0,
+                            16.0,
+                            WHITE,
+                        );
+                        draw_text(
+                            "Press Q to quit to menu",
+                            screen_center_x - 90.0,
+                            screen_center_y + 30.0,
+                            16.0,
+                            WHITE,
+                        );
+                    }
+                }
+                AppState::MainMenu => {
+                    // Render main menu
+                    let screen_center_x = screen_width() / 2.0;
+                    let screen_center_y = screen_height() / 2.0;
+                    draw_text(
+                        "MAIN MENU",
+                        screen_center_x - 80.0,
+                        screen_center_y - 50.0,
+                        32.0,
+                        WHITE,
+                    );
+                    draw_text(
+                        "Press ENTER to start game",
+                        screen_center_x - 120.0,
+                        screen_center_y,
+                        20.0,
+                        WHITE,
+                    );
+                    draw_text(
+                        "Press S for settings",
+                        screen_center_x - 90.0,
+                        screen_center_y + 30.0,
+                        20.0,
+                        WHITE,
+                    );
+                }
+                AppState::Settings { .. } => {
+                    // Render settings menu
+                    let screen_center_x = screen_width() / 2.0;
+                    let screen_center_y = screen_height() / 2.0;
+                    draw_text(
+                        "SETTINGS",
+                        screen_center_x - 60.0,
+                        screen_center_y - 50.0,
+                        32.0,
+                        WHITE,
+                    );
+                    draw_text(
+                        "Settings menu (placeholder)",
+                        screen_center_x - 140.0,
+                        screen_center_y,
+                        20.0,
+                        WHITE,
+                    );
+                    draw_text(
+                        "Press ESC to go back",
+                        screen_center_x - 100.0,
+                        screen_center_y + 30.0,
+                        20.0,
+                        WHITE,
+                    );
+                }
             }
         }
 
