@@ -55,7 +55,7 @@ async fn main() {
     info!("Game state initialized");
 
     // Initialize network client
-    let network_client: Option<NetworkClient>;
+    let mut network_client: Option<NetworkClient>;
 
     #[cfg(not(target_arch = "wasm32"))]
     {
