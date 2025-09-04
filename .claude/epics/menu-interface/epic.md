@@ -2,7 +2,7 @@
 name: menu-interface
 status: backlog
 created: 2025-09-03T18:41:42Z
-updated: 2025-09-03T19:11:14Z
+updated: 2025-09-04T12:56:10Z
 progress: 0%
 prd: .claude/prds/menu-interface.md
 github: https://github.com/AngelOnFira/macroquad-mech-2025/issues/2
