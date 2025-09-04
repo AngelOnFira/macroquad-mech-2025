@@ -23,7 +23,7 @@ pub struct RenderFlags {
     pub render_fog: bool,
     pub render_tiles: bool,
     pub render_stations: bool,
-    
+
     // Spatial debug rendering
     pub spatial_debug_enabled: bool,
     pub show_coordinate_transforms: bool,
@@ -45,7 +45,7 @@ impl Default for RenderFlags {
             render_fog: true,
             render_tiles: true,
             render_stations: true,
-            
+
             spatial_debug_enabled: false,
             show_coordinate_transforms: false,
             show_mech_bounds: false,
@@ -189,33 +189,34 @@ impl Renderer {
             if flags.show_coordinate_grid {
                 self.spatial_debug.render_coordinate_grid(cam_x, cam_y);
             }
-            
+
             if flags.show_mech_bounds {
-                self.spatial_debug.render_mech_spatial_bounds(game_state, cam_x, cam_y);
+                self.spatial_debug
+                    .render_mech_spatial_bounds(game_state, cam_x, cam_y);
             }
-            
+
             if flags.show_door_positions {
-                self.spatial_debug.render_door_entry_points(game_state, cam_x, cam_y);
+                self.spatial_debug
+                    .render_door_entry_points(game_state, cam_x, cam_y);
             }
-            
+
             if flags.show_floor_offsets {
-                self.spatial_debug.render_floor_offsets(game_state, cam_x, cam_y);
+                self.spatial_debug
+                    .render_floor_offsets(game_state, cam_x, cam_y);
             }
 
             // Render coordinate mapping if player is inside a mech and coordinate transforms are enabled
             if flags.show_coordinate_transforms {
-                if let PlayerLocation::InsideMech { mech_id, floor, pos } = game_state.player_location {
-                    self.spatial_debug.render_coordinate_mapping(
-                        game_state,
-                        mech_id,
-                        pos,
-                        floor,
-                        cam_x,
-                        cam_y,
-                    );
+                if let PlayerLocation::InsideMech {
+                    mech_id,
+                    floor,
+                    pos,
+                } = game_state.player_location
+                {
+                    self.spatial_debug
+                        .render_coordinate_mapping(game_state, mech_id, pos, floor, cam_x, cam_y);
                 }
             }
         }
     }
-
 }

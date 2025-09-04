@@ -1,7 +1,7 @@
-use macroquad::prelude::*;
-use shared::{MechInteriorCoordinates, PlayerLocation, WorldPos, TilePos};
-use uuid::Uuid;
 use crate::game_state::GameState;
+use macroquad::prelude::*;
+use shared::{MechInteriorCoordinates, PlayerLocation, TilePos, WorldPos};
+use uuid::Uuid;
 
 pub struct SpatialTestSuite {
     test_results: Vec<TestResult>,
@@ -30,9 +30,9 @@ pub struct RunningTest {
 pub struct SpatialMeasurement {
     pub player_location: PlayerLocation,
     pub mech_world_position: WorldPos,
-    pub calculated_world_position: WorldPos,  // What the coordinate system calculates
-    pub actual_render_position: WorldPos,     // Where we actually rendered (same as calculated)
-    pub coordinate_error: f32,                // Distance between expected and calculated positions
+    pub calculated_world_position: WorldPos, // What the coordinate system calculates
+    pub actual_render_position: WorldPos,    // Where we actually rendered (same as calculated)
+    pub coordinate_error: f32,               // Distance between expected and calculated positions
 }
 
 impl Default for SpatialTestSuite {
@@ -50,9 +50,14 @@ impl SpatialTestSuite {
     }
 
     /// Start a test for mech entry spatial continuity
-    pub fn start_mech_entry_test(&mut self, mech_id: Uuid, entry_door: TilePos, error_threshold: f32) {
+    pub fn start_mech_entry_test(
+        &mut self,
+        mech_id: Uuid,
+        entry_door: TilePos,
+        error_threshold: f32,
+    ) {
         info!("Starting mech entry spatial continuity test");
-        
+
         self.current_test = Some(RunningTest {
             name: "Mech Entry Spatial Continuity".to_string(),
             expected_behavior: "Player should smoothly transition from world to interior coordinates with spatial continuity".to_string(),
@@ -64,7 +69,7 @@ impl SpatialTestSuite {
     /// Start a test for relative movement in moving mechs
     pub fn start_relative_movement_test(&mut self, mech_id: Uuid, error_threshold: f32) {
         info!("Starting relative movement in moving mech test");
-        
+
         self.current_test = Some(RunningTest {
             name: "Relative Movement in Moving Mech".to_string(),
             expected_behavior: "Player interior movement should be independent of mech movement, but world position should move with mech".to_string(),
@@ -76,29 +81,39 @@ impl SpatialTestSuite {
     /// Start a general coordinate transformation test
     pub fn start_coordinate_transform_test(&mut self, error_threshold: f32) {
         info!("Starting coordinate transformation accuracy test");
-        
+
         self.current_test = Some(RunningTest {
             name: "Coordinate Transformation Accuracy".to_string(),
-            expected_behavior: "Interior-to-world coordinate transformations should be mathematically consistent".to_string(),
+            expected_behavior:
+                "Interior-to-world coordinate transformations should be mathematically consistent"
+                    .to_string(),
             measurements: Vec::new(),
             error_threshold,
         });
     }
 
     /// Record a spatial measurement for the current test
-    pub fn record_spatial_measurement(&mut self, 
-                                    game_state: &GameState, 
-                                    player_location: PlayerLocation, 
-                                    mech_world_pos: Option<WorldPos>) {
+    pub fn record_spatial_measurement(
+        &mut self,
+        game_state: &GameState,
+        player_location: PlayerLocation,
+        mech_world_pos: Option<WorldPos>,
+    ) {
         if let Some(ref mut test) = self.current_test {
             let calculated_pos = match &player_location {
                 PlayerLocation::OutsideWorld(pos) => *pos,
-                PlayerLocation::InsideMech { mech_id, floor, pos } => {
+                PlayerLocation::InsideMech {
+                    mech_id,
+                    floor,
+                    pos,
+                } => {
                     // Use coordinate transformation to get world position
                     if let Some(mech) = game_state.mechs.get(mech_id) {
                         let interior_tile = pos.to_tile();
                         let world_tile = MechInteriorCoordinates::interior_to_world(
-                            mech.position, *floor, interior_tile
+                            mech.position,
+                            *floor,
+                            interior_tile,
                         );
                         world_tile.to_world_center()
                     } else {
@@ -113,10 +128,7 @@ impl SpatialTestSuite {
                 match &player_location {
                     PlayerLocation::InsideMech { pos, .. } => {
                         // For interior players, error is difference between calculated world pos and expected
-                        let expected_world = WorldPos::new(
-                            mech_pos.x + pos.x,
-                            mech_pos.y + pos.y,
-                        );
+                        let expected_world = WorldPos::new(mech_pos.x + pos.x, mech_pos.y + pos.y);
                         calculated_pos.distance_to(expected_world)
                     }
                     _ => 0.0, // No error for outside world players
@@ -124,7 +136,7 @@ impl SpatialTestSuite {
             } else {
                 0.0
             };
-            
+
             let measurement = SpatialMeasurement {
                 player_location,
                 mech_world_position: mech_world_pos.unwrap_or(WorldPos::new(0.0, 0.0)),
@@ -138,9 +150,8 @@ impl SpatialTestSuite {
             // Log significant coordinate errors
             if coordinate_error > test.error_threshold {
                 warn!(
-                    "High coordinate error detected: {:.2} pixels (threshold: {:.2})", 
-                    coordinate_error, 
-                    test.error_threshold
+                    "High coordinate error detected: {:.2} pixels (threshold: {:.2})",
+                    coordinate_error, test.error_threshold
                 );
             }
         }
@@ -160,7 +171,7 @@ impl SpatialTestSuite {
     /// Analyze test measurements and generate results
     fn analyze_test_results(&self, test: RunningTest) -> TestResult {
         let measurements_count = test.measurements.len();
-        
+
         if measurements_count == 0 {
             return TestResult {
                 test_name: test.name,
@@ -173,15 +184,22 @@ impl SpatialTestSuite {
         }
 
         // Calculate error statistics
-        let max_error = test.measurements.iter()
+        let max_error = test
+            .measurements
+            .iter()
             .map(|m| m.coordinate_error)
             .fold(0.0, f32::max);
-        
-        let avg_error = test.measurements.iter()
-            .map(|m| m.coordinate_error)
-            .sum::<f32>() / measurements_count as f32;
 
-        let errors_above_threshold = test.measurements.iter()
+        let avg_error = test
+            .measurements
+            .iter()
+            .map(|m| m.coordinate_error)
+            .sum::<f32>()
+            / measurements_count as f32;
+
+        let errors_above_threshold = test
+            .measurements
+            .iter()
             .filter(|m| m.coordinate_error > test.error_threshold)
             .count();
 
@@ -208,27 +226,37 @@ impl SpatialTestSuite {
         }
     }
 
-    fn analyze_moving_mech_test(&self, test: &RunningTest, max_error: f32, avg_error: f32, error_rate: f32) -> String {
+    fn analyze_moving_mech_test(
+        &self,
+        test: &RunningTest,
+        max_error: f32,
+        avg_error: f32,
+        error_rate: f32,
+    ) -> String {
         // Check for consistent relative movement patterns
         let mut interior_movements = 0;
         let mut world_position_changes = 0;
-        
+
         for window in test.measurements.windows(2) {
             let prev = &window[0];
             let curr = &window[1];
-            
+
             match (&prev.player_location, &curr.player_location) {
                 (
                     PlayerLocation::InsideMech { pos: prev_pos, .. },
-                    PlayerLocation::InsideMech { pos: curr_pos, .. }
+                    PlayerLocation::InsideMech { pos: curr_pos, .. },
                 ) => {
                     // Check if player moved within the mech
                     if prev_pos.distance_to(*curr_pos) > 1.0 {
                         interior_movements += 1;
                     }
-                    
+
                     // Check if world position changed (indicating mech movement)
-                    if prev.calculated_world_position.distance_to(curr.calculated_world_position) > 1.0 {
+                    if prev
+                        .calculated_world_position
+                        .distance_to(curr.calculated_world_position)
+                        > 1.0
+                    {
                         world_position_changes += 1;
                     }
                 }
@@ -257,12 +285,22 @@ impl SpatialTestSuite {
         )
     }
 
-    fn analyze_entry_test(&self, test: &RunningTest, max_error: f32, avg_error: f32, error_rate: f32) -> String {
+    fn analyze_entry_test(
+        &self,
+        test: &RunningTest,
+        max_error: f32,
+        avg_error: f32,
+        error_rate: f32,
+    ) -> String {
         // Look for smooth transition from outside to inside
-        let transition_detected = test.measurements.iter()
-            .any(|m| matches!(m.player_location, PlayerLocation::OutsideWorld(_))) &&
-            test.measurements.iter()
-            .any(|m| matches!(m.player_location, PlayerLocation::InsideMech { .. }));
+        let transition_detected = test
+            .measurements
+            .iter()
+            .any(|m| matches!(m.player_location, PlayerLocation::OutsideWorld(_)))
+            && test
+                .measurements
+                .iter()
+                .any(|m| matches!(m.player_location, PlayerLocation::InsideMech { .. }));
 
         format!(
             "Entry Test Results:\n\
@@ -285,7 +323,13 @@ impl SpatialTestSuite {
         )
     }
 
-    fn analyze_coordinate_test(&self, _test: &RunningTest, max_error: f32, avg_error: f32, error_rate: f32) -> String {
+    fn analyze_coordinate_test(
+        &self,
+        _test: &RunningTest,
+        max_error: f32,
+        avg_error: f32,
+        error_rate: f32,
+    ) -> String {
         format!(
             "Coordinate Transformation Test Results:\n\
              • Max coordinate error: {:.2} pixels\n\
@@ -313,7 +357,7 @@ impl SpatialTestSuite {
     /// Generate a comprehensive test report
     pub fn generate_report(&self) -> String {
         let mut report = String::new();
-        
+
         report.push_str("# Spatial Positioning Test Report\n");
         report.push_str(&format!("Generated: {:?}\n", std::time::SystemTime::now()));
         report.push_str(&format!("Total tests run: {}\n\n", self.test_results.len()));
@@ -325,23 +369,44 @@ impl SpatialTestSuite {
 
         // Summary statistics
         let successful_tests = self.test_results.iter().filter(|r| r.success).count();
-        let total_measurements: usize = self.test_results.iter().map(|r| r.measurements_count).sum();
-        
+        let total_measurements: usize =
+            self.test_results.iter().map(|r| r.measurements_count).sum();
+
         report.push_str("## Summary\n");
-        report.push_str(&format!("✅ Successful tests: {}/{}\n", successful_tests, self.test_results.len()));
+        report.push_str(&format!(
+            "✅ Successful tests: {}/{}\n",
+            successful_tests,
+            self.test_results.len()
+        ));
         report.push_str(&format!("📊 Total measurements: {}\n", total_measurements));
-        report.push_str(&format!("📈 Overall success rate: {:.1}%\n\n", 
-                               (successful_tests as f32 / self.test_results.len() as f32) * 100.0));
+        report.push_str(&format!(
+            "📈 Overall success rate: {:.1}%\n\n",
+            (successful_tests as f32 / self.test_results.len() as f32) * 100.0
+        ));
 
         // Individual test results
         report.push_str("## Test Results\n\n");
         for (i, result) in self.test_results.iter().enumerate() {
-            let status = if result.success { "✅ PASS" } else { "❌ FAIL" };
-            
-            report.push_str(&format!("### Test {}: {} {}\n", i + 1, result.test_name, status));
-            report.push_str(&format!("**Measurements:** {}\n", result.measurements_count));
-            report.push_str(&format!("**Max Error:** {:.2} pixels (threshold: {:.2})\n", 
-                                   result.max_error, result.error_threshold));
+            let status = if result.success {
+                "✅ PASS"
+            } else {
+                "❌ FAIL"
+            };
+
+            report.push_str(&format!(
+                "### Test {}: {} {}\n",
+                i + 1,
+                result.test_name,
+                status
+            ));
+            report.push_str(&format!(
+                "**Measurements:** {}\n",
+                result.measurements_count
+            ));
+            report.push_str(&format!(
+                "**Max Error:** {:.2} pixels (threshold: {:.2})\n",
+                result.max_error, result.error_threshold
+            ));
             report.push_str(&format!("**Details:**\n{}\n\n", result.details));
         }
 
@@ -376,13 +441,18 @@ impl SpatialTestSuite {
                 if let Some(_player) = game_state.players.get(&player_id) {
                     // Find the player's mech if they're inside one
                     let mech_world_pos = match game_state.player_location {
-                        PlayerLocation::InsideMech { mech_id, .. } => {
-                            game_state.mechs.get(&mech_id).map(|mech| mech.world_position)
-                        }
+                        PlayerLocation::InsideMech { mech_id, .. } => game_state
+                            .mechs
+                            .get(&mech_id)
+                            .map(|mech| mech.world_position),
                         _ => None,
                     };
 
-                    self.record_spatial_measurement(game_state, game_state.player_location, mech_world_pos);
+                    self.record_spatial_measurement(
+                        game_state,
+                        game_state.player_location,
+                        mech_world_pos,
+                    );
                 }
             }
         }
@@ -391,13 +461,18 @@ impl SpatialTestSuite {
     /// Print test status to console
     pub fn print_status(&self) {
         if let Some(ref test) = self.current_test {
-            println!("🧪 Test Running: {} ({} measurements)", 
-                    test.name, test.measurements.len());
+            println!(
+                "🧪 Test Running: {} ({} measurements)",
+                test.name,
+                test.measurements.len()
+            );
         } else if !self.test_results.is_empty() {
             let last_result = self.test_results.last().unwrap();
             let status = if last_result.success { "✅" } else { "❌" };
-            println!("{} Last Test: {} ({} measurements)", 
-                    status, last_result.test_name, last_result.measurements_count);
+            println!(
+                "{} Last Test: {} ({} measurements)",
+                status, last_result.test_name, last_result.measurements_count
+            );
         }
     }
 }

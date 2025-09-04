@@ -186,7 +186,7 @@ impl Game {
 
         // Initialize mechs and update tiles
         game.create_initial_mechs();
-        
+
         // Record initial positions for testing comparison
         game.testing_manager.record_initial_positions(&game.mechs);
 

@@ -184,7 +184,8 @@ impl Command for PlayerInputCommand {
                         match transition_type {
                             shared::tile_entity::TransitionType::MechEntrance { stage: _ } => {
                                 // Process mech entry immediately
-                                let mech_entry_info = if let Some(player) = game.players.get(&actor) {
+                                let mech_entry_info = if let Some(player) = game.players.get(&actor)
+                                {
                                     if let PlayerLocation::OutsideWorld(pos) = player.location {
                                         let tile_pos = pos.to_tile_pos();
 
@@ -192,13 +193,20 @@ impl Command for PlayerInputCommand {
                                         let mut entry_info = None;
                                         for (mech_id, mech) in &game.mechs {
                                             let doors = shared::coordinates::MechDoorPositions::from_mech_position(mech.position);
-                                            if tile_pos == doors.left_door || tile_pos == doors.right_door {
+                                            if tile_pos == doors.left_door
+                                                || tile_pos == doors.right_door
+                                            {
                                                 // Check team access
                                                 if mech.team == player.team {
-                                                    let entry_pos = doors.get_entry_position(tile_pos);
+                                                    let entry_pos =
+                                                        doors.get_entry_position(tile_pos);
                                                     entry_info = Some((*mech_id, entry_pos));
                                                 } else {
-                                                    log::debug!("Player {} denied entry to enemy mech {}", actor, mech_id);
+                                                    log::debug!(
+                                                        "Player {} denied entry to enemy mech {}",
+                                                        actor,
+                                                        mech_id
+                                                    );
                                                 }
                                                 break;
                                             }
@@ -229,7 +237,11 @@ impl Command for PlayerInputCommand {
                                             },
                                         ));
 
-                                        log::info!("Player {} entered mech {} immediately", actor, mech_id);
+                                        log::info!(
+                                            "Player {} entered mech {} immediately",
+                                            actor,
+                                            mech_id
+                                        );
                                     }
                                 }
                             }
@@ -250,10 +262,10 @@ impl Command for PlayerInputCommand {
                     }
                     _ => {
                         // For other tile events, add to system queue
-                        if let Some(tile_system) =
-                            game.system_manager
-                                .get_system_mut::<crate::systems::tile_behavior::TileBehaviorSystem>()
-                        {
+                        if let Some(tile_system) = game
+                            .system_manager
+                            .get_system_mut::<crate::systems::tile_behavior::TileBehaviorSystem>(
+                        ) {
                             tile_system.event_queue.push(tile_event);
                         }
                     }

@@ -26,7 +26,6 @@ pub struct UIState {
     pub operating_mech_id: Option<Uuid>,
 }
 
-
 pub struct PlayerData {
     pub _id: Uuid,
     pub name: String,

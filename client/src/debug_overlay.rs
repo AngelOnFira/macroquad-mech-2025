@@ -143,7 +143,12 @@ impl DebugOverlay {
         }
     }
 
-    pub fn render_ui(&mut self, ctx: &Context, game_state: &GameState, spatial_test_suite: &mut crate::spatial_testing::SpatialTestSuite) {
+    pub fn render_ui(
+        &mut self,
+        ctx: &Context,
+        game_state: &GameState,
+        spatial_test_suite: &mut crate::spatial_testing::SpatialTestSuite,
+    ) {
         // Main debug window
         Window::new("Debug Overlay")
             .resizable(true)
@@ -188,7 +193,7 @@ impl DebugOverlay {
         // Separate window for test report
         if self.show_test_report && !self.test_report.is_empty() {
             let mut should_close = false;
-            
+
             Window::new("Spatial Test Report")
                 .resizable(true)
                 .collapsible(true)
@@ -201,16 +206,14 @@ impl DebugOverlay {
                             should_close = true;
                         }
                     });
-                    
+
                     ui.separator();
-                    
-                    ScrollArea::vertical()
-                        .max_height(400.0)
-                        .show(ui, |ui| {
-                            ui.monospace(&self.test_report);
-                        });
+
+                    ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                        ui.monospace(&self.test_report);
+                    });
                 });
-            
+
             if should_close {
                 self.show_test_report = false;
             }
@@ -504,18 +507,29 @@ impl DebugOverlay {
         });
     }
 
-    fn render_spatial_debug_panel(&mut self, ui: &mut Ui, game_state: &GameState, spatial_test_suite: &mut crate::spatial_testing::SpatialTestSuite) {
+    fn render_spatial_debug_panel(
+        &mut self,
+        ui: &mut Ui,
+        game_state: &GameState,
+        spatial_test_suite: &mut crate::spatial_testing::SpatialTestSuite,
+    ) {
         ui.heading("Spatial Debug");
         ui.indent("spatial_debug_indent", |ui| {
             // Master toggle for spatial debug rendering
-            ui.checkbox(&mut self.spatial_debug_enabled, "Enable Spatial Debug Rendering");
-            
+            ui.checkbox(
+                &mut self.spatial_debug_enabled,
+                "Enable Spatial Debug Rendering",
+            );
+
             ui.separator();
-            
+
             // Spatial debug controls in two columns
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
-                    ui.checkbox(&mut self.show_coordinate_transforms, "Coordinate Transforms");
+                    ui.checkbox(
+                        &mut self.show_coordinate_transforms,
+                        "Coordinate Transforms",
+                    );
                     ui.checkbox(&mut self.show_mech_bounds, "Mech Bounds");
                     ui.checkbox(&mut self.show_door_positions, "Door Positions");
                 });
@@ -535,29 +549,39 @@ impl DebugOverlay {
                     PlayerLocation::OutsideWorld(pos) => {
                         ui.label(format!("Location: Outside World"));
                         ui.label(format!("World Position: ({:.1}, {:.1})", pos.x, pos.y));
-                        ui.label(format!("Tile Position: ({}, {})", 
-                            (pos.x / shared::TILE_SIZE) as i32, 
+                        ui.label(format!(
+                            "Tile Position: ({}, {})",
+                            (pos.x / shared::TILE_SIZE) as i32,
                             (pos.y / shared::TILE_SIZE) as i32
                         ));
                     }
-                    PlayerLocation::InsideMech { mech_id, floor, pos } => {
+                    PlayerLocation::InsideMech {
+                        mech_id,
+                        floor,
+                        pos,
+                    } => {
                         ui.label(format!("Location: Inside Mech"));
                         ui.label(format!("Mech ID: {:.8}", mech_id.to_string()));
                         ui.label(format!("Floor: {}", floor));
                         ui.label(format!("Interior Position: ({:.1}, {:.1})", pos.x, pos.y));
-                        
+
                         // Calculate world position using the coordinate system
                         if let Some(mech) = game_state.mechs.get(mech_id) {
                             // Convert interior pos to tile pos for the calculation
                             let interior_tile_pos = shared::TilePos::new(
                                 (pos.x / shared::TILE_SIZE) as i32,
-                                (pos.y / shared::TILE_SIZE) as i32
+                                (pos.y / shared::TILE_SIZE) as i32,
                             );
                             let world_tile_pos = shared::MechInteriorCoordinates::interior_to_world(
-                                mech.position, *floor, interior_tile_pos
+                                mech.position,
+                                *floor,
+                                interior_tile_pos,
                             );
                             let world_pos = world_tile_pos.to_world_pos();
-                            ui.label(format!("Calculated World Position: ({:.1}, {:.1})", world_pos.x, world_pos.y));
+                            ui.label(format!(
+                                "Calculated World Position: ({:.1}, {:.1})",
+                                world_pos.x, world_pos.y
+                            ));
                         }
                     }
                 }
@@ -571,12 +595,15 @@ impl DebugOverlay {
                 // Current test status
                 if spatial_test_suite.is_testing() {
                     if let Some(test_name) = spatial_test_suite.current_test_name() {
-                        ui.colored_label(egui::Color32::GREEN, format!("🧪 Running Test: {}", test_name));
-                        
+                        ui.colored_label(
+                            egui::Color32::GREEN,
+                            format!("🧪 Running Test: {}", test_name),
+                        );
+
                         if ui.button("Stop Current Test").clicked() {
                             if let Some(result) = spatial_test_suite.finish_current_test() {
                                 self.last_test_result = Some(format!(
-                                    "{} - {}: {}", 
+                                    "{} - {}: {}",
                                     result.test_name,
                                     if result.success { "PASSED" } else { "FAILED" },
                                     result.details
@@ -587,16 +614,16 @@ impl DebugOverlay {
                 } else {
                     ui.label("No test currently running");
                 }
-                
+
                 ui.separator();
-                
+
                 // Test control buttons
                 ui.horizontal(|ui| {
                     if ui.button("Start Coordinate Test").clicked() {
                         if spatial_test_suite.is_testing() {
                             if let Some(result) = spatial_test_suite.finish_current_test() {
                                 self.last_test_result = Some(format!(
-                                    "{} - {}: {}", 
+                                    "{} - {}: {}",
                                     result.test_name,
                                     if result.success { "PASSED" } else { "FAILED" },
                                     result.details
@@ -605,12 +632,12 @@ impl DebugOverlay {
                         }
                         spatial_test_suite.start_coordinate_transform_test(2.0);
                     }
-                    
+
                     if ui.button("Start Movement Test").clicked() {
                         if spatial_test_suite.is_testing() {
                             if let Some(result) = spatial_test_suite.finish_current_test() {
                                 self.last_test_result = Some(format!(
-                                    "{} - {}: {}", 
+                                    "{} - {}: {}",
                                     result.test_name,
                                     if result.success { "PASSED" } else { "FAILED" },
                                     result.details
@@ -620,12 +647,12 @@ impl DebugOverlay {
                         spatial_test_suite.start_relative_movement_test(uuid::Uuid::nil(), 5.0);
                     }
                 });
-                
+
                 if ui.button("Generate Test Report").clicked() {
                     self.test_report = spatial_test_suite.generate_report();
                     self.show_test_report = true;
                 }
-                
+
                 // Show last test result
                 if let Some(ref result) = self.last_test_result {
                     ui.separator();

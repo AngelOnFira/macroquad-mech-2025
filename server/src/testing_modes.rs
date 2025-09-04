@@ -1,13 +1,13 @@
+use shared::TilePos;
 use std::collections::HashMap;
 use uuid::Uuid;
-use shared::TilePos;
 
 /// Configuration for different testing modes
 #[derive(Clone, Debug)]
 pub struct TestingConfig {
     pub slow_mech_movement: bool,
-    pub mech_movement_speed: f32,  // tiles per second (override normal speed)
-    pub mech_movement_direction: (f32, f32),  // normalized direction vector
+    pub mech_movement_speed: f32, // tiles per second (override normal speed)
+    pub mech_movement_direction: (f32, f32), // normalized direction vector
     pub enable_coordinate_logging: bool,
     pub spatial_debug_mode: bool,
     pub testing_mode_name: String,
@@ -18,8 +18,8 @@ impl TestingConfig {
     pub fn create_spatial_test_config() -> Self {
         Self {
             slow_mech_movement: true,
-            mech_movement_speed: 0.5,  // Very slow - 0.5 tiles per second
-            mech_movement_direction: (0.0, 1.0),  // South (positive Y)
+            mech_movement_speed: 0.5, // Very slow - 0.5 tiles per second
+            mech_movement_direction: (0.0, 1.0), // South (positive Y)
             enable_coordinate_logging: true,
             spatial_debug_mode: true,
             testing_mode_name: "Spatial Positioning Test".to_string(),
@@ -30,8 +30,8 @@ impl TestingConfig {
     pub fn create_normal_config() -> Self {
         Self {
             slow_mech_movement: false,
-            mech_movement_speed: 1.0,  // Normal speed
-            mech_movement_direction: (0.0, 0.0),  // No forced movement
+            mech_movement_speed: 1.0,            // Normal speed
+            mech_movement_direction: (0.0, 0.0), // No forced movement
             enable_coordinate_logging: false,
             spatial_debug_mode: false,
             testing_mode_name: "Normal".to_string(),
@@ -42,8 +42,8 @@ impl TestingConfig {
     pub fn create_fast_movement_test_config() -> Self {
         Self {
             slow_mech_movement: false,
-            mech_movement_speed: 2.0,  // Fast movement
-            mech_movement_direction: (1.0, 0.0),  // East
+            mech_movement_speed: 2.0,            // Fast movement
+            mech_movement_direction: (1.0, 0.0), // East
             enable_coordinate_logging: true,
             spatial_debug_mode: true,
             testing_mode_name: "Fast Movement Test".to_string(),
@@ -75,8 +75,8 @@ impl TestingConfig {
 /// Manages testing modes and applies overrides to game mechanics
 pub struct TestingManager {
     config: TestingConfig,
-    mech_test_overrides: HashMap<Uuid, (f32, f32)>,  // Per-mech velocity overrides
-    initial_mech_positions: HashMap<Uuid, TilePos>,  // Track initial positions for logging
+    mech_test_overrides: HashMap<Uuid, (f32, f32)>, // Per-mech velocity overrides
+    initial_mech_positions: HashMap<Uuid, TilePos>, // Track initial positions for logging
     test_start_time: std::time::Instant,
 }
 
@@ -93,7 +93,10 @@ impl TestingManager {
     /// Create a testing manager with the spatial positioning test configuration
     pub fn new_spatial_test() -> Self {
         let config = TestingConfig::create_spatial_test_config();
-        log::info!("Initialized spatial testing mode: {}", config.testing_mode_name);
+        log::info!(
+            "Initialized spatial testing mode: {}",
+            config.testing_mode_name
+        );
         log::info!("  - Mech speed: {} tiles/sec", config.mech_movement_speed);
         log::info!("  - Direction: {:?}", config.mech_movement_direction);
         Self::new(config)
@@ -109,7 +112,10 @@ impl TestingManager {
     }
 
     /// Apply testing overrides to mech velocities
-    pub fn apply_mech_movement_overrides(&mut self, mech_velocities: &mut HashMap<Uuid, (f32, f32)>) {
+    pub fn apply_mech_movement_overrides(
+        &mut self,
+        mech_velocities: &mut HashMap<Uuid, (f32, f32)>,
+    ) {
         if !self.config.slow_mech_movement {
             return;
         }
@@ -167,24 +173,27 @@ impl TestingManager {
     }
 
     /// Log spatial testing information
-    pub fn log_spatial_test_info(&self, mechs: &HashMap<Uuid, crate::game::Mech>, 
-                                 players: &HashMap<Uuid, crate::game::Player>) {
+    pub fn log_spatial_test_info(
+        &self,
+        mechs: &HashMap<Uuid, crate::game::Mech>,
+        players: &HashMap<Uuid, crate::game::Player>,
+    ) {
         if !self.config.enable_coordinate_logging {
             return;
         }
 
         let elapsed = self.test_start_time.elapsed();
-        
-        log::info!("=== Spatial Test Status (t={:.1}s) ===", elapsed.as_secs_f32());
-        
+
+        log::info!(
+            "=== Spatial Test Status (t={:.1}s) ===",
+            elapsed.as_secs_f32()
+        );
+
         // Log mech positions and movement
         for (mech_id, mech) in mechs {
             let initial_pos = self.initial_mech_positions.get(mech_id);
             let movement_delta = if let Some(initial) = initial_pos {
-                (
-                    mech.position.x - initial.x,
-                    mech.position.y - initial.y,
-                )
+                (mech.position.x - initial.x, mech.position.y - initial.y)
             } else {
                 (0, 0)
             };
@@ -205,17 +214,23 @@ impl TestingManager {
         let mut interior_players = 0;
         for (player_id, player) in players {
             match &player.location {
-                shared::types::PlayerLocation::InsideMech { mech_id, floor, pos } => {
+                shared::types::PlayerLocation::InsideMech {
+                    mech_id,
+                    floor,
+                    pos,
+                } => {
                     interior_players += 1;
-                    
+
                     // Calculate equivalent world position using coordinate transformation
                     if let Some(mech) = mechs.get(mech_id) {
                         let interior_tile = pos.to_tile();
                         let world_tile = shared::MechInteriorCoordinates::interior_to_world(
-                            mech.position, *floor, interior_tile
+                            mech.position,
+                            *floor,
+                            interior_tile,
                         );
                         let world_pos = world_tile.to_world_center();
-                        
+
                         log::info!(
                             "Player {} - Interior: F{} ({:.1}, {:.1}) | World Equiv: ({:.1}, {:.1}) | Mech: {}",
                             player_id.to_string().chars().take(8).collect::<String>(),
@@ -239,7 +254,11 @@ impl TestingManager {
             }
         }
 
-        log::info!("Players inside mechs: {} | Outside: {}", interior_players, players.len() - interior_players);
+        log::info!(
+            "Players inside mechs: {} | Outside: {}",
+            interior_players,
+            players.len() - interior_players
+        );
         log::info!("===============================");
     }
 
@@ -247,13 +266,14 @@ impl TestingManager {
     pub fn generate_test_report(&self, mechs: &HashMap<Uuid, crate::game::Mech>) -> String {
         let elapsed = self.test_start_time.elapsed();
         let mut report = String::new();
-        
+
         report.push_str(&format!("# Spatial Positioning Test Report\n"));
         report.push_str(&format!("Test Mode: {}\n", self.config.testing_mode_name));
         report.push_str(&format!("Duration: {:.1} seconds\n", elapsed.as_secs_f32()));
-        report.push_str(&format!("Expected Movement: {:.1} tiles/sec {:?}\n", 
-                               self.config.mech_movement_speed, 
-                               self.config.mech_movement_direction));
+        report.push_str(&format!(
+            "Expected Movement: {:.1} tiles/sec {:?}\n",
+            self.config.mech_movement_speed, self.config.mech_movement_direction
+        ));
         report.push_str("\n## Mech Movement Analysis\n");
 
         for (mech_id, mech) in mechs {
@@ -263,10 +283,14 @@ impl TestingManager {
                     mech.position.y - initial_pos.y,
                 );
                 let expected_delta = (
-                    (self.config.mech_movement_direction.0 * self.config.mech_movement_speed * elapsed.as_secs_f32()) as i32,
-                    (self.config.mech_movement_direction.1 * self.config.mech_movement_speed * elapsed.as_secs_f32()) as i32,
+                    (self.config.mech_movement_direction.0
+                        * self.config.mech_movement_speed
+                        * elapsed.as_secs_f32()) as i32,
+                    (self.config.mech_movement_direction.1
+                        * self.config.mech_movement_speed
+                        * elapsed.as_secs_f32()) as i32,
                 );
-                
+
                 report.push_str(&format!(
                     "Mech {}: Expected ({:+}, {:+}) | Actual ({:+}, {:+})\n",
                     &mech_id.to_string()[..8],
@@ -290,9 +314,9 @@ impl TestingManager {
 
     /// Check if we're currently in a testing mode
     pub fn is_testing_mode(&self) -> bool {
-        self.config.slow_mech_movement || 
-        self.config.enable_coordinate_logging ||
-        self.config.spatial_debug_mode
+        self.config.slow_mech_movement
+            || self.config.enable_coordinate_logging
+            || self.config.spatial_debug_mode
     }
 
     /// Get testing mode display name
@@ -308,7 +332,9 @@ pub fn parse_testing_args(args: &[String]) -> Option<TestingConfig> {
             "--testing-mode" | "-t" => {
                 if let Some(mode) = args.get(i + 1) {
                     return Some(match mode.as_str() {
-                        "spatial" | "slow-mech-south" => TestingConfig::create_spatial_test_config(),
+                        "spatial" | "slow-mech-south" => {
+                            TestingConfig::create_spatial_test_config()
+                        }
                         "fast" => TestingConfig::create_fast_movement_test_config(),
                         "normal" => TestingConfig::create_normal_config(),
                         _ => {

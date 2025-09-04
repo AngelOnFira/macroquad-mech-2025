@@ -257,7 +257,8 @@ impl TileBehaviorSystem {
                                             if mech.team == player.team {
                                                 // Update player location to be inside mech
                                                 if let Some(player) = game.players.get_mut(&actor) {
-                                                    let entry_pos = doors.get_entry_position(tile_pos);
+                                                    let entry_pos =
+                                                        doors.get_entry_position(tile_pos);
                                                     player.location = PlayerLocation::InsideMech {
                                                         mech_id: *mech_id,
                                                         floor: 0,

@@ -7,8 +7,8 @@ mod debug_overlay;
 mod demo_mode;
 mod game_state;
 mod input;
-mod spatial_testing;
 mod rendering;
+mod spatial_testing;
 mod tracing_profiler;
 mod vision;
 
@@ -325,7 +325,7 @@ async fn main() {
                     render_fog: debug_overlay.render_fog,
                     render_tiles: debug_overlay.render_tiles,
                     render_stations: debug_overlay.render_stations,
-                    
+
                     spatial_debug_enabled: debug_overlay.spatial_debug_enabled,
                     show_coordinate_transforms: debug_overlay.show_coordinate_transforms,
                     show_mech_bounds: debug_overlay.show_mech_bounds,

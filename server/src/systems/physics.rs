@@ -21,17 +21,24 @@ impl PhysicsSystem {
         let mut messages = Vec::new();
 
         // Collect mech velocities for testing manager override
-        let mut mech_velocities: std::collections::HashMap<uuid::Uuid, (f32, f32)> = 
-            game.mechs.iter().map(|(id, mech)| (*id, mech.velocity)).collect();
-        
+        let mut mech_velocities: std::collections::HashMap<uuid::Uuid, (f32, f32)> = game
+            .mechs
+            .iter()
+            .map(|(id, mech)| (*id, mech.velocity))
+            .collect();
+
         // Apply testing manager overrides (for spatial testing)
-        game.testing_manager.apply_mech_movement_overrides(&mut mech_velocities);
+        game.testing_manager
+            .apply_mech_movement_overrides(&mut mech_velocities);
 
         // Update mech positions
         let mut mech_updates = Vec::new();
         for mech in game.mechs.values_mut() {
             // Use overridden velocity if available, otherwise use mech's velocity
-            let effective_velocity = mech_velocities.get(&mech.id).copied().unwrap_or(mech.velocity);
+            let effective_velocity = mech_velocities
+                .get(&mech.id)
+                .copied()
+                .unwrap_or(mech.velocity);
             if effective_velocity.0 != 0.0 || effective_velocity.1 != 0.0 {
                 // Update world position using effective velocity (potentially overridden for testing)
                 mech.world_position.x += effective_velocity.0 * TILE_SIZE * delta_time;
@@ -215,11 +222,13 @@ impl GameSystem for PhysicsSystem {
 
         // Log spatial testing information periodically (every 5 seconds in testing mode)
         let current_time = game.tick_count as f32 * delta_time;
-        if game.testing_manager.is_testing_mode() && 
-           game.tick_count % (5.0 / delta_time) as u64 == 0 {
-            game.testing_manager.log_spatial_test_info(&game.mechs, &game.players);
+        if game.testing_manager.is_testing_mode()
+            && game.tick_count % (5.0 / delta_time) as u64 == 0
+        {
+            game.testing_manager
+                .log_spatial_test_info(&game.mechs, &game.players);
         }
-        
+
         // Clean up pools periodically
         self.cleanup_pools(game, current_time);
 
