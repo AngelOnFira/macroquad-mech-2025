@@ -183,10 +183,8 @@ pub fn render_tile_grid(
 
     for (tile_x, tile_y, visual) in tiles {
         let tile_pos = TilePos::new(*tile_x, *tile_y);
-        let (screen_x, screen_y) = ViewportCalculations::tile_to_screen(
-            tile_pos, 
-            WorldPos::new(-camera_x, -camera_y)
-        );
+        let (screen_x, screen_y) =
+            ViewportCalculations::tile_to_screen(tile_pos, WorldPos::new(-camera_x, -camera_y));
 
         // Skip tiles outside screen
         if screen_x < -TILE_SIZE

@@ -89,9 +89,11 @@ impl Command for PlayerInputCommand {
 
             // Collect tile event info before modifying player
             let mut tile_event_to_add: Option<shared::tile_entity::TileEvent> = None;
-            
+
             // Get player location and calculate new position
-            let (new_location, should_check_tile) = if let Some(player) = game.players.get(&player_id) {
+            let (new_location, should_check_tile) = if let Some(player) =
+                game.players.get(&player_id)
+            {
                 let mut new_pos = match &player.location {
                     PlayerLocation::OutsideWorld(pos) => {
                         let mut new_pos = *pos;
@@ -100,12 +102,22 @@ impl Command for PlayerInputCommand {
                         new_pos.y += delta_y;
 
                         // Keep within world bounds
-                        new_pos.x = new_pos.x.max(0.0).min((ARENA_WIDTH_TILES as f32) * TILE_SIZE);
-                        new_pos.y = new_pos.y.max(0.0).min((ARENA_HEIGHT_TILES as f32) * TILE_SIZE);
-                        
+                        new_pos.x = new_pos
+                            .x
+                            .max(0.0)
+                            .min((ARENA_WIDTH_TILES as f32) * TILE_SIZE);
+                        new_pos.y = new_pos
+                            .y
+                            .max(0.0)
+                            .min((ARENA_HEIGHT_TILES as f32) * TILE_SIZE);
+
                         (PlayerLocation::OutsideWorld(new_pos), true)
                     }
-                    PlayerLocation::InsideMech { mech_id, floor, pos } => {
+                    PlayerLocation::InsideMech {
+                        mech_id,
+                        floor,
+                        pos,
+                    } => {
                         let mut new_pos = *pos;
                         // Move within mech interior bounds
                         new_pos.x += delta_x;
@@ -116,8 +128,15 @@ impl Command for PlayerInputCommand {
                         let floor_height_pixels = (shared::FLOOR_HEIGHT_TILES as f32) * TILE_SIZE;
                         new_pos.x = new_pos.x.max(0.0).min(floor_width_pixels);
                         new_pos.y = new_pos.y.max(0.0).min(floor_height_pixels);
-                        
-                        (PlayerLocation::InsideMech { mech_id: *mech_id, floor: *floor, pos: new_pos }, false)
+
+                        (
+                            PlayerLocation::InsideMech {
+                                mech_id: *mech_id,
+                                floor: *floor,
+                                pos: new_pos,
+                            },
+                            false,
+                        )
                     }
                 };
                 new_pos
@@ -130,7 +149,8 @@ impl Command for PlayerInputCommand {
                 if let PlayerLocation::OutsideWorld(pos) = new_location {
                     let tile_pos = pos.to_tile_pos();
                     if let Some(tile_content) = game.tile_map.get_world_tile(tile_pos) {
-                        if let shared::tile_entity::TileContent::Static(static_tile) = tile_content {
+                        if let shared::tile_entity::TileContent::Static(static_tile) = tile_content
+                        {
                             if let Some(tile_event) = static_tile.on_enter(player_id) {
                                 tile_event_to_add = Some(tile_event);
                             }
@@ -155,8 +175,9 @@ impl Command for PlayerInputCommand {
 
             // Add tile event to system after player update is complete
             if let Some(tile_event) = tile_event_to_add {
-                if let Some(tile_system) = game.system_manager
-                    .get_system_mut::<crate::systems::tile_behavior::TileBehaviorSystem>() 
+                if let Some(tile_system) =
+                    game.system_manager
+                        .get_system_mut::<crate::systems::tile_behavior::TileBehaviorSystem>()
                 {
                     tile_system.event_queue.push(tile_event);
                 }

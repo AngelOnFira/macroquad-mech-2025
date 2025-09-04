@@ -21,8 +21,8 @@ fn render_weapon_effects(game_state: &GameState, cam_x: f32, cam_y: f32) {
                 let start_y = cam_y + mech_center.y;
                 let target_tile = TilePos::new(effect.target.x, effect.target.y);
                 let (end_x, end_y) = ViewportCalculations::tile_center_to_screen(
-                    target_tile, 
-                    WorldPos::new(cam_x, cam_y)
+                    target_tile,
+                    WorldPos::new(cam_x, cam_y),
                 );
 
                 draw_line(

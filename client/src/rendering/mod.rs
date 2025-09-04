@@ -60,7 +60,7 @@ impl Renderer {
     pub fn render(&self, game_state: &GameState) {
         self.render_with_flags(game_state, &RenderFlags::default());
     }
-    
+
     pub fn render_with_flags(&self, game_state: &GameState, flags: &RenderFlags) {
         #[cfg(feature = "profiling")]
         let _renderer_span = info_span!("renderer").entered();
@@ -70,7 +70,7 @@ impl Renderer {
         // Apply camera transform
         let cam_x = -game_state.camera_offset.0;
         let cam_y = -game_state.camera_offset.1;
-        
+
         // Only use vision system if fog of war is enabled
         let vision_system = if flags.render_fog {
             Some(&game_state.vision_system)
@@ -218,12 +218,7 @@ impl Renderer {
         // Render the first view (what we're transitioning from)
         match &transition.from_location {
             PlayerLocation::OutsideWorld(_) => {
-                world::render_world_view_with_vision(
-                    game_state,
-                    cam_x,
-                    cam_y,
-                    vision_system,
-                );
+                world::render_world_view_with_vision(game_state, cam_x, cam_y, vision_system);
                 effects::render_effects(game_state, cam_x, cam_y);
             }
             PlayerLocation::InsideMech { mech_id, floor, .. } => {
@@ -270,12 +265,7 @@ impl Renderer {
             // Render the second view (what we're transitioning to)
             match &transition.to_location {
                 PlayerLocation::OutsideWorld(_) => {
-                    world::render_world_view_with_vision(
-                        game_state,
-                        cam_x,
-                        cam_y,
-                        vision_system,
-                    );
+                    world::render_world_view_with_vision(game_state, cam_x, cam_y, vision_system);
                     effects::render_effects(game_state, cam_x, cam_y);
                 }
                 PlayerLocation::InsideMech { mech_id, floor, .. } => {

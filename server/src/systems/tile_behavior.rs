@@ -395,11 +395,14 @@ impl GameSystem for TileBehaviorSystem {
                             if let Some(player) = game.players.get(&actor) {
                                 if let PlayerLocation::OutsideWorld(pos) = player.location {
                                     let tile_pos = pos.to_tile_pos();
-                                    
+
                                     // Find the mech that owns this door tile
                                     for (mech_id, mech) in &game.mechs {
-                                        let doors = MechDoorPositions::from_mech_position(mech.position);
-                                        if tile_pos == doors.left_door || tile_pos == doors.right_door {
+                                        let doors =
+                                            MechDoorPositions::from_mech_position(mech.position);
+                                        if tile_pos == doors.left_door
+                                            || tile_pos == doors.right_door
+                                        {
                                             // Check team access
                                             if mech.team == player.team {
                                                 // Generate MechEntered event
@@ -411,7 +414,7 @@ impl GameSystem for TileBehaviorSystem {
                                                         pos: doors.get_entry_position(tile_pos),
                                                     },
                                                 });
-                                                
+
                                                 // Update player location in game state
                                                 if let Some(player) = game.players.get_mut(&actor) {
                                                     player.location = PlayerLocation::InsideMech {
@@ -420,7 +423,7 @@ impl GameSystem for TileBehaviorSystem {
                                                         pos: doors.get_entry_position(tile_pos),
                                                     };
                                                 }
-                                                
+
                                                 log::info!(
                                                     "Player {} entered mech {} via door at {:?}",
                                                     actor,

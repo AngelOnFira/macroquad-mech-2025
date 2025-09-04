@@ -766,7 +766,13 @@ impl ViewportCalculations {
         screen_height: f32,
         padding_tiles: i32,
     ) -> TileRegion {
-        Self::get_visible_range_with_tile_size(camera_offset, screen_width, screen_height, TILE_SIZE, padding_tiles)
+        Self::get_visible_range_with_tile_size(
+            camera_offset,
+            screen_width,
+            screen_height,
+            TILE_SIZE,
+            padding_tiles,
+        )
     }
 
     /// Calculate visible tile range with default padding
@@ -780,10 +786,7 @@ impl ViewportCalculations {
 
     /// Calculate screen position from world position with camera offset
     pub fn world_to_screen(world_pos: WorldPos, camera_offset: WorldPos) -> (f32, f32) {
-        (
-            camera_offset.x + world_pos.x,
-            camera_offset.y + world_pos.y,
-        )
+        (camera_offset.x + world_pos.x, camera_offset.y + world_pos.y)
     }
 
     /// Calculate tile screen position with camera offset

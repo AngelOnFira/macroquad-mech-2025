@@ -319,7 +319,6 @@ impl FogOfWarRenderer {
 
         // return 1.0;
 
-
         // Find distance to nearest visible tile
         let mut min_distance = fade_distance + 1;
 

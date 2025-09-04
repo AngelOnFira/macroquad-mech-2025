@@ -205,21 +205,20 @@ pub async fn handle_exit_mech(
                     }
                 }
             }
-
         }
-        
+
         // Calculate exit position without holding any borrows
         let exit_pos = if let Some(mech) = game.mechs.get(&mech_id) {
             use shared::coordinates::MechDoorPositions;
-            
+
             let doors = MechDoorPositions::from_mech_position(mech.position);
             let left_door_pos = doors.left_door.to_world_pos();
             let right_door_pos = doors.right_door.to_world_pos();
-            
+
             // Check positions safely
             let left_safe = is_position_safe(game, left_door_pos);
             let right_safe = is_position_safe(game, right_door_pos);
-            
+
             // Choose exit position
             if left_safe {
                 left_door_pos
@@ -628,13 +627,17 @@ fn check_and_consume_resources(
 /// Simple check - could be enhanced to check for other players, walls, etc.
 fn is_position_safe(game: &Game, pos: shared::WorldPos) -> bool {
     use shared::*;
-    
+
     // Check if position is within world bounds
     let tile_pos = pos.to_tile_pos();
-    if tile_pos.x < 0 || tile_pos.x >= ARENA_WIDTH_TILES || tile_pos.y < 0 || tile_pos.y >= ARENA_HEIGHT_TILES {
+    if tile_pos.x < 0
+        || tile_pos.x >= ARENA_WIDTH_TILES
+        || tile_pos.y < 0
+        || tile_pos.y >= ARENA_HEIGHT_TILES
+    {
         return false;
     }
-    
+
     // Check if there's already another player at this position
     for player in game.players.values() {
         if let PlayerLocation::OutsideWorld(player_pos) = player.location {
@@ -643,7 +646,7 @@ fn is_position_safe(game: &Game, pos: shared::WorldPos) -> bool {
             }
         }
     }
-    
+
     // Check if this tile is walkable (not a wall or obstacle)
     if let Some(tile_content) = game.tile_map.get_world_tile(tile_pos) {
         match tile_content {
@@ -655,6 +658,6 @@ fn is_position_safe(game: &Game, pos: shared::WorldPos) -> bool {
             _ => {} // Entity tiles are generally walkable
         }
     }
-    
+
     true
 }

@@ -3,30 +3,30 @@ use std::sync::{Arc, Mutex};
 
 use shared::*;
 
+mod debug_overlay;
 mod demo_mode;
 mod game_state;
 mod input;
-mod tracing_profiler;
 mod rendering;
+mod tracing_profiler;
 mod vision;
-mod debug_overlay;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod network;
 #[cfg(target_arch = "wasm32")]
 mod network_web_macroquad;
 
+use debug_overlay::DebugOverlay;
 use game_state::GameState;
 use input::InputHandler;
+use rendering::{RenderFlags, Renderer};
 use tracing_profiler::TracingProfiler;
-use rendering::{Renderer, RenderFlags};
-use debug_overlay::DebugOverlay;
 
 #[cfg(feature = "profiling")]
 use profiling::scope;
 
 #[cfg(feature = "profiling")]
-use tracing_profiler::{info_span};
+use tracing_profiler::info_span;
 
 #[cfg(not(target_arch = "wasm32"))]
 use network::NetworkClient;
@@ -269,7 +269,6 @@ async fn main() {
             if let Some(ref mut client) = network_client {
                 client.update();
             }
-
         }
 
         // Update game state
@@ -288,7 +287,7 @@ async fn main() {
             let game = game_state.lock().unwrap();
             debug_overlay.update(&game, get_frame_time());
         }
-        
+
         egui_macroquad::ui(|egui_ctx| {
             let game = game_state.lock().unwrap();
             debug_overlay.render_ui(egui_ctx, &game);
