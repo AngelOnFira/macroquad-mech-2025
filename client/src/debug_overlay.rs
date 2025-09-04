@@ -56,9 +56,9 @@ impl DebugOverlay {
             elapsed_time: 0.0,
             fps_smoothing_buffer: VecDeque::with_capacity(10), // 10-frame smoothing
 
-            show_performance: true,
+            show_performance: false,
             show_server_state: true,
-            show_mini_map: true,
+            show_mini_map: false,
             show_network: true,
             show_rendering_toggles: true,
 
