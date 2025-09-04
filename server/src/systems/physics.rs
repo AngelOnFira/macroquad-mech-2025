@@ -1,7 +1,6 @@
 use super::GameSystem;
 use crate::game::Game;
 use shared::*;
-use uuid::Uuid;
 
 /// Physics system handles object movement, collisions, and physics updates
 pub struct PhysicsSystem {

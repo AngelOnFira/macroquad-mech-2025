@@ -1,4 +1,4 @@
-use ai::{AIDebugInfo, AIMetrics, AIVisualizationData};
+use ai::{AIMetrics, AIVisualizationData};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use shared::*;

@@ -217,7 +217,7 @@ impl UtilityAI {
         // Report threats
         for threat in &perception.threats {
             if threat.severity > 0.6 {
-                if let crate::ThreatType::EnemyMech { id, .. } = &threat.threat_type {
+                if let crate::ThreatType::EnemyMech { .. } = &threat.threat_type {
                     messages.push(AIMessage::intel(
                         self.id,
                         IntelInfo::EnemySpotted {

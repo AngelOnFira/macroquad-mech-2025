@@ -1,6 +1,5 @@
-use crate::game::{Game, Resource};
+use crate::game::Game;
 use shared::*;
-use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Data types for spatial entities

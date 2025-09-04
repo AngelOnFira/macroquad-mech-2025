@@ -1,6 +1,6 @@
 use anyhow::Result;
 use axum::{
-    extract::{ws::WebSocket, Path, Query, State, WebSocketUpgrade},
+    extract::{ws::WebSocket, Path, State, WebSocketUpgrade},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -233,7 +233,7 @@ async fn debug_websocket_handler(
     ws.on_upgrade(move |socket| handle_debug_socket(socket, state))
 }
 
-async fn handle_debug_socket(mut socket: WebSocket, state: AppState) {
+async fn handle_debug_socket(socket: WebSocket, state: AppState) {
     use axum::extract::ws::Message;
     use futures::{SinkExt, StreamExt};
 

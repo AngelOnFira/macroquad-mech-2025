@@ -1,6 +1,5 @@
 use shared::{
     components::*,
-    tile_entity::*,
     types::{TilePos, WorldPos},
 };
 use std::collections::HashMap;

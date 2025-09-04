@@ -5,10 +5,9 @@ use crate::systems::GameSystem;
 use shared::{
     components::*,
     coordinates::MechDoorPositions,
-    tile_entity::{TileEvent, TileMap},
+    tile_entity::TileEvent,
     types::{TilePos, WorldPos},
-    PlayerLocation, ResourceType, ServerMessage, TeamId, FLOOR_HEIGHT_TILES, FLOOR_WIDTH_TILES,
-    MECH_SIZE_TILES, TILE_SIZE,
+    PlayerLocation, ServerMessage,
 };
 use std::collections::HashMap;
 use uuid::Uuid;

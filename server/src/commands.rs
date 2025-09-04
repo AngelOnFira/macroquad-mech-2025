@@ -94,7 +94,7 @@ impl Command for PlayerInputCommand {
             let (new_location, should_check_tile) = if let Some(player) =
                 game.players.get(&player_id)
             {
-                let mut new_pos = match &player.location {
+                let new_pos = match &player.location {
                     PlayerLocation::OutsideWorld(pos) => {
                         let mut new_pos = *pos;
                         // Move in world space

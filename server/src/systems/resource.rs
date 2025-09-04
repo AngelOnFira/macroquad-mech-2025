@@ -1,5 +1,5 @@
 use super::GameSystem;
-use crate::game::{Game, Resource};
+use crate::game::Game;
 use rand::Rng;
 use shared::*;
 use uuid::Uuid;

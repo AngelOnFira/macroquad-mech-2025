@@ -1,7 +1,6 @@
 use super::GameSystem;
 use crate::game::Game;
 use shared::*;
-use uuid::Uuid;
 
 /// Networking system handles periodic game state broadcasts and network optimization
 pub struct NetworkingSystem {

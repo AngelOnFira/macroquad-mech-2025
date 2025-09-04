@@ -126,7 +126,7 @@ impl TracingProfiler {
 
 // Re-export tracing macros for convenience
 #[cfg(feature = "profiling")]
-pub use tracing::{debug_span, info_span, instrument, trace_span};
+pub use tracing::info_span;
 
 // Provide no-op macros when profiling is disabled
 #[cfg(not(feature = "profiling"))]

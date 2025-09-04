@@ -211,7 +211,7 @@ impl AISystem {
 
     /// Convert AI commands to game messages
     fn process_ai_commands(&self, commands: Vec<AICommand>) -> Vec<ServerMessage> {
-        let mut messages = Vec::new();
+        let messages = Vec::new();
 
         for command in commands {
             match command {
