@@ -18,6 +18,7 @@ mod client;
 mod commands;
 mod entity_storage;
 mod game;
+mod game_tests;
 mod spatial_collision;
 mod systems;
 

@@ -173,13 +173,90 @@ impl Command for PlayerInputCommand {
                 ));
             }
 
-            // Add tile event to system after player update is complete
+            // Process tile event immediately to avoid timing issues
             if let Some(tile_event) = tile_event_to_add {
-                if let Some(tile_system) =
-                    game.system_manager
-                        .get_system_mut::<crate::systems::tile_behavior::TileBehaviorSystem>()
-                {
-                    tile_system.event_queue.push(tile_event);
+                match tile_event {
+                    shared::tile_entity::TileEvent::BeginTransition {
+                        actor,
+                        zone_id: _,
+                        transition_type,
+                    } => {
+                        match transition_type {
+                            shared::tile_entity::TransitionType::MechEntrance { stage: _ } => {
+                                // Process mech entry immediately
+                                let mech_entry_info = if let Some(player) = game.players.get(&actor) {
+                                    if let PlayerLocation::OutsideWorld(pos) = player.location {
+                                        let tile_pos = pos.to_tile_pos();
+
+                                        // Find the mech that owns this door tile
+                                        let mut entry_info = None;
+                                        for (mech_id, mech) in &game.mechs {
+                                            let doors = shared::coordinates::MechDoorPositions::from_mech_position(mech.position);
+                                            if tile_pos == doors.left_door || tile_pos == doors.right_door {
+                                                // Check team access
+                                                if mech.team == player.team {
+                                                    let entry_pos = doors.get_entry_position(tile_pos);
+                                                    entry_info = Some((*mech_id, entry_pos));
+                                                } else {
+                                                    log::debug!("Player {} denied entry to enemy mech {}", actor, mech_id);
+                                                }
+                                                break;
+                                            }
+                                        }
+                                        entry_info
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                };
+
+                                // Update player location if entry is allowed
+                                if let Some((mech_id, entry_pos)) = mech_entry_info {
+                                    if let Some(player_mut) = game.players.get_mut(&actor) {
+                                        player_mut.location = PlayerLocation::InsideMech {
+                                            mech_id,
+                                            floor: 0,
+                                            pos: entry_pos,
+                                        };
+
+                                        // Send immediate update to all clients
+                                        let _ = tx.send((
+                                            Uuid::nil(),
+                                            ServerMessage::PlayerMoved {
+                                                player_id: actor,
+                                                location: player_mut.location,
+                                            },
+                                        ));
+
+                                        log::info!("Player {} entered mech {} immediately", actor, mech_id);
+                                    }
+                                }
+                            }
+                            _ => {
+                                // For other tile events (like ladders), add to system queue for later processing
+                                if let Some(tile_system) =
+                                    game.system_manager
+                                        .get_system_mut::<crate::systems::tile_behavior::TileBehaviorSystem>()
+                                {
+                                    tile_system.event_queue.push(shared::tile_entity::TileEvent::BeginTransition {
+                                        actor,
+                                        zone_id: 0,
+                                        transition_type,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        // For other tile events, add to system queue
+                        if let Some(tile_system) =
+                            game.system_manager
+                                .get_system_mut::<crate::systems::tile_behavior::TileBehaviorSystem>()
+                        {
+                            tile_system.event_queue.push(tile_event);
+                        }
+                    }
                 }
             }
         }

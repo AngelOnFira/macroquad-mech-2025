@@ -224,6 +224,91 @@ impl TileBehaviorSystem {
             }
         }
     }
+
+    /// Process tile events synchronously for testing purposes
+    /// This method exposes the tile event processing logic for unit tests
+    #[cfg(test)]
+    pub fn handle_tile_events(&mut self, game: &mut Game) -> Vec<shared::ServerMessage> {
+        let mut messages = Vec::new();
+
+        // Process all events in the queue
+        for tile_event in std::mem::take(&mut self.event_queue) {
+            match tile_event {
+                TileEvent::BeginTransition {
+                    actor,
+                    zone_id: _,
+                    transition_type,
+                } => {
+                    match transition_type {
+                        shared::tile_entity::TransitionType::MechEntrance { stage: _ } => {
+                            // Find which mech the player is trying to enter
+                            if let Some(player) = game.players.get(&actor) {
+                                if let PlayerLocation::OutsideWorld(pos) = player.location {
+                                    let tile_pos = pos.to_tile_pos();
+
+                                    // Find the mech that owns this door tile
+                                    for (mech_id, mech) in &game.mechs {
+                                        let doors =
+                                            MechDoorPositions::from_mech_position(mech.position);
+                                        if tile_pos == doors.left_door
+                                            || tile_pos == doors.right_door
+                                        {
+                                            // Check team access
+                                            if mech.team == player.team {
+                                                // Update player location to be inside mech
+                                                if let Some(player) = game.players.get_mut(&actor) {
+                                                    let entry_pos = doors.get_entry_position(tile_pos);
+                                                    player.location = PlayerLocation::InsideMech {
+                                                        mech_id: *mech_id,
+                                                        floor: 0,
+                                                        pos: entry_pos,
+                                                    };
+                                                }
+
+                                                // Generate message
+                                                messages.push(shared::ServerMessage::PlayerMoved {
+                                                    player_id: actor,
+                                                    location: PlayerLocation::InsideMech {
+                                                        mech_id: *mech_id,
+                                                        floor: 0,
+                                                        pos: doors.get_entry_position(tile_pos),
+                                                    },
+                                                });
+
+                                                log::debug!(
+                                                    "Player {} entered mech {} at tile {:?}",
+                                                    actor,
+                                                    mech_id,
+                                                    tile_pos
+                                                );
+                                            } else {
+                                                log::debug!(
+                                                    "Player {} denied entry to enemy mech {}",
+                                                    actor,
+                                                    mech_id
+                                                );
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            // Handle other transition types later (ladders, stairs)
+                            log::debug!("Unhandled transition type: {:?}", transition_type);
+                        }
+                    }
+                }
+                _ => {
+                    // Handle other tile events
+                    log::debug!("Unhandled tile event: {:?}", tile_event);
+                }
+            }
+        }
+
+        messages
+    }
 }
 
 impl GameSystem for TileBehaviorSystem {
