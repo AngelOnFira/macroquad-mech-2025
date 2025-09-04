@@ -2,7 +2,7 @@ use super::utils::*;
 use crate::game_state::*;
 use crate::vision::{ClientVisionSystem, FogOfWarRenderer};
 use macroquad::prelude::*;
-use shared::{constants::*, tile_entity::TileVisual, types::*, MechInteriorCoordinates};
+use shared::{constants::*, types::*, MechInteriorCoordinates};
 use uuid::Uuid;
 
 #[cfg(feature = "profiling")]
@@ -95,7 +95,7 @@ pub fn render_mech_interior_with_vision(
     // Check for interior tiles from server data (hybrid system)
     for (tile_pos, tile_visual) in &game_state.visible_tiles {
         // Check if this world tile position maps to our mech interior
-        if let Some((floor, interior_pos)) =
+        if let Some((floor, _interior_pos)) =
             MechInteriorCoordinates::world_to_interior(*tile_pos, mech.position)
         {
             if floor == current_floor {

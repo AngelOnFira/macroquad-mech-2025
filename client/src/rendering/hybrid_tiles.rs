@@ -1,5 +1,4 @@
 use super::primitives::{ArrowRenderer, ArrowStyle};
-use crate::vision::FogOfWarRenderer;
 use macroquad::prelude::*;
 use shared::{
     coordinates::{TilePos, ViewportCalculations, WorldPos},

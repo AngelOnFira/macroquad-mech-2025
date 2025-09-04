@@ -1,8 +1,10 @@
 use macroquad::prelude::*;
-use std::sync::Once;
 
 #[cfg(feature = "profiling")]
 use profiling;
+
+#[cfg(feature = "profiling")]
+use std::sync::Once;
 
 #[cfg(feature = "profiling")]
 static INIT: Once = Once::new();
@@ -129,6 +131,7 @@ pub use tracing::{debug_span, info_span, instrument, trace_span};
 // Provide no-op macros when profiling is disabled
 #[cfg(not(feature = "profiling"))]
 pub mod disabled {
+    #[macro_export]
     macro_rules! info_span {
         ($($args:tt)*) => {{
             // Return a dummy guard that does nothing
@@ -136,12 +139,14 @@ pub mod disabled {
         }};
     }
 
+    #[macro_export]
     macro_rules! debug_span {
         ($($args:tt)*) => {{
             DisabledSpanGuard
         }};
     }
 
+    #[macro_export]
     macro_rules! trace_span {
         ($($args:tt)*) => {{
             DisabledSpanGuard

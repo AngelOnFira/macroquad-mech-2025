@@ -3,7 +3,7 @@ use super::RenderFlags;
 use crate::game_state::*;
 use crate::vision::{ClientVisionSystem, FogOfWarRenderer};
 use macroquad::prelude::*;
-use shared::{constants::*, coordinates::{MechDoorPositions, ViewportCalculations, TileRegion}, types::*};
+use shared::{constants::*, coordinates::{MechDoorPositions, ViewportCalculations}, types::*};
 
 #[cfg(feature = "profiling")]
 use profiling::scope;
@@ -433,7 +433,7 @@ fn render_fog_overlay(vision_system: &ClientVisionSystem, cam_x: f32, cam_y: f32
     // Calculate visible area using viewport calculations
     let screen_w = screen_width();
     let screen_h = screen_height();
-    let camera_offset = WorldPos::new(-cam_x, -cam_y);
+    let camera_offset = WorldPos::new(cam_x, cam_y);
     let visible_region = ViewportCalculations::get_visible_tile_range(
         camera_offset, 
         screen_w, 
