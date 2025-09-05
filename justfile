@@ -36,11 +36,11 @@ test-client name="TestPlayer":
 web-serve:
     #!/bin/bash
     just build-web
-    npx browser-sync start --server dist --files "dist/**/*" --no-notify --port 8080
+    npx browser-sync start --server dist --files "dist,dist/**/*" --no-notify --port 8080 --watch
 
 # Start web server only (no build) - used by VS Code tasks
 web-serve-only:
-    npx browser-sync start --server dist --files "dist/**/*" --no-notify --port 8080
+    npx browser-sync start --server dist --files "dist,dist/**/*" --no-notify --port 8080 --watch
 
 # Watch and auto-rebuild WASM client using bacon
 watch-web:

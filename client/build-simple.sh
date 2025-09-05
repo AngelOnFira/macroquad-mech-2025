@@ -19,7 +19,6 @@ cargo build --target wasm32-unknown-unknown --no-default-features --features $FE
 # cargo build --target wasm32-unknown-unknown --no-default-features --features web,profiling $CARGO_FLAGS
 
 # Create dist directory
-rm -rf ../dist
 mkdir -p ../dist
 
 # Copy the WASM file

@@ -29,6 +29,8 @@ command = ["sh", "-c", "cd client && ./build-simple.sh"]
 need_stdout = true
 allow_warnings = true
 watch = ["client/src", "shared/src"]
+on_success = "play-sound(name=90s-game-ui-6,volume=100)"
+on_failure = "play-sound(name=beep-warning,volume=100)"
 
 # Custom job for building the server
 [jobs.build-server]
@@ -52,6 +54,10 @@ allow_warnings = true
 background = false
 watch = ["server/src", "shared/src"]
 env = { "RUST_LOG" = "info" }
+
+[sound]
+enabled = true
+base_volume = "100%" # global volume multiplier
 
 [keybindings]
 c = "job:check"

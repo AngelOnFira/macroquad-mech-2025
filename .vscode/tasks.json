@@ -46,8 +46,7 @@
         {
             "label": "Run Server",
             "type": "shell",
-            "command": "just",
-            "args": ["server"],
+            "command": "killport 14191; just server",
             "isBackground": true,
             "presentation": {
                 "reveal": "always",
@@ -94,8 +93,7 @@
         {
             "label": "Serve Web",
             "type": "shell",
-            "command": "just",
-            "args": ["web-serve-only"],
+            "command": "killport 8080; just web-serve-only",
             "isBackground": true,
             "dependsOn": "Build WASM",
             "presentation": {
@@ -141,8 +139,7 @@
         {
             "label": "Watch Server",
             "type": "shell",
-            "command": "just",
-            "args": ["watch-run-server"],
+            "command": "killport 14191; just watch-run-server",
             "isBackground": true,
             "presentation": {
                 "reveal": "always",
