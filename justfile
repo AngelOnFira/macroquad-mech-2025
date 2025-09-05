@@ -59,20 +59,6 @@ watch-run-server:
     bacon run-server
 
 
-# Build and run the hybrid tile demo
-build-demo:
-    cd client && ./build-demo.sh
-
-# Run demo in web browser - use VS Code tasks for background process
-dev-demo:
-    @echo "🎮 Use VS Code tasks for demo instead:"
-    @echo "  1. Open Command Palette (Ctrl+Shift+P)"
-    @echo "  2. Run 'Tasks: Run Task'"
-    @echo "  3. Select 'Serve Demo'"
-    @echo ""
-    @echo "Or run manually:"
-    @echo "  just build-demo"
-    @echo "  just web-serve        # Then navigate to /demo.html"
 
 # Start development environment - use VS Code tasks instead for multiple processes
 dev:

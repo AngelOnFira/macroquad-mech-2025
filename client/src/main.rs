@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use shared::*;
 
 mod debug_overlay;
-mod demo_mode;
 mod game_state;
 mod input;
 mod rendering;
@@ -147,14 +146,6 @@ async fn main() {
 
         profiler.new_frame();
         profiler.handle_input();
-
-        // Check for demo mode
-        if is_key_pressed(KeyCode::D) && is_key_down(KeyCode::LeftControl) {
-            info!("Entering demo mode...");
-            let mut demo = demo_mode::DemoMode::new();
-            demo.run().await;
-            info!("Exited demo mode");
-        }
 
         // Spatial debug is now controlled through the debug overlay UI (Spatial tab)
 
