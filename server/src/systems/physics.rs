@@ -1,5 +1,6 @@
 use super::GameSystem;
 use crate::game::Game;
+use log::info;
 use shared::*;
 
 /// Physics system handles object movement, collisions, and physics updates
@@ -35,10 +36,11 @@ impl PhysicsSystem {
         let mut mech_updates = Vec::new();
         for mech in game.mechs.values_mut() {
             // Use overridden velocity if available, otherwise use mech's velocity
-            let effective_velocity = mech_velocities
+            let mut effective_velocity = mech_velocities
                 .get(&mech.id)
                 .copied()
                 .unwrap_or(mech.velocity);
+            effective_velocity.0 = 1.0;
             if effective_velocity.0 != 0.0 || effective_velocity.1 != 0.0 {
                 // Update world position using effective velocity (potentially overridden for testing)
                 mech.world_position.x += effective_velocity.0 * TILE_SIZE * delta_time;
@@ -98,6 +100,7 @@ impl PhysicsSystem {
                         && player_pos.y <= mech_max_y
                     {
                         // Player was run over!
+                        info!("Player {player_id} was run over by mech {}", mech.id);
                         killed_players.push(*player_id);
                         break;
                     }

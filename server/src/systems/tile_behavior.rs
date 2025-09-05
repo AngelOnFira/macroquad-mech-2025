@@ -2,6 +2,7 @@ use crate::entity_storage::EntityStorage;
 use crate::game::Game;
 use crate::game::Player;
 use crate::systems::GameSystem;
+use log::info;
 use shared::{
     components::*,
     coordinates::MechDoorPositions,
@@ -169,6 +170,8 @@ impl TileBehaviorSystem {
 
                 // Default entrance range
                 if distance <= 1.0 * 16.0 {
+                    info!("Player {player_id} entered mech {} at distance {distance}", entrance.mech_id);
+                    
                     // 1 tile
                     self.event_queue.push(TileEvent::MechEntered {
                         mech_id: entrance.mech_id,

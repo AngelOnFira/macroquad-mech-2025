@@ -101,7 +101,7 @@ fn render_grass_background(cam_x: f32, cam_y: f32, vision_system: Option<&Client
         screen_w,
         screen_h,
         grass_tile_size,
-        1, // 1 tile padding
+        TileRange::new(1), // 1 tile padding
     );
 
     for grass_tile_pos in grass_region.iter() {
@@ -157,9 +157,9 @@ fn render_mechs(
         let mut color = get_team_color(mech.team);
         let mut outline_color = WHITE;
 
-        let mech_world = mech.position.to_world();
-        let mech_x = cam_x + mech_world.x;
-        let mech_y = cam_y + mech_world.y;
+        // Use continuous world position for smooth movement
+        let mech_x = cam_x + mech.world_position.x;
+        let mech_y = cam_y + mech.world_position.y;
 
         // Apply fog of war to mech based on its position
         if let Some(vision) = vision_system {
@@ -204,8 +204,13 @@ fn render_visible_interior_tile(
     // Convert interior position to world position for rendering
     let world_pos = MechInteriorCoordinates::interior_to_world(mech.position, floor, interior_pos);
     let world_coords = world_pos.to_world();
-    let tile_x = cam_x + world_coords.x;
-    let tile_y = cam_y + world_coords.y;
+    
+    // Apply smooth offset based on the difference between continuous and discrete position
+    let offset_x = mech.world_position.x - mech.position.to_world().x;
+    let offset_y = mech.world_position.y - mech.position.to_world().y;
+    
+    let tile_x = cam_x + world_coords.x + offset_x;
+    let tile_y = cam_y + world_coords.y + offset_y;
 
     // Render as a translucent floor tile that can be seen through windows/doors
     let mut interior_color = Color::new(0.3, 0.3, 0.4, visibility * 0.7);
@@ -254,18 +259,20 @@ fn render_world_tiles(
         for mech in game_state.mechs.values() {
             let team_color = get_team_color(mech.team);
 
-            // Render door tiles using door position abstraction
+            // Render door tiles using continuous position for smooth movement
             let doors = MechDoorPositions::from_mech_position(mech.position);
-            render_door_tile(
-                doors.left_door.x,
-                doors.left_door.y,
+            render_door_tile_smooth(
+                doors.left_door,
+                &mech.world_position,
+                &mech.position,
                 team_color,
                 cam_x,
                 cam_y,
             );
-            render_door_tile(
-                doors.right_door.x,
-                doors.right_door.y,
+            render_door_tile_smooth(
+                doors.right_door,
+                &mech.world_position,
+                &mech.position,
                 team_color,
                 cam_x,
                 cam_y,
@@ -278,6 +285,68 @@ fn render_door_tile(x: i32, y: i32, team_color: Color, cam_x: f32, cam_y: f32) {
     let door_tile = TilePos::new(x, y);
     let (tile_x, tile_y) =
         ViewportCalculations::tile_to_screen(door_tile, WorldPos::new(cam_x, cam_y));
+
+    // Door background (darker than mech)
+    draw_rectangle(
+        tile_x,
+        tile_y,
+        TILE_SIZE,
+        TILE_SIZE,
+        Color::new(
+            team_color.r * 0.3,
+            team_color.g * 0.3,
+            team_color.b * 0.3,
+            1.0,
+        ),
+    );
+
+    // Door outline
+    draw_rectangle_lines(tile_x, tile_y, TILE_SIZE, TILE_SIZE, 2.0, WHITE);
+
+    // Visual entry indicator - just a subtle arrow or pattern
+    let arrow_color = Color::new(1.0, 1.0, 1.0, 0.5);
+    draw_line(
+        tile_x + TILE_SIZE / 2.0,
+        tile_y + TILE_SIZE * 0.3,
+        tile_x + TILE_SIZE / 2.0,
+        tile_y + TILE_SIZE * 0.7,
+        2.0,
+        arrow_color,
+    );
+    draw_line(
+        tile_x + TILE_SIZE * 0.3,
+        tile_y + TILE_SIZE * 0.5,
+        tile_x + TILE_SIZE / 2.0,
+        tile_y + TILE_SIZE * 0.7,
+        2.0,
+        arrow_color,
+    );
+    draw_line(
+        tile_x + TILE_SIZE * 0.7,
+        tile_y + TILE_SIZE * 0.5,
+        tile_x + TILE_SIZE / 2.0,
+        tile_y + TILE_SIZE * 0.7,
+        2.0,
+        arrow_color,
+    );
+}
+
+fn render_door_tile_smooth(
+    door_tile_pos: TilePos,
+    mech_world_pos: &WorldPos,
+    mech_tile_pos: &TilePos,
+    team_color: Color,
+    cam_x: f32,
+    cam_y: f32,
+) {
+    // Calculate smooth offset based on the difference between continuous and discrete position
+    let offset_x = mech_world_pos.x - mech_tile_pos.to_world().x;
+    let offset_y = mech_world_pos.y - mech_tile_pos.to_world().y;
+    
+    // Convert door tile position to screen coordinates with smooth offset
+    let door_world = door_tile_pos.to_world();
+    let tile_x = cam_x + door_world.x + offset_x;
+    let tile_y = cam_y + door_world.y + offset_y;
 
     // Door background (darker than mech)
     draw_rectangle(
@@ -456,7 +525,7 @@ fn render_fog_overlay(vision_system: &ClientVisionSystem, cam_x: f32, cam_y: f32
 
             // Use edge fade for smooth fog transitions
             let edge_fade =
-                FogOfWarRenderer::calculate_edge_fade(tile_pos, vision_system, FOG_FADE_DISTANCE);
+                FogOfWarRenderer::calculate_edge_fade(tile_pos, vision_system, FOG_FADE_DISTANCE.tiles());
             if edge_fade > 0.0 {
                 let fog_alpha = (1.0 - edge_fade) * 0.8; // Max 80% opacity
                 let fog_color = Color::new(0.0, 0.0, 0.0, fog_alpha);
