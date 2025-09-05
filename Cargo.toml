@@ -25,7 +25,6 @@ inherits = "dev"
 opt-level = 2              # Enable optimizations for performance
 debug = true               # Keep debug symbols for profiling
 lto = "thin"              # Thin LTO for better optimization without excessive compile time
-codegen-units = 1         # Reduce parallel codegen for better optimization
 panic = "abort"           # Smaller binaries by avoiding unwinding
 strip = false             # Keep debug symbols
 overflow-checks = true   # Disable overflow checks for performance

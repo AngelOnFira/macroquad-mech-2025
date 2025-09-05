@@ -37,7 +37,7 @@ impl ClientVisionSystem {
             visibility_mask: HashMap::new(),
             visible_interior_tiles: HashMap::new(),
             last_update_pos: WorldPos::new(-999.0, -999.0), // Force initial update
-            vision_range: 200.0,                            // About 6-7 tiles (reduced from 300)
+            vision_range: 500.0,                            // About 6-7 tiles (reduced from 300)
             update_threshold: 16.0, // Half tile movement (increased sensitivity)
             frame_counter: 0,
         }

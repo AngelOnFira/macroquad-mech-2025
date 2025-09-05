@@ -1,0 +1,64 @@
+# Bacon configuration for Mech Battle Arena
+# This enables automatic rebuilding when source files change
+
+default_job = "check"
+
+[jobs.check]
+command = ["cargo", "check", "--color", "always"]
+need_stdout = false
+
+[jobs.check-all]
+command = ["cargo", "check", "--workspace", "--all-targets", "--color", "always"]
+need_stdout = false
+
+[jobs.clippy]
+command = ["cargo", "clippy", "--all-targets", "--color", "always"]
+need_stdout = false
+
+[jobs.test]
+command = ["cargo", "test", "--color", "always"]
+need_stdout = true
+
+[jobs.doc]
+command = ["cargo", "doc", "--color", "always", "--no-deps"]
+need_stdout = false
+
+# Custom job for building the WASM client
+[jobs.build-web]
+command = ["sh", "-c", "cd client && ./build-simple.sh"]
+need_stdout = true
+allow_warnings = true
+watch = ["client/src", "shared/src"]
+
+# Custom job for building the server
+[jobs.build-server]
+command = ["cargo", "build", "--bin", "server", "--color", "always"]
+need_stdout = false
+allow_warnings = true
+watch = ["server/src", "shared/src"]
+
+# Custom job for building both server and client
+[jobs.build-all]
+command = ["sh", "-c", "cargo build --bin server && cd client && ./build-simple.sh"]
+need_stdout = true
+allow_warnings = true
+watch = ["client/src", "server/src", "shared/src"]
+
+# Job for running the server with auto-restart
+[jobs.run-server]
+command = ["cargo", "run", "--bin", "server"]
+need_stdout = true
+allow_warnings = true
+background = false
+watch = ["server/src", "shared/src"]
+env = { "RUST_LOG" = "info" }
+
+[keybindings]
+c = "job:check"
+C = "job:check-all"
+t = "job:test"
+d = "job:doc"
+w = "job:build-web"
+s = "job:build-server"
+a = "job:build-all"
+r = "job:run-server"

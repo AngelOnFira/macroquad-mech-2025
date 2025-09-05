@@ -153,6 +153,7 @@ impl DebugOverlay {
         Window::new("Debug Overlay")
             .resizable(true)
             .collapsible(true)
+            .default_open(false)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.toggle_value(&mut self.show_performance, "Performance");

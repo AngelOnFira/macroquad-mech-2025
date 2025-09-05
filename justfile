@@ -32,11 +32,74 @@ client:
 test-client name="TestPlayer":
     cargo run --bin test_client {{name}}
 
-# Start web development server
+# Start web development server (legacy - uses Python)
 web-dev:
     #!/bin/bash
     just build-web
     cd dist && python3 -m http.server 8080
+
+# Start web development with live reload using miniserve
+web-dev-live:
+    #!/bin/bash
+    just build-web
+    cd dist && miniserve . --port 8080 --index index.html
+
+# Watch and auto-rebuild WASM client using bacon
+watch-web:
+    bacon build-web
+
+# Watch and auto-rebuild server using bacon
+watch-server:
+    bacon build-server
+
+# Watch and auto-rebuild everything using bacon
+watch-all:
+    bacon build-all
+
+# Watch and run server with auto-restart using bacon
+watch-run-server:
+    bacon run-server
+
+# Full development with auto-reload: WASM rebuild + live server
+dev-live:
+    #!/bin/bash
+    echo "Starting live development environment..."
+    
+    # Kill any existing servers
+    pkill -f "target/debug/server" || true
+    pkill -f "miniserve" || true
+    pkill -f "python.*8080" || true
+    sleep 1
+    
+    # Build initial WASM
+    echo "Building initial WASM client..."
+    cd client && ./build-simple.sh
+    cd ..
+    
+    # Start game server
+    echo "Starting game server..."
+    RUST_LOG=info cargo run --bin server &
+    SERVER_PID=$!
+    
+    # Wait for server to start
+    sleep 2
+    
+    # Start live reload web server
+    echo "Starting live reload web server..."
+    cd dist && miniserve . --port 8080 --index index.html &
+    WEB_PID=$!
+    
+    echo ""
+    echo "🎮 Live development environment ready!"
+    echo "Game server: ws://127.0.0.1:14191/ws (PID: $SERVER_PID)"
+    echo "Live reload web server: http://localhost:8080 (PID: $WEB_PID)"
+    echo ""
+    echo "In another terminal, run 'just watch-web' to auto-rebuild WASM on changes"
+    echo "Press Ctrl+C to stop all servers"
+    
+    # Wait for interrupt
+    trap "kill $SERVER_PID $WEB_PID 2>/dev/null; exit" INT
+    wait
 
 # Build and run the hybrid tile demo
 build-demo:
@@ -233,6 +296,9 @@ kill-servers:
     pkill -f "target/debug/server" || true
     pkill -f "trunk" || true
     pkill -f "test_client" || true
+    pkill -f "miniserve" || true
+    pkill -f "python.*8080" || true
+    pkill -f "bacon" || true
     # Also try to kill by port
     lsof -ti:8080 | xargs kill -9 2>/dev/null || true
     lsof -ti:14191 | xargs kill -9 2>/dev/null || true

@@ -1,0 +1,29 @@
+# [build]
+# # Optional: speed up Rust compilation itself (not the linker),
+# # but keep defaults if you use heavy proc-macros or huge crates.
+# # rustflags = ["-Zunstable-options"] # (Only for nightly flags—omit if on stable.)
+
+# # --- macOS (Apple Silicon) ---
+# [target.aarch64-apple-darwin]
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=zld"]
+# # If you prefer lld instead of zld, use:
+# # rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# # --- macOS (Intel) ---
+# [target.x86_64-apple-darwin]
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=zld"]
+# # Or swap zld -> lld if you installed llvm instead.
+
+# # --- Linux (glibc) ---
+# [target.x86_64-unknown-linux-gnu]
+# # You can use "gcc" here if you like; I default to clang for consistency.
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# # --- Linux (musl) ---
+# [target.x86_64-unknown-linux-musl]
+# # When using musl targets, clang works great as the driver too.
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
