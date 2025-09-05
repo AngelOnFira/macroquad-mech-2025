@@ -52,9 +52,7 @@ impl Command for JoinGameCommand {
         };
         let _ = tx.send((player_id, state_msg));
 
-        log::info!(
-            "Player {player_id} joined as {sanitized_name} on team {team:?}"
-        );
+        log::info!("Player {player_id} joined as {sanitized_name} on team {team:?}");
         Ok(())
     }
 }
@@ -91,7 +89,6 @@ impl Command for PlayerInputCommand {
             let (new_location, should_check_tile) = if let Some(player) =
                 game.players.get(&player_id)
             {
-                
                 match &player.location {
                     PlayerLocation::OutsideWorld(pos) => {
                         let mut new_pos = *pos;

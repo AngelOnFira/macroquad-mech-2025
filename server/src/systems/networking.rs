@@ -158,9 +158,7 @@ impl NetworkingSystem {
                         || world_position.x >= (ARENA_WIDTH_TILES as f32 * TILE_SIZE)
                         || world_position.y >= (ARENA_HEIGHT_TILES as f32 * TILE_SIZE)
                     {
-                        log::warn!(
-                            "Invalid mech world position in message: {world_position:?}"
-                        );
+                        log::warn!("Invalid mech world position in message: {world_position:?}");
                         return false;
                     }
                 }

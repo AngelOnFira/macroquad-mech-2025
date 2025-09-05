@@ -174,9 +174,7 @@ impl ResourceSystem {
                     resource_id,
                 });
 
-                log::info!(
-                    "Player {player_id} picked up {resource_type:?} resource"
-                );
+                log::info!("Player {player_id} picked up {resource_type:?} resource");
             }
         }
 
@@ -212,9 +210,7 @@ impl ResourceSystem {
                         player_id,
                     });
 
-                    log::info!(
-                        "Player {player_id} delivered {resource_type:?} to mech {mech_id}"
-                    );
+                    log::info!("Player {player_id} delivered {resource_type:?} to mech {mech_id}");
                 }
             }
         }

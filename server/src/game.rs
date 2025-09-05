@@ -132,10 +132,7 @@ impl Game {
         // Initialize world with grass tiles
         for x in 0..ARENA_WIDTH_TILES {
             for y in 0..ARENA_HEIGHT_TILES {
-                tile_map.set_world_tile(
-                    TilePos::new(x, y),
-                    TileContent::Static(StaticTile::Grass),
-                );
+                tile_map.set_world_tile(TilePos::new(x, y), TileContent::Static(StaticTile::Grass));
             }
         }
 
@@ -168,10 +165,7 @@ impl Game {
         // Initialize world with grass tiles
         for x in 0..ARENA_WIDTH_TILES {
             for y in 0..ARENA_HEIGHT_TILES {
-                tile_map.set_world_tile(
-                    TilePos::new(x, y),
-                    TileContent::Static(StaticTile::Grass),
-                );
+                tile_map.set_world_tile(TilePos::new(x, y), TileContent::Static(StaticTile::Grass));
             }
         }
         let mut game = Self {
@@ -969,9 +963,7 @@ impl Game {
                     resource_id,
                 };
                 let _ = tx.send((Uuid::nil(), msg));
-                log::info!(
-                    "Player {player_id} picked up {resource_type:?} resource"
-                );
+                log::info!("Player {player_id} picked up {resource_type:?} resource");
             }
         }
     }

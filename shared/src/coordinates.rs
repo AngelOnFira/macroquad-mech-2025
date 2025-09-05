@@ -965,7 +965,7 @@ mod new_tests {
     #[test]
     fn test_tile_range() {
         let range = TileRange::new(5);
-        
+
         assert_eq!(range.tiles(), 5);
         assert_eq!(range.to_world_distance(), 5.0 * TILE_SIZE);
 

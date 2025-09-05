@@ -63,10 +63,7 @@ impl<T: Clone> SpatialGrid<T> {
     pub fn insert(&mut self, entity: SpatialEntity<T>) {
         let cells = self.get_cells_for_entity(&entity);
         for cell in cells {
-            self.grid
-                .entry(cell)
-                .or_default()
-                .push(entity.clone());
+            self.grid.entry(cell).or_default().push(entity.clone());
         }
     }
 

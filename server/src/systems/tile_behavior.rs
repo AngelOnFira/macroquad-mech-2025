@@ -384,18 +384,14 @@ impl GameSystem for TileBehaviorSystem {
                 TileEvent::ProximityTriggered { entity, actor, .. } => {
                     // Could send a notification to the player
                     // For now, just log it
-                    log::debug!(
-                        "Proximity trigger: entity {entity:?} triggered by {actor:?}"
-                    );
+                    log::debug!("Proximity trigger: entity {entity:?} triggered by {actor:?}");
                 }
                 TileEvent::AutoInteractionTriggered {
                     entity,
                     actor,
                     action,
                 } => {
-                    log::debug!(
-                        "Auto interaction: {action:?} on entity {entity:?} by {actor:?}"
-                    );
+                    log::debug!("Auto interaction: {action:?} on entity {entity:?} by {actor:?}");
                     // Handle based on action type
                     if let AutoInteractionType::DropResource = action {
                         if let Some(player) = game.players.get_mut(&actor) {
@@ -436,13 +432,11 @@ impl GameSystem for TileBehaviorSystem {
                                                 .or_insert(0) += 1;
                                             player.carrying_resource = None;
 
-                                            messages.push(
-                                                ServerMessage::PlayerDroppedResource {
-                                                    player_id: actor,
-                                                    resource_type,
-                                                    position: tile_pos,
-                                                },
-                                            );
+                                            messages.push(ServerMessage::PlayerDroppedResource {
+                                                player_id: actor,
+                                                resource_type,
+                                                position: tile_pos,
+                                            });
 
                                             log::info!(
                                                 "Player {actor} deposited {resource_type:?} to mech cargo bay"

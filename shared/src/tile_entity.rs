@@ -328,7 +328,11 @@ impl TileMap {
     pub fn get_world_tile(&self, pos: TilePos) -> Option<TileContent> {
         if let Some(entity_id) = self.entity_tiles.get(&pos) {
             Some(TileContent::Entity(*entity_id))
-        } else { self.static_tiles.get(&pos).map(|static_tile| TileContent::Static(*static_tile)) }
+        } else {
+            self.static_tiles
+                .get(&pos)
+                .map(|static_tile| TileContent::Static(*static_tile))
+        }
     }
 
     // Get tile at world position, accounting for mechs

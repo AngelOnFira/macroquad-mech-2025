@@ -953,13 +953,7 @@ impl DemoMode {
                 LayerType::Ground => "Ground Level".to_string(),
                 LayerType::MechFloor(f) => format!("Mech Floor {}", f + 1),
             };
-            draw_text(
-                &format!("Current: {layer_text}"),
-                10.0,
-                140.0,
-                18.0,
-                GREEN,
-            );
+            draw_text(&format!("Current: {layer_text}"), 10.0, 140.0, 18.0, GREEN);
 
             // Show transition state
             if self.transition_from.is_some() {

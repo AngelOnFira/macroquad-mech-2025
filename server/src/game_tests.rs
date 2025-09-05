@@ -8,7 +8,7 @@ mod tests {
         types::{TilePos, WorldPos},
         PlayerLocation, TeamId,
     };
-    
+
     use uuid::Uuid;
 
     // =============================================================================
@@ -128,9 +128,7 @@ mod tests {
                 // This is expected
             }
             PlayerLocation::InsideMech { mech_id, .. } => {
-                panic!(
-                    "Player {player_id} is in mech {mech_id}, expected to be outside"
-                );
+                panic!("Player {player_id} is in mech {mech_id}, expected to be outside");
             }
         }
     }
