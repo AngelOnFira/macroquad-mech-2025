@@ -749,12 +749,12 @@ impl ViewportCalculations {
         screen_width: f32,
         screen_height: f32,
         tile_size: f32,
-        padding_tiles: i32,
+        padding_tiles: TileRange,
     ) -> TileRegion {
-        let start_x = ((-camera_offset.x / tile_size).floor()) as i32 - padding_tiles;
-        let start_y = ((-camera_offset.y / tile_size).floor()) as i32 - padding_tiles;
-        let end_x = ((-camera_offset.x + screen_width) / tile_size).ceil() as i32 + padding_tiles;
-        let end_y = ((-camera_offset.y + screen_height) / tile_size).ceil() as i32 + padding_tiles;
+        let start_x = ((-camera_offset.x / tile_size).floor()) as i32 - *padding_tiles;
+        let start_y = ((-camera_offset.y / tile_size).floor()) as i32 - *padding_tiles;
+        let end_x = ((-camera_offset.x + screen_width) / tile_size).ceil() as i32 + *padding_tiles;
+        let end_y = ((-camera_offset.y + screen_height) / tile_size).ceil() as i32 + *padding_tiles;
 
         TileRegion::new(TilePos::new(start_x, start_y), TilePos::new(end_x, end_y))
     }
@@ -764,7 +764,7 @@ impl ViewportCalculations {
         camera_offset: WorldPos,
         screen_width: f32,
         screen_height: f32,
-        padding_tiles: i32,
+        padding_tiles: TileRange,
     ) -> TileRegion {
         Self::get_visible_range_with_tile_size(
             camera_offset,
@@ -808,7 +808,7 @@ pub struct TileRange(pub i32);
 
 impl TileRange {
     /// Create a new tile range
-    pub fn new(tiles: i32) -> Self {
+    pub const fn new(tiles: i32) -> Self {
         Self(tiles)
     }
 
