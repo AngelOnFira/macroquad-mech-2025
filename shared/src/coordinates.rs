@@ -440,7 +440,7 @@ pub mod conversion {
                 let pos = WorldPos::new(x, y);
                 pos.is_in_mech_floor_bounds()
             }
-            CoordinateSpace::NDC => x >= -1.0 && x <= 1.0 && y >= -1.0 && y <= 1.0,
+            CoordinateSpace::NDC => (-1.0..=1.0).contains(&x) && (-1.0..=1.0).contains(&y),
             _ => true, // Screen and Grid don't have fixed bounds
         }
     }

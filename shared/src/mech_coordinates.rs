@@ -32,7 +32,7 @@ impl MechInteriorCoordinates {
         let relative_y_base = world_pos.y - mech_pos.y;
 
         // Must be within mech bounds horizontally
-        if relative_x < 0 || relative_x >= FLOOR_WIDTH_TILES {
+        if !(0..FLOOR_WIDTH_TILES).contains(&relative_x) {
             return None;
         }
 
@@ -41,7 +41,7 @@ impl MechInteriorCoordinates {
             let floor_y_offset = floor as i32 * (FLOOR_HEIGHT_TILES + 1);
             let relative_y = relative_y_base - floor_y_offset;
 
-            if relative_y >= 0 && relative_y < FLOOR_HEIGHT_TILES {
+            if (0..FLOOR_HEIGHT_TILES).contains(&relative_y) {
                 return Some((floor, TilePos::new(relative_x, relative_y)));
             }
         }

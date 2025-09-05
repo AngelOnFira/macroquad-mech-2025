@@ -19,7 +19,7 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
                 let msg_json = match serde_json::to_string(&msg) {
                     Ok(json) => json,
                     Err(e) => {
-                        log::error!("Failed to serialize message: {}", e);
+                        log::error!("Failed to serialize message: {e}");
                         break;
                     }
                 };
@@ -39,17 +39,17 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
                 Ok(client_msg) => {
                     // Validate the message before processing
                     if let Err(e) = client_msg.validate() {
-                        log::warn!("Invalid message from player {}: {}", player_id, e);
+                        log::warn!("Invalid message from player {player_id}: {e}");
                         // Optionally send error back to client
                         continue;
                     }
                     let command = crate::commands::create_command(client_msg);
                     if let Err(e) = command.execute(&game, player_id, &tx).await {
-                        log::warn!("Command execution failed for player {}: {}", player_id, e);
+                        log::warn!("Command execution failed for player {player_id}: {e}");
                     }
                 }
                 Err(e) => {
-                    log::warn!("Failed to parse message from player {}: {}", player_id, e);
+                    log::warn!("Failed to parse message from player {player_id}: {e}");
                 }
             }
         }
@@ -72,7 +72,7 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
         .tx
         .send((Uuid::nil(), ServerMessage::PlayerDisconnected { player_id }));
 
-    log::info!("Player {} disconnected", player_id);
+    log::info!("Player {player_id} disconnected");
 }
 
 pub async fn handle_action_key(
@@ -286,7 +286,7 @@ pub async fn handle_station_button(
                 let (our_team, our_pos, laser_level) = match game.mechs.get(&mech_id) {
                     Some(mech) => (mech.team, mech.position, mech.upgrades.laser_level),
                     None => {
-                        log::error!("Mech {} not found when firing laser", mech_id);
+                        log::error!("Mech {mech_id} not found when firing laser");
                         return;
                     }
                 };
@@ -344,7 +344,7 @@ pub async fn handle_station_button(
                 let (our_team, our_pos, projectile_level) = match game.mechs.get(&mech_id) {
                     Some(mech) => (mech.team, mech.position, mech.upgrades.projectile_level),
                     None => {
-                        log::error!("Mech {} not found when firing projectile", mech_id);
+                        log::error!("Mech {mech_id} not found when firing projectile");
                         return;
                     }
                 };
@@ -519,7 +519,7 @@ pub async fn handle_station_button(
                 // Repair mech (costs 1 scrap metal per 20 HP)
                 if let Some(mech) = game.mechs.get(&mech_id) {
                     let damage = mech.max_health.saturating_sub(mech.health);
-                    let scrap_needed = (damage + REPAIR_HP_PER_SCRAP - 1) / REPAIR_HP_PER_SCRAP; // Round up
+                    let scrap_needed = damage.div_ceil(REPAIR_HP_PER_SCRAP); // Round up
 
                     if scrap_needed > 0
                         && check_and_consume_resources(

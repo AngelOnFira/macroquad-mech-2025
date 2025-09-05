@@ -53,10 +53,7 @@ impl Command for JoinGameCommand {
         let _ = tx.send((player_id, state_msg));
 
         log::info!(
-            "Player {} joined as {} on team {:?}",
-            player_id,
-            sanitized_name,
-            team
+            "Player {player_id} joined as {sanitized_name} on team {team:?}"
         );
         Ok(())
     }
@@ -94,7 +91,8 @@ impl Command for PlayerInputCommand {
             let (new_location, should_check_tile) = if let Some(player) =
                 game.players.get(&player_id)
             {
-                let new_pos = match &player.location {
+                
+                match &player.location {
                     PlayerLocation::OutsideWorld(pos) => {
                         let mut new_pos = *pos;
                         // Move in world space
@@ -138,8 +136,7 @@ impl Command for PlayerInputCommand {
                             false,
                         )
                     }
-                };
-                new_pos
+                }
             } else {
                 return Ok(());
             };
@@ -203,9 +200,7 @@ impl Command for PlayerInputCommand {
                                                     entry_info = Some((*mech_id, entry_pos));
                                                 } else {
                                                     log::debug!(
-                                                        "Player {} denied entry to enemy mech {}",
-                                                        actor,
-                                                        mech_id
+                                                        "Player {actor} denied entry to enemy mech {mech_id}"
                                                     );
                                                 }
                                                 break;
@@ -238,9 +233,7 @@ impl Command for PlayerInputCommand {
                                         ));
 
                                         log::info!(
-                                            "Player {} entered mech {} immediately",
-                                            actor,
-                                            mech_id
+                                            "Player {actor} entered mech {mech_id} immediately"
                                         );
                                     }
                                 }

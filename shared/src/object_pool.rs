@@ -74,6 +74,12 @@ pub struct PooledProjectile {
     pub active: bool,
 }
 
+impl Default for PooledProjectile {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PooledProjectile {
     /// Create a new pooled projectile
     pub fn new() -> Self {
@@ -163,6 +169,12 @@ pub enum EffectType {
     Heal,
 }
 
+impl Default for PooledEffect {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PooledEffect {
     /// Create a new pooled effect
     pub fn new() -> Self {
@@ -246,13 +258,13 @@ impl PoolManager {
     pub fn new() -> Self {
         let projectile_pool = ObjectPool::new(
             200, // Max 200 projectiles
-            || PooledProjectile::new(),
+            PooledProjectile::new,
             |proj| proj.reset(),
         );
 
         let effect_pool = ObjectPool::new(
             500, // Max 500 effects
-            || PooledEffect::new(),
+            PooledEffect::new,
             |effect| effect.reset(),
         );
 
@@ -314,7 +326,7 @@ mod tests {
 
     #[test]
     fn test_object_pool_basic() {
-        let mut pool = ObjectPool::new(5, || PooledProjectile::new(), |proj| proj.reset());
+        let mut pool = ObjectPool::new(5, PooledProjectile::new, |proj| proj.reset());
 
         assert!(pool.available_count() > 0);
 

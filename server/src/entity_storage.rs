@@ -47,6 +47,12 @@ struct EntityInfo {
     active: bool,
 }
 
+impl Default for EntityStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EntityStorage {
     pub fn new() -> Self {
         Self {
@@ -345,7 +351,7 @@ impl EntityStorage {
             entity_id,
             EntityInfo {
                 id: entity_id,
-                name: format!("Entity_{}", entity_id),
+                name: format!("Entity_{entity_id}"),
                 active: true,
             },
         );

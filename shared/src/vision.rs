@@ -46,6 +46,12 @@ impl Ray {
     }
 }
 
+impl Default for VisionSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VisionSystem {
     pub fn new() -> Self {
         Self {

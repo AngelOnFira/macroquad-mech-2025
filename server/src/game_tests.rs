@@ -8,7 +8,7 @@ mod tests {
         types::{TilePos, WorldPos},
         PlayerLocation, TeamId,
     };
-    use std::collections::HashMap;
+    
     use uuid::Uuid;
 
     // =============================================================================
@@ -99,20 +99,18 @@ mod tests {
         let player = game
             .players
             .get(&player_id)
-            .expect(&format!("Player {} not found", player_id));
+            .unwrap_or_else(|| panic!("Player {player_id} not found"));
 
         match &player.location {
             PlayerLocation::InsideMech { mech_id, .. } => {
                 assert_eq!(
                     *mech_id, expected_mech_id,
-                    "Player {} is in mech {} but expected mech {}",
-                    player_id, mech_id, expected_mech_id
+                    "Player {player_id} is in mech {mech_id} but expected mech {expected_mech_id}"
                 );
             }
             PlayerLocation::OutsideWorld(_) => {
                 panic!(
-                    "Player {} is outside world, expected to be in mech {}",
-                    player_id, expected_mech_id
+                    "Player {player_id} is outside world, expected to be in mech {expected_mech_id}"
                 );
             }
         }
@@ -123,7 +121,7 @@ mod tests {
         let player = game
             .players
             .get(&player_id)
-            .expect(&format!("Player {} not found", player_id));
+            .unwrap_or_else(|| panic!("Player {player_id} not found"));
 
         match &player.location {
             PlayerLocation::OutsideWorld(_) => {
@@ -131,8 +129,7 @@ mod tests {
             }
             PlayerLocation::InsideMech { mech_id, .. } => {
                 panic!(
-                    "Player {} is in mech {}, expected to be outside",
-                    player_id, mech_id
+                    "Player {player_id} is in mech {mech_id}, expected to be outside"
                 );
             }
         }
@@ -206,9 +203,9 @@ mod tests {
         let player_pos = get_player_world_pos(&game, player_id).unwrap();
         let expected_pos = doors.left_door.to_world_center();
 
-        println!("Player position: {:?}", player_pos);
-        println!("Expected position: {:?}", expected_pos);
-        println!("Generated events: {:?}", events);
+        println!("Player position: {player_pos:?}");
+        println!("Expected position: {expected_pos:?}");
+        println!("Generated events: {events:?}");
 
         // The player should be at the door tile
         assert!(
@@ -236,12 +233,12 @@ mod tests {
         // Walk to the left door and get events
         let events = simulate_walk_to_tile(&mut game, player_id, doors.left_door);
 
-        println!("Events generated: {:?}", events);
+        println!("Events generated: {events:?}");
 
         // Process the tile events synchronously
         let messages = process_tile_events_sync(&mut game, events);
 
-        println!("Messages generated: {:?}", messages);
+        println!("Messages generated: {messages:?}");
 
         // Check if player entered mech
         // Note: This test might fail initially, which is expected
@@ -256,8 +253,7 @@ mod tests {
                     pos,
                 } => {
                     println!(
-                        "SUCCESS: Player entered mech {} on floor {} at {:?}",
-                        entered_mech_id, floor, pos
+                        "SUCCESS: Player entered mech {entered_mech_id} on floor {floor} at {pos:?}"
                     );
                     assert_eq!(
                         *entered_mech_id, mech_id,
@@ -265,7 +261,7 @@ mod tests {
                     );
                 }
                 PlayerLocation::OutsideWorld(pos) => {
-                    println!("ISSUE: Player is still outside at {:?}", pos);
+                    println!("ISSUE: Player is still outside at {pos:?}");
                     // This is what we expect to fail initially
                     // The test documents the expected behavior
                 }
@@ -375,8 +371,8 @@ mod tests {
                 "Mech at {:?} has doors at {:?} and {:?}",
                 mech.position, doors.left_door, doors.right_door
             );
-            println!("Left door tile: {:?}", left_tile);
-            println!("Right door tile: {:?}", right_tile);
+            println!("Left door tile: {left_tile:?}");
+            println!("Right door tile: {right_tile:?}");
 
             // Verify these are actually transition tiles
             if let Some(shared::tile_entity::TileContent::Static(static_tile)) = left_tile {
@@ -384,14 +380,14 @@ mod tests {
                     shared::tile_entity::StaticTile::TransitionZone {
                         transition_type, ..
                     } => {
-                        println!("Left door is TransitionZone: {:?}", transition_type);
+                        println!("Left door is TransitionZone: {transition_type:?}");
                     }
                     _ => {
-                        panic!("Left door tile is not a TransitionZone: {:?}", static_tile);
+                        panic!("Left door tile is not a TransitionZone: {static_tile:?}");
                     }
                 }
             } else {
-                panic!("Left door tile is not a static tile: {:?}", left_tile);
+                panic!("Left door tile is not a static tile: {left_tile:?}");
             }
         }
     }

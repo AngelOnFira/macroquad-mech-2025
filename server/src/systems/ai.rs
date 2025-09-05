@@ -232,14 +232,14 @@ impl AISystem {
                 AICommand::ExitMech { player_id } => {
                     // Would need to handle exiting mech
                     // For now, log the action
-                    log::debug!("AI {} wants to exit mech", player_id);
+                    log::debug!("AI {player_id} wants to exit mech");
                 }
                 AICommand::EngineControl {
                     player_id,
                     movement,
                 } => {
                     // Would need to handle engine control for mechs
-                    log::debug!("AI {} wants to control engine: {:?}", player_id, movement);
+                    log::debug!("AI {player_id} wants to control engine: {movement:?}");
                 }
             }
         }
@@ -324,9 +324,7 @@ impl GameSystem for AISystem {
                                                     // Fire laser weapon
                                                     // For now, log the action
                                                     log::debug!(
-                                                        "AI {} pressed button {} on laser station",
-                                                        player_id,
-                                                        button_index
+                                                        "AI {player_id} pressed button {button_index} on laser station"
                                                     );
                                                 }
                                             }
@@ -334,16 +332,14 @@ impl GameSystem for AISystem {
                                                 if let Some(_mech) = game.mechs.get(&mech_id) {
                                                     // Fire projectile weapon
                                                     // For now, log the action
-                                                    log::debug!("AI {} pressed button {} on projectile station", player_id, button_index);
+                                                    log::debug!("AI {player_id} pressed button {button_index} on projectile station");
                                                 }
                                             }
                                             StationType::Shield => {
                                                 // Activate shield
                                                 // For now, log the action
                                                 log::debug!(
-                                                    "AI {} pressed button {} on shield station",
-                                                    player_id,
-                                                    button_index
+                                                    "AI {player_id} pressed button {button_index} on shield station"
                                                 );
                                             }
                                             _ => {}

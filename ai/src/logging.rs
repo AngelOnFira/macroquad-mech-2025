@@ -35,7 +35,7 @@ impl DecisionLogger {
         let log_file = if enabled {
             // Use a daily log file instead of per-second
             let today = Utc::now().format("%Y%m%d");
-            let filename = format!("ai_decisions_{}.log", today);
+            let filename = format!("ai_decisions_{today}.log");
             let path = PathBuf::from("logs").join(filename);
 
             // Create logs directory if it doesn't exist
@@ -69,7 +69,7 @@ impl DecisionLogger {
             action: decision
                 .chosen_action
                 .as_ref()
-                .map(|a| format!("{:?}", a))
+                .map(|a| format!("{a:?}"))
                 .unwrap_or_else(|| "None".to_string()),
             confidence: decision.confidence,
             reasoning: decision.reasoning.clone(),
@@ -89,7 +89,7 @@ impl DecisionLogger {
 
         // Write to file immediately if available
         if let Some(ref mut file) = self.log_file {
-            writeln!(file, "{}", formatted_entry).ok();
+            writeln!(file, "{formatted_entry}").ok();
         }
 
         // Also keep in memory buffer

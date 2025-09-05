@@ -117,6 +117,12 @@ pub struct DecisionContext {
     pub stress_level: f32,
 }
 
+impl Default for DecisionContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DecisionContext {
     pub fn new() -> Self {
         Self {

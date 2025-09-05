@@ -116,7 +116,7 @@ impl ResourceSystem {
                         resource_type,
                     });
 
-                    log::info!("Spawned {:?} resource at {:?}", resource_type, spawn_pos);
+                    log::info!("Spawned {resource_type:?} resource at {spawn_pos:?}");
                 }
             }
         }
@@ -175,9 +175,7 @@ impl ResourceSystem {
                 });
 
                 log::info!(
-                    "Player {} picked up {:?} resource",
-                    player_id,
-                    resource_type
+                    "Player {player_id} picked up {resource_type:?} resource"
                 );
             }
         }
@@ -215,10 +213,7 @@ impl ResourceSystem {
                     });
 
                     log::info!(
-                        "Player {} delivered {:?} to mech {}",
-                        player_id,
-                        resource_type,
-                        mech_id
+                        "Player {player_id} delivered {resource_type:?} to mech {mech_id}"
                     );
                 }
             }

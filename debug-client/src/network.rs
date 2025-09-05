@@ -1,4 +1,3 @@
-use serde_json;
 use std::sync::mpsc::{channel, Receiver, Sender as MpscSender};
 use std::sync::{Arc, Mutex};
 use ws::{connect, CloseCode, Handler, Handshake, Message, Result as WsResult, Sender as WsSender};
@@ -34,7 +33,7 @@ impl DebugConnection {
                     connected: connected_clone.clone(),
                 }
             }) {
-                log::error!("Failed to connect: {}", e);
+                log::error!("Failed to connect: {e}");
             }
         });
 
@@ -95,19 +94,19 @@ impl Handler for ClientHandler {
             } else if let Ok(debug_msg) = serde_json::from_str::<DebugMessage>(&text) {
                 self.tx.send(debug_msg).ok();
             } else {
-                log::warn!("Unknown message format: {}", text);
+                log::warn!("Unknown message format: {text}");
             }
         }
         Ok(())
     }
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {
-        log::info!("Connection closed: {:?} - {}", code, reason);
+        log::info!("Connection closed: {code:?} - {reason}");
         *self.connected.lock().unwrap() = false;
     }
 
     fn on_error(&mut self, err: ws::Error) {
-        log::error!("WebSocket error: {}", err);
+        log::error!("WebSocket error: {err}");
         *self.connected.lock().unwrap() = false;
     }
 }

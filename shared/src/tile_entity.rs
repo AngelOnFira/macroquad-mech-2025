@@ -95,6 +95,12 @@ pub struct FloorMap {
     pub entity_tiles: HashMap<TilePos, Uuid>,
 }
 
+impl Default for FloorMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FloorMap {
     pub fn new() -> Self {
         Self {
@@ -277,6 +283,12 @@ pub enum Material {
 // Tile Map Implementation
 // =============================================================================
 
+impl Default for TileMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TileMap {
     pub fn new() -> Self {
         Self {
@@ -316,11 +328,7 @@ impl TileMap {
     pub fn get_world_tile(&self, pos: TilePos) -> Option<TileContent> {
         if let Some(entity_id) = self.entity_tiles.get(&pos) {
             Some(TileContent::Entity(*entity_id))
-        } else if let Some(static_tile) = self.static_tiles.get(&pos) {
-            Some(TileContent::Static(*static_tile))
-        } else {
-            None
-        }
+        } else { self.static_tiles.get(&pos).map(|static_tile| TileContent::Static(*static_tile)) }
     }
 
     // Get tile at world position, accounting for mechs
@@ -334,14 +342,14 @@ impl TileMap {
                     let floor_idx = 0; // TODO: Calculate based on position
                     mech.floors.get(floor_idx)
                 })
-                .and_then(|floor| {
+                .map(|floor| {
                     let tile_pos = local_pos.to_tile();
                     if let Some(entity_id) = floor.entity_tiles.get(&tile_pos) {
-                        Some(TileContent::Entity(*entity_id))
+                        TileContent::Entity(*entity_id)
                     } else if let Some(static_tile) = floor.static_tiles.get(&tile_pos) {
-                        Some(TileContent::Static(*static_tile))
+                        TileContent::Static(*static_tile)
                     } else {
-                        Some(TileContent::Empty)
+                        TileContent::Empty
                     }
                 })
         } else {

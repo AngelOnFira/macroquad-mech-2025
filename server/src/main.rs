@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
     // Parse command line arguments for testing modes
     let args: Vec<String> = std::env::args().collect();
     let testing_config = testing_modes::parse_testing_args(&args)
-        .unwrap_or_else(|| testing_modes::TestingConfig::create_normal_config());
+        .unwrap_or_else(testing_modes::TestingConfig::create_normal_config);
 
     log::info!(
         "Starting server in mode: {}",
@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
 
     // Run it
     let addr = SocketAddr::from(([0, 0, 0, 0], SERVER_PORT));
-    log::info!("Server listening on {}", addr);
+    log::info!("Server listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
@@ -184,7 +184,7 @@ async fn cors_layer(
         match "*".parse() {
             Ok(val) => val,
             Err(e) => {
-                log::error!("Failed to parse CORS origin header: {}", e);
+                log::error!("Failed to parse CORS origin header: {e}");
                 return response;
             }
         },
@@ -194,7 +194,7 @@ async fn cors_layer(
         match "GET, POST, OPTIONS".parse() {
             Ok(val) => val,
             Err(e) => {
-                log::error!("Failed to parse CORS methods header: {}", e);
+                log::error!("Failed to parse CORS methods header: {e}");
                 return response;
             }
         },
@@ -204,7 +204,7 @@ async fn cors_layer(
         match "Content-Type, Upgrade, Connection".parse() {
             Ok(val) => val,
             Err(e) => {
-                log::error!("Failed to parse CORS headers header: {}", e);
+                log::error!("Failed to parse CORS headers header: {e}");
                 return response;
             }
         },
@@ -267,7 +267,7 @@ async fn handle_debug_socket(socket: WebSocket, state: AppState) {
         while let Some(Ok(msg)) = receiver.next().await {
             if let Ok(text) = msg.to_text() {
                 // Handle debug commands
-                log::debug!("Debug command: {}", text);
+                log::debug!("Debug command: {text}");
             }
         }
     });

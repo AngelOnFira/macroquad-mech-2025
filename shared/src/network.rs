@@ -64,7 +64,7 @@ impl<T: NetworkTransport> NetworkClient<T> {
         }
 
         self.transport.send_message(msg).map_err(|e| {
-            self.update_connection_error(format!("Send failed: {}", e));
+            self.update_connection_error(format!("Send failed: {e}"));
             e
         })
     }

@@ -201,7 +201,7 @@ impl HatManager {
                     .cloned()
                     .collect()
             })
-            .unwrap_or_else(Vec::new)
+            .unwrap_or_default()
     }
 
     /// Select a task from available tasks

@@ -57,7 +57,7 @@ fn validate_player_name(name: &str) -> ValidationResult<()> {
 
     if name.len() > MAX_PLAYER_NAME_LENGTH {
         return Err(ValidationError::InvalidPlayerName {
-            reason: format!("Name too long (max {} characters)", MAX_PLAYER_NAME_LENGTH),
+            reason: format!("Name too long (max {MAX_PLAYER_NAME_LENGTH} characters)"),
         });
     }
 

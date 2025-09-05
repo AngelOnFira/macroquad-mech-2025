@@ -181,7 +181,7 @@ impl StationRegistry {
         position: TilePos,
     ) -> GameResult<StationInstance> {
         let _definition = self.get_definition(station_type).ok_or_else(|| {
-            GameError::invalid_input(format!("Unknown station type: {:?}", station_type))
+            GameError::invalid_input(format!("Unknown station type: {station_type:?}"))
         })?;
 
         Ok(StationInstance {
@@ -284,7 +284,7 @@ impl StationRegistry {
                         }
                     }
 
-                    message = format!("Fired {:?} at target", weapon_type);
+                    message = format!("Fired {weapon_type:?} at target");
                 } else {
                     success = false;
                     message = "No target in range".to_string();
@@ -298,7 +298,7 @@ impl StationRegistry {
                         target_id: mech_id,
                         amount: boost_amount,
                     });
-                    message = format!("Boosted shield by {}", boost_amount);
+                    message = format!("Boosted shield by {boost_amount}");
                 }
             }
 
@@ -318,7 +318,7 @@ impl StationRegistry {
                             resource_type: ResourceType::ScrapMetal,
                             amount: *scrap_available,
                         });
-                        message = format!("Repaired {} HP", repair_amount);
+                        message = format!("Repaired {repair_amount} HP");
                     } else {
                         success = false;
                         message = "No scrap metal available for repairs".to_string();
@@ -344,7 +344,7 @@ impl StationRegistry {
                             format!("Upgraded {:?} to level {}", upgrade_type, current_level + 1);
                     } else {
                         success = false;
-                        message = format!("{:?} already at maximum level", upgrade_type);
+                        message = format!("{upgrade_type:?} already at maximum level");
                     }
                 }
             }
@@ -355,7 +355,7 @@ impl StationRegistry {
                         target_id: mech_id,
                         amount: *energy_per_tick,
                     });
-                    message = format!("Charging energy: +{}", energy_per_tick);
+                    message = format!("Charging energy: +{energy_per_tick}");
                 }
             }
 
@@ -366,7 +366,7 @@ impl StationRegistry {
                         buff_type: effect.clone(),
                         duration: *duration,
                     });
-                    message = format!("Activated {} for {}s", effect, duration);
+                    message = format!("Activated {effect} for {duration}s");
                 }
             }
 

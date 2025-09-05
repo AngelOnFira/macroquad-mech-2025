@@ -65,7 +65,7 @@ impl<T: Clone> SpatialGrid<T> {
         for cell in cells {
             self.grid
                 .entry(cell)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(entity.clone());
         }
     }

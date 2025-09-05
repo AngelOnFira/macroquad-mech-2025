@@ -77,6 +77,12 @@ pub struct Resource {
 
 // Projectile is now handled by PooledProjectile from the object_pool module
 
+impl Default for Game {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Game {
     /// Get all resources from entity storage
     pub fn get_resources(&self) -> Vec<Resource> {
@@ -127,7 +133,7 @@ impl Game {
         for x in 0..ARENA_WIDTH_TILES {
             for y in 0..ARENA_HEIGHT_TILES {
                 tile_map.set_world_tile(
-                    TilePos::new(x as i32, y as i32),
+                    TilePos::new(x, y),
                     TileContent::Static(StaticTile::Grass),
                 );
             }
@@ -163,7 +169,7 @@ impl Game {
         for x in 0..ARENA_WIDTH_TILES {
             for y in 0..ARENA_HEIGHT_TILES {
                 tile_map.set_world_tile(
-                    TilePos::new(x as i32, y as i32),
+                    TilePos::new(x, y),
                     TileContent::Static(StaticTile::Grass),
                 );
             }
@@ -498,7 +504,7 @@ impl Game {
         // Create the entity
         let entity_id = self
             .entity_storage
-            .create_entity(format!("Resource_{:?}", resource_type));
+            .create_entity(format!("Resource_{resource_type:?}"));
 
         // Add position
         self.entity_storage.add_position(
@@ -638,7 +644,7 @@ impl Game {
         ] {
             let entity_id = self
                 .entity_storage
-                .create_entity(format!("CargoBay_{:?}", resource_type));
+                .create_entity(format!("CargoBay_{resource_type:?}"));
 
             self.entity_storage.add_position(
                 entity_id,
@@ -964,9 +970,7 @@ impl Game {
                 };
                 let _ = tx.send((Uuid::nil(), msg));
                 log::info!(
-                    "Player {} picked up {:?} resource",
-                    player_id,
-                    resource_type
+                    "Player {player_id} picked up {resource_type:?} resource"
                 );
             }
         }

@@ -110,7 +110,7 @@ impl Perception {
                 carrying_resource: player.carrying_resource,
                 operating_station: player.operating_station,
                 health_status: HealthStatus::Healthy, // TODO: Track actual health
-                nearest_safe_location: find_nearest_safe_location(&game_view, &player),
+                nearest_safe_location: find_nearest_safe_location(game_view, &player),
             }
         } else {
             MyState {
@@ -122,10 +122,10 @@ impl Perception {
             }
         };
 
-        let threats = identify_threats(&game_view, ai_id, &my_state);
-        let opportunities = identify_opportunities(&game_view, ai_id, &my_state);
-        let team_state = analyze_team_state(&game_view, ai_id);
-        let environment = analyze_environment(&game_view);
+        let threats = identify_threats(game_view, ai_id, &my_state);
+        let opportunities = identify_opportunities(game_view, ai_id, &my_state);
+        let team_state = analyze_team_state(game_view, ai_id);
+        let environment = analyze_environment(game_view);
 
         Perception {
             my_id: ai_id,

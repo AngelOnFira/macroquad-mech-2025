@@ -159,7 +159,7 @@ impl TestingManager {
     /// Remove custom override for a specific mech
     pub fn remove_mech_override(&mut self, mech_id: Uuid) {
         if self.mech_test_overrides.remove(&mech_id).is_some() {
-            log::info!("Removed custom velocity override for mech {}", mech_id);
+            log::info!("Removed custom velocity override for mech {mech_id}");
         }
     }
 
@@ -267,7 +267,7 @@ impl TestingManager {
         let elapsed = self.test_start_time.elapsed();
         let mut report = String::new();
 
-        report.push_str(&format!("# Spatial Positioning Test Report\n"));
+        report.push_str("# Spatial Positioning Test Report\n");
         report.push_str(&format!("Test Mode: {}\n", self.config.testing_mode_name));
         report.push_str(&format!("Duration: {:.1} seconds\n", elapsed.as_secs_f32()));
         report.push_str(&format!(
@@ -338,7 +338,7 @@ pub fn parse_testing_args(args: &[String]) -> Option<TestingConfig> {
                         "fast" => TestingConfig::create_fast_movement_test_config(),
                         "normal" => TestingConfig::create_normal_config(),
                         _ => {
-                            log::warn!("Unknown testing mode '{}', using normal mode", mode);
+                            log::warn!("Unknown testing mode '{mode}', using normal mode");
                             TestingConfig::create_normal_config()
                         }
                     });

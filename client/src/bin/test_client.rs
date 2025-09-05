@@ -95,9 +95,9 @@ fn main() {
         .cloned()
         .unwrap_or_else(|| "TestPlayer".to_string());
 
-    println!("Starting test client as '{}'...", player_name);
+    println!("Starting test client as '{player_name}'...");
 
-    let url = format!("ws://127.0.0.1:{}/ws", SERVER_PORT);
+    let url = format!("ws://127.0.0.1:{SERVER_PORT}/ws");
 
     // Connect and run
     if let Err(e) = connect(url, |out| TestClient {
@@ -105,6 +105,6 @@ fn main() {
         player_name: player_name.clone(),
         player_id: None,
     }) {
-        println!("Failed to connect: {}", e);
+        println!("Failed to connect: {e}");
     }
 }

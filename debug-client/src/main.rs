@@ -78,7 +78,7 @@ impl AIDebugApp {
                 *connection.lock().unwrap() = Some(conn);
             }
             Err(e) => {
-                log::error!("Failed to connect: {}", e);
+                log::error!("Failed to connect: {e}");
             }
         });
     }
@@ -176,7 +176,7 @@ impl eframe::App for AIDebugApp {
                         }
                     }
                     ConnectionStatus::Error(e) => {
-                        ui.label(format!("🔴 Error: {}", e));
+                        ui.label(format!("🔴 Error: {e}"));
                         if ui.button("Retry").clicked() {
                             self.connect_to_server();
                         }
@@ -190,10 +190,8 @@ impl eframe::App for AIDebugApp {
                     if ui.button("▶ Resume").clicked() {
                         self.send_command(DebugCommand::PauseSimulation(false));
                     }
-                } else {
-                    if ui.button("⏸ Pause").clicked() {
-                        self.send_command(DebugCommand::PauseSimulation(true));
-                    }
+                } else if ui.button("⏸ Pause").clicked() {
+                    self.send_command(DebugCommand::PauseSimulation(true));
                 }
 
                 if ui.button("⏭ Step").clicked() {

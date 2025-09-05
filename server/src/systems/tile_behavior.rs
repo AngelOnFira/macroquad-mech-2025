@@ -277,16 +277,11 @@ impl TileBehaviorSystem {
                                                 });
 
                                                 log::debug!(
-                                                    "Player {} entered mech {} at tile {:?}",
-                                                    actor,
-                                                    mech_id,
-                                                    tile_pos
+                                                    "Player {actor} entered mech {mech_id} at tile {tile_pos:?}"
                                                 );
                                             } else {
                                                 log::debug!(
-                                                    "Player {} denied entry to enemy mech {}",
-                                                    actor,
-                                                    mech_id
+                                                    "Player {actor} denied entry to enemy mech {mech_id}"
                                                 );
                                             }
                                             break;
@@ -297,13 +292,13 @@ impl TileBehaviorSystem {
                         }
                         _ => {
                             // Handle other transition types later (ladders, stairs)
-                            log::debug!("Unhandled transition type: {:?}", transition_type);
+                            log::debug!("Unhandled transition type: {transition_type:?}");
                         }
                     }
                 }
                 _ => {
                     // Handle other tile events
-                    log::debug!("Unhandled tile event: {:?}", tile_event);
+                    log::debug!("Unhandled tile event: {tile_event:?}");
                 }
             }
         }
@@ -390,9 +385,7 @@ impl GameSystem for TileBehaviorSystem {
                     // Could send a notification to the player
                     // For now, just log it
                     log::debug!(
-                        "Proximity trigger: entity {:?} triggered by {:?}",
-                        entity,
-                        actor
+                        "Proximity trigger: entity {entity:?} triggered by {actor:?}"
                     );
                 }
                 TileEvent::AutoInteractionTriggered {
@@ -401,72 +394,64 @@ impl GameSystem for TileBehaviorSystem {
                     action,
                 } => {
                     log::debug!(
-                        "Auto interaction: {:?} on entity {:?} by {:?}",
-                        action,
-                        entity,
-                        actor
+                        "Auto interaction: {action:?} on entity {entity:?} by {actor:?}"
                     );
                     // Handle based on action type
-                    match action {
-                        AutoInteractionType::DropResource => {
-                            if let Some(player) = game.players.get_mut(&actor) {
-                                if let Some(resource_type) = player.carrying_resource {
-                                    // Get player's current location
-                                    let (mech_to_deposit, tile_pos) = match player.location {
-                                        PlayerLocation::InsideMech { mech_id, pos, .. } => {
-                                            // Player is inside a mech - deposit to that mech
-                                            (Some(mech_id), pos.to_tile_pos())
-                                        }
-                                        PlayerLocation::OutsideWorld(pos) => {
-                                            // Player is outside - shouldn't happen with new cargo bay system
-                                            // but keep as fallback
-                                            let tile_pos = pos.to_tile_pos();
-                                            let mut found_mech = None;
+                    if let AutoInteractionType::DropResource = action {
+                        if let Some(player) = game.players.get_mut(&actor) {
+                            if let Some(resource_type) = player.carrying_resource {
+                                // Get player's current location
+                                let (mech_to_deposit, tile_pos) = match player.location {
+                                    PlayerLocation::InsideMech { mech_id, pos, .. } => {
+                                        // Player is inside a mech - deposit to that mech
+                                        (Some(mech_id), pos.to_tile_pos())
+                                    }
+                                    PlayerLocation::OutsideWorld(pos) => {
+                                        // Player is outside - shouldn't happen with new cargo bay system
+                                        // but keep as fallback
+                                        let tile_pos = pos.to_tile_pos();
+                                        let mut found_mech = None;
 
-                                            for (mech_id, mech) in &game.mechs {
-                                                if mech.team == player.team {
-                                                    let dx = (mech.position.x - tile_pos.x).abs();
-                                                    let dy = (mech.position.y - tile_pos.y).abs();
-                                                    if dx < 5 && dy < 5 {
-                                                        found_mech = Some(*mech_id);
-                                                        break;
-                                                    }
+                                        for (mech_id, mech) in &game.mechs {
+                                            if mech.team == player.team {
+                                                let dx = (mech.position.x - tile_pos.x).abs();
+                                                let dy = (mech.position.y - tile_pos.y).abs();
+                                                if dx < 5 && dy < 5 {
+                                                    found_mech = Some(*mech_id);
+                                                    break;
                                                 }
                                             }
-                                            (found_mech, tile_pos)
                                         }
-                                    };
+                                        (found_mech, tile_pos)
+                                    }
+                                };
 
-                                    // Deposit resource to the mech
-                                    if let Some(mech_id) = mech_to_deposit {
-                                        if let Some(mech) = game.mechs.get_mut(&mech_id) {
-                                            if mech.team == player.team {
-                                                *mech
-                                                    .resource_inventory
-                                                    .entry(resource_type)
-                                                    .or_insert(0) += 1;
-                                                player.carrying_resource = None;
+                                // Deposit resource to the mech
+                                if let Some(mech_id) = mech_to_deposit {
+                                    if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                                        if mech.team == player.team {
+                                            *mech
+                                                .resource_inventory
+                                                .entry(resource_type)
+                                                .or_insert(0) += 1;
+                                            player.carrying_resource = None;
 
-                                                messages.push(
-                                                    ServerMessage::PlayerDroppedResource {
-                                                        player_id: actor,
-                                                        resource_type,
-                                                        position: tile_pos,
-                                                    },
-                                                );
+                                            messages.push(
+                                                ServerMessage::PlayerDroppedResource {
+                                                    player_id: actor,
+                                                    resource_type,
+                                                    position: tile_pos,
+                                                },
+                                            );
 
-                                                log::info!(
-                                                    "Player {} deposited {:?} to mech cargo bay",
-                                                    actor,
-                                                    resource_type
-                                                );
-                                            }
+                                            log::info!(
+                                                "Player {actor} deposited {resource_type:?} to mech cargo bay"
+                                            );
                                         }
                                     }
                                 }
                             }
                         }
-                        _ => {}
                     }
                 }
                 TileEvent::BeginTransition {
@@ -510,16 +495,11 @@ impl GameSystem for TileBehaviorSystem {
                                                 }
 
                                                 log::info!(
-                                                    "Player {} entered mech {} via door at {:?}",
-                                                    actor,
-                                                    mech_id,
-                                                    tile_pos
+                                                    "Player {actor} entered mech {mech_id} via door at {tile_pos:?}"
                                                 );
                                             } else {
                                                 log::debug!(
-                                                    "Player {} denied entry to enemy mech {}",
-                                                    actor,
-                                                    mech_id
+                                                    "Player {actor} denied entry to enemy mech {mech_id}"
                                                 );
                                             }
                                             break;
@@ -530,7 +510,7 @@ impl GameSystem for TileBehaviorSystem {
                         }
                         _ => {
                             // Handle other transition types later (ladders, stairs)
-                            log::debug!("Unhandled transition type: {:?}", transition_type);
+                            log::debug!("Unhandled transition type: {transition_type:?}");
                         }
                     }
                 }
@@ -539,7 +519,7 @@ impl GameSystem for TileBehaviorSystem {
         }
 
         // Update proximity trigger cooldowns
-        for (_, trigger) in &mut game.entity_storage.proximity_triggers {
+        for trigger in game.entity_storage.proximity_triggers.values_mut() {
             // Clean up old cooldowns
             trigger
                 .last_triggered

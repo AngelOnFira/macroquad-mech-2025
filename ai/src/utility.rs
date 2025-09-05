@@ -198,7 +198,7 @@ impl UtilityAI {
         for resource in &perception.environment.nearby_resources {
             // Add to known resources (would need resource ID in real implementation)
             let fake_id = Uuid::new_v4();
-            self.state.known_resources.insert(fake_id, resource.clone());
+            self.state.known_resources.insert(fake_id, *resource);
         }
 
         // Update recent threats

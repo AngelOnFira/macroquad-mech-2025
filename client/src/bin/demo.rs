@@ -183,7 +183,7 @@ impl DemoMode {
                 let y = self.mech_pos.1 + dy;
 
                 // Mech exterior is metal floor
-                let is_entrance = dx >= 4 && dx <= 5 && dy == 9;
+                let is_entrance = (4..=5).contains(&dx) && dy == 9;
 
                 let tile = Tile {
                     visual: TileVisual::Floor {
@@ -212,7 +212,7 @@ impl DemoMode {
         for x in 0..10 {
             for y in 0..10 {
                 let is_wall = x == 0 || x == 9 || y == 0 || y == 9;
-                let is_entrance = floor == 0 && x >= 4 && x <= 5 && y == 9;
+                let is_entrance = floor == 0 && (4..=5).contains(&x) && y == 9;
                 let is_stairs = (x == 2 && y == 2) || (x == 7 && y == 7);
 
                 let tile = if is_entrance {
@@ -416,7 +416,7 @@ impl DemoMode {
                                 let rel_x = check_x - self.mech_pos.0;
                                 let rel_y = check_y - self.mech_pos.1;
 
-                                if rel_x >= 0 && rel_x < 10 && rel_y >= 0 && rel_y < 10 {
+                                if (0..10).contains(&rel_x) && (0..10).contains(&rel_y) {
                                     if let Some(tile) = self.mech_tiles.get(&(floor, rel_x, rel_y))
                                     {
                                         tile.blocks_vision
@@ -508,7 +508,7 @@ impl DemoMode {
                 let rel_x = world_x - self.mech_pos.0;
                 let rel_y = world_y - self.mech_pos.1;
 
-                if rel_x >= 0 && rel_x < 10 && rel_y >= 0 && rel_y < 10 {
+                if (0..10).contains(&rel_x) && (0..10).contains(&rel_y) {
                     self.mech_tiles
                         .get(&(floor, rel_x, rel_y))
                         .map(|t| t.walkable)
@@ -529,7 +529,7 @@ impl DemoMode {
                 let rel_x = tile_x - self.mech_pos.0;
                 let rel_y = tile_y - self.mech_pos.1;
 
-                if rel_x >= 4 && rel_x <= 5 && rel_y == 9 {
+                if (4..=5).contains(&rel_x) && rel_y == 9 {
                     // On entrance - start transition
                     self.transition_from = Some(self.current_layer);
                     self.transition_to = Some(LayerType::MechFloor(0));
@@ -541,7 +541,7 @@ impl DemoMode {
                 let rel_y = tile_y - self.mech_pos.1;
 
                 // Check for entrance (exit)
-                if floor == 0 && rel_x >= 4 && rel_x <= 5 && rel_y == 9 {
+                if floor == 0 && (4..=5).contains(&rel_x) && rel_y == 9 {
                     self.transition_from = Some(self.current_layer);
                     self.transition_to = Some(LayerType::Ground);
                     self.transition_progress = 0.0;
@@ -954,7 +954,7 @@ impl DemoMode {
                 LayerType::MechFloor(f) => format!("Mech Floor {}", f + 1),
             };
             draw_text(
-                &format!("Current: {}", layer_text),
+                &format!("Current: {layer_text}"),
                 10.0,
                 140.0,
                 18.0,

@@ -164,7 +164,7 @@ impl CombatSystem {
 
         // TODO: Respawn mech after some time
         // For now, just log the destruction
-        log::info!("Mech {} destroyed", mech_id);
+        log::info!("Mech {mech_id} destroyed");
     }
 
     /// Apply damage over time effects
