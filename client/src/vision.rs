@@ -1,6 +1,6 @@
 use crate::game_state::{GameState, MechState};
 use shared::{
-    constants::*, tile_entity::TileVisual, MechDoorPositions, MechVisionUtils, PlayerLocation,
+    constants::*, coordinates::TileRange, tile_entity::TileVisual, MechDoorPositions, MechVisionUtils, PlayerLocation,
     TilePos, WorldPos, TILE_SIZE,
 };
 use std::collections::{HashMap, HashSet};
@@ -20,8 +20,8 @@ pub struct ClientVisionSystem {
     /// Last position where visibility was calculated
     pub last_update_pos: WorldPos,
 
-    /// Vision range in world units
-    pub vision_range: f32,
+    /// Vision range in tiles
+    pub vision_range: TileRange,
 
     /// Minimum movement required before recalculating visibility
     pub update_threshold: f32,
@@ -37,7 +37,7 @@ impl ClientVisionSystem {
             visibility_mask: HashMap::new(),
             visible_interior_tiles: HashMap::new(),
             last_update_pos: WorldPos::new(-999.0, -999.0), // Force initial update
-            vision_range: 500.0,                            // About 6-7 tiles (reduced from 300)
+            vision_range: TileRange::new(8),             // 8 tiles of vision range
             update_threshold: 16.0, // Half tile movement (increased sensitivity)
             frame_counter: 0,
         }
@@ -171,7 +171,7 @@ impl ClientVisionSystem {
         let mut distance = 0.0;
         let mut vision_blocked = false;
 
-        while distance < game_state.vision_system.vision_range && !vision_blocked {
+        while distance < game_state.vision_system.vision_range.to_world_distance() && !vision_blocked {
             let tile_pos = current_pos.to_tile();
 
             // Add this tile to visible set
@@ -179,7 +179,7 @@ impl ClientVisionSystem {
 
             // Calculate visibility strength based on distance
             let base_visibility =
-                (1.0 - (distance / game_state.vision_system.vision_range)).max(0.0);
+                (1.0 - (distance / game_state.vision_system.vision_range.to_world_distance())).max(0.0);
 
             // Check what's at this tile position
             let mut tile_visibility = base_visibility;
@@ -251,7 +251,7 @@ impl ClientVisionSystem {
             let visible_interior_tiles = MechVisionUtils::get_potentially_visible_interior_tiles(
                 viewer_pos,
                 mech.position,
-                game_state.vision_system.vision_range,
+                game_state.vision_system.vision_range.to_world_distance(),
             );
 
             for (floor, interior_pos, visibility) in visible_interior_tiles {
@@ -366,7 +366,6 @@ mod tests {
                 pilot_station_id: None,
                 operating_mech_id: None,
             },
-            transition: None,
             visible_tiles: HashMap::new(),
             vision_system: ClientVisionSystem::new(),
         }
@@ -377,7 +376,7 @@ mod tests {
         let vision = ClientVisionSystem::new();
         assert!(vision.visible_tiles.is_empty());
         assert!(vision.visibility_mask.is_empty());
-        assert_eq!(vision.vision_range, 300.0);
+        assert_eq!(vision.vision_range.tiles(), 8);
     }
 
     #[test]

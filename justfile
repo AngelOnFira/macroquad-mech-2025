@@ -32,17 +32,15 @@ client:
 test-client name="TestPlayer":
     cargo run --bin test_client {{name}}
 
-# Start web development server (legacy - uses Python)
-web-dev:
+# Start web server with live reload using browser-sync
+web-serve:
     #!/bin/bash
     just build-web
-    cd dist && python3 -m http.server 8080
+    npx browser-sync start --server dist --files "dist/**/*" --no-notify --port 8080
 
-# Start web development with live reload using miniserve
-web-dev-live:
-    #!/bin/bash
-    just build-web
-    cd dist && miniserve . --port 8080 --index index.html
+# Start web server only (no build) - used by VS Code tasks
+web-serve-only:
+    npx browser-sync start --server dist --files "dist/**/*" --no-notify --port 8080
 
 # Watch and auto-rebuild WASM client using bacon
 watch-web:
@@ -60,118 +58,33 @@ watch-all:
 watch-run-server:
     bacon run-server
 
-# Full development with auto-reload: WASM rebuild + live server
-dev-live:
-    #!/bin/bash
-    echo "Starting live development environment..."
-    
-    # Kill any existing servers
-    pkill -f "target/debug/server" || true
-    pkill -f "miniserve" || true
-    pkill -f "python.*8080" || true
-    sleep 1
-    
-    # Build initial WASM
-    echo "Building initial WASM client..."
-    cd client && ./build-simple.sh
-    cd ..
-    
-    # Start game server
-    echo "Starting game server..."
-    RUST_LOG=info cargo run --bin server &
-    SERVER_PID=$!
-    
-    # Wait for server to start
-    sleep 2
-    
-    # Start live reload web server
-    echo "Starting live reload web server..."
-    cd dist && miniserve . --port 8080 --index index.html &
-    WEB_PID=$!
-    
-    echo ""
-    echo "🎮 Live development environment ready!"
-    echo "Game server: ws://127.0.0.1:14191/ws (PID: $SERVER_PID)"
-    echo "Live reload web server: http://localhost:8080 (PID: $WEB_PID)"
-    echo ""
-    echo "In another terminal, run 'just watch-web' to auto-rebuild WASM on changes"
-    echo "Press Ctrl+C to stop all servers"
-    
-    # Wait for interrupt
-    trap "kill $SERVER_PID $WEB_PID 2>/dev/null; exit" INT
-    wait
 
 # Build and run the hybrid tile demo
 build-demo:
     cd client && ./build-demo.sh
 
-# Run demo in web browser
+# Run demo in web browser - use VS Code tasks for background process
 dev-demo:
-    #!/bin/bash
-    echo "Starting demo environment..."
-    
-    # Kill any existing web server
-    pkill -f "python.*8080" || true
-    sleep 1
-    
-    # Build demo WASM
-    echo "Building demo..."
-    cd client && ./build-demo.sh
-    cd ..
-    
-    # Start web server
-    echo "Starting web server..."
-    cd dist && python -m http.server 8080 > /dev/null 2>&1 &
-    WEB_PID=$!
-    
-    echo ""
-    echo "🎮 Demo ready!"
-    echo "Open: http://localhost:8080/demo.html"
-    echo ""
-    echo "Press Ctrl+C to stop"
-    
-    # Wait for interrupt
-    trap "kill $WEB_PID 2>/dev/null; exit" INT
-    wait
+    @echo "🎮 Use VS Code tasks for demo instead:"
+    @echo "  1. Open Command Palette (Ctrl+Shift+P)"
+    @echo "  2. Run 'Tasks: Run Task'"
+    @echo "  3. Select 'Serve Demo'"
+    @echo ""
+    @echo "Or run manually:"
+    @echo "  just build-demo"
+    @echo "  just web-serve        # Then navigate to /demo.html"
 
-# Full development setup - server + web
+# Start development environment - use VS Code tasks instead for multiple processes
 dev:
-    #!/bin/bash
-    echo "Starting development environment..."
-    
-    # Kill any existing servers
-    pkill -f "target/debug/server" || true
-    pkill -f "python.*8080" || true
-    sleep 1
-    
-    # Build WASM
-    echo "Building WASM client..."
-    cd client && ./build-simple.sh
-    cd ..
-    
-    # Start game server
-    echo "Starting game server..."
-    RUST_LOG=info cargo run --bin server &
-    SERVER_PID=$!
-    
-    # Wait for server to start
-    sleep 2
-    
-    # Start web server
-    echo "Starting web server..."
-    cd dist && python3 -m http.server 8080 &
-    WEB_PID=$!
-    
-    echo ""
-    echo "🎮 Development environment ready!"
-    echo "Game server: ws://127.0.0.1:14191/ws (PID: $SERVER_PID)"
-    echo "Web server: http://localhost:8080 (PID: $WEB_PID)"
-    echo ""
-    echo "Press Ctrl+C to stop all servers"
-    
-    # Wait for interrupt
-    trap "kill $SERVER_PID $WEB_PID 2>/dev/null; exit" INT
-    wait
+    @echo "🎮 Use VS Code tasks for development instead:"
+    @echo "  1. Open Command Palette (Ctrl+Shift+P)"
+    @echo "  2. Run 'Tasks: Run Task'"
+    @echo "  3. Select 'Start Development'"
+    @echo ""
+    @echo "Or run individual processes:"
+    @echo "  just server           # Game server"
+    @echo "  just watch-web        # Auto-rebuild WASM"
+    @echo "  just web-serve        # Web server with live reload"
 
 # Run two native clients for testing
 test-multiplayer:
@@ -239,7 +152,7 @@ release-client:
 
 release-web:
     cd client && ./build-simple.sh --release
-    cd dist && python3 -m http.server 8080
+    npx browser-sync start --server dist --no-notify --port 8080
 
 # Watch for changes and rebuild
 watch:
@@ -296,8 +209,7 @@ kill-servers:
     pkill -f "target/debug/server" || true
     pkill -f "trunk" || true
     pkill -f "test_client" || true
-    pkill -f "miniserve" || true
-    pkill -f "python.*8080" || true
+    pkill -f "browser-sync" || true
     pkill -f "bacon" || true
     # Also try to kill by port
     lsof -ti:8080 | xargs kill -9 2>/dev/null || true

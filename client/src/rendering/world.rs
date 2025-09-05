@@ -433,7 +433,7 @@ fn render_players_in_world(
 }
 
 const FOG_FADE_DISTANCE: i32 = 3;
-const VISION_RANGE: i32 = 5;
+const VISION_RANGE: i32 = 8; // Match vision system range in tiles
 
 fn render_fog_overlay(vision_system: &ClientVisionSystem, cam_x: f32, cam_y: f32) {
     // Calculate visible area using viewport calculations

@@ -37,20 +37,6 @@ just web-server     # Start web server (in another terminal)
 
 Then open http://localhost:8080 in multiple browser tabs to test multiplayer.
 
-### Hybrid Tile System Demo
-```bash
-# Run the interactive demo showcasing the hybrid tile-entity system
-just dev-demo
-# Then open http://localhost:8080/demo.html
-
-# Demo features:
-# - Layered floor system (1/2/3 keys to switch)
-# - Raycasting vision (V to toggle)
-# - Window mechanics
-# - Station entities
-# - Continuous movement (WASD)
-```
-
 ## Common Development Tasks
 
 ### Using Just Commands

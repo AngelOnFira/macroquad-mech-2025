@@ -1,0 +1,228 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        // Build tasks
+        {
+            "label": "Build WASM",
+            "type": "shell",
+            "command": "just",
+            "args": ["build-web"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "rust",
+                "fileLocation": ["relative", "${workspaceFolder}/client"],
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(\\d+):(\\d+)\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "endLine": 4,
+                    "endColumn": 5,
+                    "severity": 6,
+                    "message": 7
+                }
+            }
+        },
+        {
+            "label": "Build Server",
+            "type": "shell",
+            "command": "just",
+            "args": ["build-server"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": ["$rustc"]
+        },
+
+        // Development server tasks
+        {
+            "label": "Run Server",
+            "type": "shell",
+            "command": "just",
+            "args": ["server"],
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "rust-server",
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*Starting.*server.*$",
+                    "endsPattern": "^.*Listening.*$"
+                }
+            }
+        },
+        {
+            "label": "Watch WASM",
+            "type": "shell",
+            "command": "just",
+            "args": ["watch-web"],
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "bacon",
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*[Ww]atching.*$",
+                    "endsPattern": "^.*[Cc]hecking.*$"
+                }
+            }
+        },
+        {
+            "label": "Serve Web",
+            "type": "shell",
+            "command": "just",
+            "args": ["web-serve-only"],
+            "isBackground": true,
+            "dependsOn": "Build WASM",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "browser-sync",
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*[Bb]rowser[Ss]ync.*$",
+                    "endsPattern": "^.*[Ww]atching.*files.*$"
+                }
+            }
+        },
+
+        // Compound development task
+        {
+            "label": "Start Development",
+            "dependsOn": [
+                "Run Server",
+                "Watch WASM", 
+                "Serve Web"
+            ],
+            "dependsOrder": "parallel",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+
+        // Watch server with auto-restart
+        {
+            "label": "Watch Server",
+            "type": "shell",
+            "command": "just",
+            "args": ["watch-run-server"],
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "bacon-server",
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*[Ww]atching.*$",
+                    "endsPattern": "^.*[Rr]unning.*$"
+                }
+            }
+        },
+
+        // Alternative compound task with auto-restarting server
+        {
+            "label": "Start Development (Auto-restart Server)",
+            "dependsOn": [
+                "Watch Server",
+                "Watch WASM",
+                "Serve Web"
+            ],
+            "dependsOrder": "parallel",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
+            "group": "build"
+        },
+
+        // Demo task
+        {
+            "label": "Start Demo",
+            "type": "shell",
+            "command": "just",
+            "args": ["build-demo"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": ["$rustc"]
+        },
+        {
+            "label": "Serve Demo",
+            "type": "shell", 
+            "command": "npx",
+            "args": [
+                "browser-sync", 
+                "start",
+                "--server", "dist",
+                "--files", "dist/**/*",
+                "--no-notify",
+                "--port", "8080",
+                "--startPath", "/demo.html"
+            ],
+            "isBackground": true,
+            "dependsOn": "Start Demo",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "clear": true
+            },
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*[Bb]rowser[Ss]ync.*$",
+                    "endsPattern": "^.*[Ww]atching.*files.*$"
+                }
+            }
+        }
+    ]
+}

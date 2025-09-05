@@ -289,7 +289,7 @@ impl TilePos {
             }, // Left
             TilePos {
                 x: self.x + 1,
-                y: self.y,
+                y: self.y, //test
             }, // Right
             TilePos {
                 x: self.x,
@@ -802,6 +802,32 @@ impl ViewportCalculations {
     }
 }
 
+/// Distance measured in tiles that can be converted to world units
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TileRange(pub i32);
+
+impl TileRange {
+    /// Create a new tile range
+    pub fn new(tiles: i32) -> Self {
+        Self(tiles)
+    }
+
+    /// Convert to world distance (in pixels)
+    pub fn to_world_distance(self) -> f32 {
+        self.0 as f32 * TILE_SIZE
+    }
+
+    /// Get the tile count
+    pub fn tiles(self) -> i32 {
+        self.0
+    }
+
+    /// Create from world distance (converts pixels to tiles)
+    pub fn from_world_distance(world_distance: f32) -> Self {
+        Self((world_distance / TILE_SIZE).round() as i32)
+    }
+}
+
 /// Relative positioning utilities within tiles
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RelativePosition {
@@ -934,5 +960,20 @@ mod new_tests {
         let top_left = RelativePosition::TopLeft.world_pos_in_tile(tile);
         let expected_top_left = WorldPos::new(2.0 * TILE_SIZE, 3.0 * TILE_SIZE);
         assert_eq!(top_left, expected_top_left);
+    }
+
+    #[test]
+    fn test_tile_range() {
+        let range = TileRange::new(5);
+        
+        assert_eq!(range.tiles(), 5);
+        assert_eq!(range.to_world_distance(), 5.0 * TILE_SIZE);
+
+        let from_world = TileRange::from_world_distance(3.0 * TILE_SIZE);
+        assert_eq!(from_world.tiles(), 3);
+
+        // Test rounding
+        let rounded = TileRange::from_world_distance(2.6 * TILE_SIZE);
+        assert_eq!(rounded.tiles(), 3);
     }
 }
