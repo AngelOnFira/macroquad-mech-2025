@@ -42,6 +42,12 @@ pub const RESOURCE_COLLISION_RADIUS: f32 = 0.3; // tiles
 pub const PROJECTILE_COLLISION_RADIUS: f32 = 0.2; // tiles
 pub const WEAPON_MAX_RANGE: f32 = 50.0; // tiles
 
+// ===== Collision Behavior =====
+pub const RUN_OVER_MIN_VELOCITY: f32 = 1.0; // tiles per second - minimum mech speed to kill players
+pub const MECH_SEPARATION_FORCE: f32 = 2.0; // force applied to separate overlapping mechs
+pub const PLAYER_PUSH_DISTANCE: f32 = 0.5; // tiles - how far to push players away from mechs
+pub const COLLISION_EPSILON: f32 = 0.001; // small value to prevent floating point issues
+
 // ===== Repairs and Upgrades =====
 pub const REPAIR_HP_PER_SCRAP: u32 = 20;
 

@@ -199,6 +199,49 @@ impl SpatialCollisionManager {
             .collect()
     }
 
+    /// Get all mechs within collision range of a position
+    pub fn query_nearby_mechs(&self, position: WorldPos, radius: f32) -> Vec<(Uuid, WorldPos, f32)> {
+        let query_results = self.mech_grid.query_radius(position, radius);
+        
+        query_results
+            .into_iter()
+            .map(|result| (result.entity.id, result.entity.position, result.distance))
+            .collect()
+    }
+
+    /// Get all players within collision range of a position
+    pub fn query_nearby_players(&self, position: WorldPos, radius: f32) -> Vec<(Uuid, WorldPos, f32)> {
+        let query_results = self.player_grid.query_radius(position, radius);
+        
+        query_results
+            .into_iter()
+            .map(|result| (result.entity.id, result.entity.position, result.distance))
+            .collect()
+    }
+
+    /// Check if a position would overlap with any mech (for movement validation)
+    pub fn would_overlap_mech(&self, test_pos: WorldPos, test_radius: f32, exclude_mech: Option<Uuid>) -> bool {
+        let query_results = self.mech_grid.query_radius(test_pos, test_radius + MECH_COLLISION_RADIUS);
+        
+        for result in query_results {
+            if let Some(exclude_id) = exclude_mech {
+                if result.entity.id == exclude_id {
+                    continue;
+                }
+            }
+            
+            // Check if there's actual overlap using proper collision bounds
+            let mech_bounds = AABB::mech_bounds(result.entity.position);
+            let test_bounds = AABB::from_center_and_half_extents(test_pos, test_radius, test_radius);
+            
+            if mech_bounds.intersects(&test_bounds) {
+                return true;
+            }
+        }
+        
+        false
+    }
+
     /// Check for projectile-mech collisions
     pub fn check_projectile_mech_collisions(&self, game: &Game) -> Vec<(Uuid, Uuid)> {
         let mut collisions = Vec::new();

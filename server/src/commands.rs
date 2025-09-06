@@ -91,10 +91,27 @@ impl Command for PlayerInputCommand {
             {
                 match &player.location {
                     PlayerLocation::OutsideWorld(pos) => {
+                        // Check for collisions and calculate safe movement
+                        let desired_movement = (delta_x, delta_y);
+                        let safe_movement = {
+                            // Create collision obstacles from all mechs
+                            let mut obstacles = Vec::new();
+                            for mech in game.mechs.values() {
+                                obstacles.push(CollisionShape::mech(mech.world_position));
+                            }
+                            
+                            let player_shape = CollisionShape::player(*pos);
+                            CollisionUtils::calculate_safe_movement(
+                                *pos,
+                                desired_movement,
+                                &player_shape,
+                                &obstacles,
+                            )
+                        };
+
                         let mut new_pos = *pos;
-                        // Move in world space
-                        new_pos.x += delta_x;
-                        new_pos.y += delta_y;
+                        new_pos.x += safe_movement.0;
+                        new_pos.y += safe_movement.1;
 
                         // Keep within world bounds
                         new_pos.x = new_pos

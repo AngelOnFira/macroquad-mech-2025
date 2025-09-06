@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod collision;
 pub mod combat;
 pub mod networking;
 pub mod physics;
@@ -43,6 +44,7 @@ impl SystemManager {
         // Register default systems in order of execution
         manager.register_system(Box::new(tile_behavior::TileBehaviorSystem::new()));
         manager.register_system(Box::new(physics::PhysicsSystem::new()));
+        manager.register_system(Box::new(collision::CollisionSystem::new()));
         manager.register_system(Box::new(combat::CombatSystem::new()));
         manager.register_system(Box::new(resource::ResourceSystem::new()));
         manager.register_system(Box::new(networking::NetworkingSystem::new()));

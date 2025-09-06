@@ -1,4 +1,5 @@
 pub mod balance;
+pub mod collision;
 pub mod components;
 pub mod constants;
 pub mod coordinates;
@@ -23,6 +24,7 @@ pub mod vision;
 pub mod object_pool;
 
 pub use balance::*;
+pub use collision::*;
 pub use constants::*;
 pub use coordinates::*;
 pub use errors::*;

@@ -1,6 +1,5 @@
 use super::GameSystem;
 use crate::game::Game;
-use log::info;
 use shared::*;
 
 /// Physics system handles object movement, collisions, and physics updates
@@ -32,19 +31,53 @@ impl PhysicsSystem {
         game.testing_manager
             .apply_mech_movement_overrides(&mut mech_velocities);
 
-        // Update mech positions
+        // Update mech positions with collision checking
         let mut mech_updates = Vec::new();
-        for mech in game.mechs.values_mut() {
-            // Use overridden velocity if available, otherwise use mech's velocity
-            let mut effective_velocity = mech_velocities
+        
+        // First, collect all mechs that want to move
+        let mut moving_mechs: Vec<(uuid::Uuid, WorldPos, (f32, f32))> = Vec::new();
+        for mech in game.mechs.values() {
+            let effective_velocity = mech_velocities
                 .get(&mech.id)
                 .copied()
                 .unwrap_or(mech.velocity);
-            effective_velocity.0 = 1.0;
+            
             if effective_velocity.0 != 0.0 || effective_velocity.1 != 0.0 {
-                // Update world position using effective velocity (potentially overridden for testing)
-                mech.world_position.x += effective_velocity.0 * TILE_SIZE * delta_time;
-                mech.world_position.y += effective_velocity.1 * TILE_SIZE * delta_time;
+                let desired_movement = (
+                    effective_velocity.0 * TILE_SIZE * delta_time,
+                    effective_velocity.1 * TILE_SIZE * delta_time,
+                );
+                moving_mechs.push((mech.id, mech.world_position, desired_movement));
+            }
+        }
+
+        // Create obstacles map first (immutable borrow)
+        let mut obstacles_map: std::collections::HashMap<uuid::Uuid, Vec<CollisionShape>> = std::collections::HashMap::new();
+        for (mech_id, _, _) in &moving_mechs {
+            let mut obstacles = Vec::new();
+            for (other_id, other_mech) in game.mechs.iter() {
+                if *other_id != *mech_id {
+                    obstacles.push(CollisionShape::mech(other_mech.world_position));
+                }
+            }
+            obstacles_map.insert(*mech_id, obstacles);
+        }
+
+        // Now apply safe movement (mutable borrow)
+        for (mech_id, current_pos, desired_movement) in moving_mechs {
+            if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                let obstacles = obstacles_map.get(&mech_id).unwrap();
+                let mech_shape = CollisionShape::mech(current_pos);
+                let safe_movement = CollisionUtils::calculate_safe_movement(
+                    current_pos,
+                    desired_movement,
+                    &mech_shape,
+                    obstacles,
+                );
+
+                // Apply safe movement
+                mech.world_position.x += safe_movement.0;
+                mech.world_position.y += safe_movement.1;
 
                 // Keep in bounds
                 mech.world_position.x = mech
@@ -80,66 +113,6 @@ impl PhysicsSystem {
         messages
     }
 
-    /// Check for collisions between players and mechs
-    fn check_mech_player_collisions(&self, game: &mut Game) -> Vec<ServerMessage> {
-        let mut messages = Vec::new();
-        let mut killed_players = Vec::new();
-
-        for (player_id, player) in game.players.iter() {
-            if let PlayerLocation::OutsideWorld(player_pos) = player.location {
-                for mech in game.mechs.values() {
-                    // Check if player is within mech bounds
-                    let mech_min_x = mech.world_position.x;
-                    let mech_max_x = mech.world_position.x + (MECH_SIZE_TILES as f32 * TILE_SIZE);
-                    let mech_min_y = mech.world_position.y;
-                    let mech_max_y = mech.world_position.y + (MECH_SIZE_TILES as f32 * TILE_SIZE);
-
-                    if player_pos.x >= mech_min_x
-                        && player_pos.x <= mech_max_x
-                        && player_pos.y >= mech_min_y
-                        && player_pos.y <= mech_max_y
-                    {
-                        // Player was run over!
-                        info!("Player {player_id} was run over by mech {}", mech.id);
-                        killed_players.push(*player_id);
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Handle killed players
-        for player_id in killed_players {
-            if let Some(player) = game.players.get(&player_id) {
-                // Respawn at team spawn
-                let spawn_pos = match player.team {
-                    TeamId::Red => WorldPos::new(
-                        RED_PLAYER_SPAWN.0 * TILE_SIZE,
-                        RED_PLAYER_SPAWN.1 * TILE_SIZE,
-                    ),
-                    TeamId::Blue => WorldPos::new(
-                        BLUE_PLAYER_SPAWN.0 * TILE_SIZE,
-                        BLUE_PLAYER_SPAWN.1 * TILE_SIZE,
-                    ),
-                };
-
-                messages.push(ServerMessage::PlayerKilled {
-                    player_id,
-                    killer: None, // Killed by mech
-                    respawn_position: spawn_pos,
-                });
-
-                // Reset player state
-                if let Some(player) = game.players.get_mut(&player_id) {
-                    player.location = PlayerLocation::OutsideWorld(spawn_pos);
-                    player.carrying_resource = None;
-                    player.operating_station = None;
-                }
-            }
-        }
-
-        messages
-    }
 
     /// Update spatial collision manager with current entity positions
     fn update_spatial_collisions(&self, game: &mut Game) {
@@ -212,10 +185,6 @@ impl GameSystem for PhysicsSystem {
         // Update mech positions
         let mech_messages = self.update_mech_positions(game, delta_time);
         messages.extend(mech_messages);
-
-        // Check for mech-player collisions
-        let collision_messages = self.check_mech_player_collisions(game);
-        messages.extend(collision_messages);
 
         // Update spatial collision manager
         self.update_spatial_collisions(game);
