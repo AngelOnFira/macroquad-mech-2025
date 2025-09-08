@@ -1,0 +1,426 @@
+use crate::game_state::GameState;
+use shared::*;
+use std::sync::{Arc, Mutex};
+use uuid::Uuid;
+
+pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>) {
+    let mut game = game_state.lock().unwrap();
+
+    match msg {
+        ServerMessage::JoinedGame {
+            player_id,
+            team,
+            spawn_position,
+        } => {
+            game.player_id = Some(player_id);
+            game.player_team = Some(team);
+            game.player_location = PlayerLocation::OutsideWorld(spawn_position.to_world_pos());
+            #[cfg(not(target_arch = "wasm32"))]
+            log::info!("Joined game as player {} on team {:?}", player_id, team);
+            #[cfg(target_arch = "wasm32")]
+            macroquad::prelude::info!("Joined game as player {} on team {:?}", player_id, team);
+        }
+
+        ServerMessage::GameState {
+            players,
+            mechs,
+            resources,
+            projectiles,
+        } => {
+            // Update full game state
+            game.players.clear();
+            for (id, player) in players {
+                game.players.insert(
+                    id,
+                    crate::game_state::PlayerData {
+                        _id: player.id,
+                        name: player.name,
+                        team: player.team,
+                        location: player.location,
+                        carrying_resource: player.carrying_resource,
+                    },
+                );
+            }
+
+            game.mechs.clear();
+            for (id, mech) in mechs {
+                let mut mech_state = crate::game_state::MechState {
+                    id: mech.id,
+                    position: mech.position,
+                    world_position: mech.world_position,
+                    team: mech.team,
+                    health: mech.health,
+                    shield: mech.shield,
+                    upgrades: mech.upgrades,
+                    floors: vec![],
+                    _resource_inventory: mech.resource_inventory,
+                };
+
+                // Build floor layouts
+                for floor_idx in 0..MECH_FLOORS {
+                    mech_state
+                        .floors
+                        .push(crate::game_state::MechFloor::new(floor_idx as u8));
+                }
+
+                // Update stations
+                for station in mech.stations {
+                    game.stations.insert(
+                        station.id,
+                        crate::game_state::StationState {
+                            _id: station.id,
+                            mech_id: mech.id,
+                            floor: station.floor,
+                            position: station.position,
+                            station_type: station.station_type,
+                            occupied: station.operated_by.is_some(),
+                            operated_by: station.operated_by,
+                        },
+                    );
+                }
+
+                game.mechs.insert(id, mech_state);
+            }
+
+            game.resources.clear();
+            for resource in resources {
+                game.resources.push(crate::game_state::ResourceState {
+                    id: resource.id,
+                    position: resource.position,
+                    resource_type: resource.resource_type,
+                });
+            }
+
+            game.projectiles.clear();
+            for proj in projectiles {
+                game.projectiles.push(crate::game_state::ProjectileData {
+                    id: proj.id,
+                    position: proj.position,
+                    _velocity: proj.velocity,
+                });
+            }
+        }
+
+        ServerMessage::PlayerMoved {
+            player_id,
+            location,
+        } => {
+            if player_id == game.player_id.unwrap_or(Uuid::nil()) {
+                // Directly update player location - no transitions needed
+                game.player_location = location;
+            }
+            if let Some(player) = game.players.get_mut(&player_id) {
+                player.location = location;
+            }
+        }
+
+        ServerMessage::PlayerPickedUpResource {
+            player_id,
+            resource_type,
+            resource_id,
+        } => {
+            if let Some(player) = game.players.get_mut(&player_id) {
+                player.carrying_resource = Some(resource_type);
+            }
+            game.resources.retain(|r| r.id != resource_id);
+        }
+
+        ServerMessage::PlayerDroppedResource {
+            player_id,
+            resource_type: _,
+            position: _,
+        } => {
+            if let Some(player) = game.players.get_mut(&player_id) {
+                player.carrying_resource = None;
+            }
+            // Could add visual effect here
+        }
+
+        ServerMessage::ResourceCollected {
+            resource_id,
+            player_id,
+        } => {
+            game.resources.retain(|r| r.id != resource_id);
+            if let Some(player) = game.players.get(&player_id) {
+                #[cfg(not(target_arch = "wasm32"))]
+                log::info!("{} collected a resource", player.name);
+                #[cfg(target_arch = "wasm32")]
+                macroquad::prelude::info!("{} collected a resource", player.name);
+            }
+        }
+
+        ServerMessage::PlayerEnteredStation {
+            player_id,
+            station_id,
+        } => {
+            if player_id == game.player_id.unwrap_or(Uuid::nil()) {
+                // Check if it's a pilot station
+                let pilot_station_info = game
+                    .stations
+                    .get(&station_id)
+                    .filter(|s| s.station_type == StationType::Pilot)
+                    .map(|s| s.mech_id);
+
+                if let Some(mech_id) = pilot_station_info {
+                    // Open pilot window
+                    game.ui_state.pilot_station_open = true;
+                    game.ui_state.pilot_station_id = Some(station_id);
+                    game.ui_state.operating_mech_id = Some(mech_id);
+                }
+            }
+            // Update station state
+            if let Some(station) = game.stations.get_mut(&station_id) {
+                station.operated_by = Some(player_id);
+                station.occupied = true;
+            }
+        }
+
+        ServerMessage::PlayerExitedStation {
+            player_id,
+            station_id,
+        } => {
+            if player_id == game.player_id.unwrap_or(Uuid::nil()) {
+                // Close pilot window if it was open
+                if game.ui_state.pilot_station_id == Some(station_id) {
+                    game.ui_state.pilot_station_open = false;
+                    game.ui_state.pilot_station_id = None;
+                    game.ui_state.operating_mech_id = None;
+                }
+            }
+            // Update station state
+            if let Some(station) = game.stations.get_mut(&station_id) {
+                station.operated_by = None;
+                station.occupied = false;
+            }
+        }
+
+        ServerMessage::MechMoved {
+            mech_id,
+            position,
+            world_position,
+        } => {
+            if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                mech.position = position;
+                mech.world_position = world_position;
+            }
+        }
+
+        ServerMessage::MechDamaged {
+            mech_id,
+            damage: _,
+            health_remaining,
+        } => {
+            if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                mech.health = health_remaining;
+            }
+        }
+
+        ServerMessage::MechShieldChanged { mech_id, shield } => {
+            if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                mech.shield = shield;
+            }
+        }
+
+        ServerMessage::WeaponFired {
+            mech_id,
+            weapon_type,
+            target_position,
+            projectile_id,
+        } => {
+            // Add visual effect
+            game.weapon_effects.push(crate::game_state::WeaponEffect {
+                mech_id,
+                weapon_type,
+                target: target_position,
+                timer: WEAPON_EFFECT_DURATION,
+                _projectile_id: projectile_id,
+            });
+        }
+
+        ServerMessage::ProjectileHit { projectile_id, .. } => {
+            game.projectiles.retain(|p| p.id != projectile_id);
+            // Could add explosion effect
+        }
+
+        ServerMessage::ProjectileExpired { projectile_id } => {
+            game.projectiles.retain(|p| p.id != projectile_id);
+        }
+
+        ServerMessage::ResourceSpawned {
+            resource_id,
+            position,
+            resource_type,
+        } => {
+            game.resources.push(crate::game_state::ResourceState {
+                id: resource_id,
+                position,
+                resource_type,
+            });
+        }
+
+        ServerMessage::PlayerDisconnected { player_id } => {
+            game.players.remove(&player_id);
+        }
+
+        ServerMessage::MechUpgraded {
+            mech_id,
+            upgrade_type,
+            new_level,
+        } => {
+            if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                match upgrade_type {
+                    shared::UpgradeType::Laser => mech.upgrades.laser_level = new_level,
+                    shared::UpgradeType::Projectile => {
+                        mech.upgrades.projectile_level = new_level
+                    }
+                    shared::UpgradeType::Shield => mech.upgrades.shield_level = new_level,
+                    shared::UpgradeType::Engine => mech.upgrades.engine_level = new_level,
+                }
+            }
+            // Could add visual effect for upgrade completion
+        }
+
+        ServerMessage::MechRepaired {
+            mech_id,
+            health_restored: _,
+            new_health,
+        } => {
+            if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                mech.health = new_health;
+            }
+            // Could add visual effect for repair
+        }
+
+        ServerMessage::PlayerKilled {
+            player_id,
+            killer: _,
+            respawn_position,
+        } => {
+            if player_id == game.player_id.unwrap_or(Uuid::nil()) {
+                // Player died - respawn them
+                game.player_location = PlayerLocation::OutsideWorld(respawn_position);
+            }
+            if let Some(player) = game.players.get_mut(&player_id) {
+                player.location = PlayerLocation::OutsideWorld(respawn_position);
+                player.carrying_resource = None;
+            }
+        }
+
+        ServerMessage::TileUpdate { position, visual } => {
+            game.visible_tiles.insert(position, visual);
+        }
+
+        ServerMessage::TileBatch { tiles } => {
+            for (position, visual) in tiles {
+                game.visible_tiles.insert(position, visual);
+            }
+        }
+
+        ServerMessage::VisibilityUpdate {
+            visible_tiles,
+            player_position: _,
+        } => {
+            game.visible_tiles.clear();
+            for (position, visual) in visible_tiles {
+                game.visible_tiles.insert(position, visual);
+            }
+        }
+
+        ServerMessage::MechFloorData {
+            mech_id,
+            interior,
+            stations,
+        } => {
+            // Update floor manager with detailed floor data from server
+            game.floor_manager.update_mech_floors(mech_id, interior, stations);
+            #[cfg(not(target_arch = "wasm32"))]
+            log::info!("Received detailed floor data for mech {}", mech_id);
+            #[cfg(target_arch = "wasm32")]
+            macroquad::prelude::info!("Received detailed floor data for mech {}", mech_id);
+        }
+
+        ServerMessage::FloorTransitionComplete {
+            player_id,
+            mech_id,
+            old_floor,
+            new_floor,
+            new_position,
+        } => {
+            if player_id == game.player_id.unwrap_or(Uuid::nil()) {
+                // Update our player location
+                game.player_location = PlayerLocation::InsideMech {
+                    mech_id,
+                    floor: new_floor,
+                    pos: new_position.to_world_pos(),
+                };
+                #[cfg(not(target_arch = "wasm32"))]
+                log::info!("Floor transition successful: {} -> {} in mech {}", old_floor, new_floor, mech_id);
+                #[cfg(target_arch = "wasm32")]
+                macroquad::prelude::info!("Floor transition successful: {} -> {} in mech {}", old_floor, new_floor, mech_id);
+            }
+
+            // Update player data for other players
+            if let Some(player) = game.players.get_mut(&player_id) {
+                player.location = PlayerLocation::InsideMech {
+                    mech_id,
+                    floor: new_floor,
+                    pos: new_position.to_world_pos(),
+                };
+            }
+        }
+
+        ServerMessage::FloorTransitionFailed {
+            player_id,
+            reason,
+        } => {
+            if player_id == game.player_id.unwrap_or(Uuid::nil()) {
+                #[cfg(not(target_arch = "wasm32"))]
+                log::warn!("Floor transition failed: {}", reason);
+                #[cfg(target_arch = "wasm32")]
+                macroquad::prelude::warn!("Floor transition failed: {}", reason);
+            }
+        }
+
+        ServerMessage::Error { message } => {
+            #[cfg(not(target_arch = "wasm32"))]
+            log::error!("Server error: {}", message);
+            #[cfg(target_arch = "wasm32")]
+            macroquad::prelude::error!("Server error: {}", message);
+        }
+
+        ServerMessage::EffectCreated {
+            effect_id: _,
+            effect_type: _,
+            position: _,
+            duration: _,
+        } => {
+            // Could add visual effects in the future
+        }
+
+        ServerMessage::EffectExpired { effect_id: _ } => {
+            // Could remove visual effects in the future
+        }
+
+        ServerMessage::ChatMessage {
+            player_id: _,
+            player_name,
+            message,
+            team_only: _,
+        } => {
+            // Could display chat messages in the future
+            #[cfg(not(target_arch = "wasm32"))]
+            log::info!("Chat from {}: {}", player_name, message);
+            #[cfg(target_arch = "wasm32")]
+            macroquad::prelude::info!("Chat from {}: {}", player_name, message);
+        }
+
+        ServerMessage::MechInteriorUpdate {
+            mech_id: _,
+            floor: _,
+            tile_updates: _,
+            station_changes: _,
+        } => {
+            // Future scope - not implemented yet
+        }
+    }
+}

@@ -8,6 +8,7 @@ pub struct InputState {
     pub movement: (f32, f32), // x, y velocity (-1.0 to 1.0)
     pub action_pressed: bool,
     pub exit_mech_pressed: bool,
+    pub floor_transition_pressed: bool,
 }
 
 impl InputHandler {
@@ -22,6 +23,7 @@ impl InputHandler {
             movement: (0.0, 0.0),
             action_pressed: false,
             exit_mech_pressed: false,
+            floor_transition_pressed: false,
         };
 
         // Movement - combine multiple directions for diagonal movement
@@ -57,6 +59,9 @@ impl InputHandler {
 
         // Exit mech key
         state.exit_mech_pressed = is_key_pressed(KeyCode::Q);
+
+        // Floor transition key (E for "Enter" stairway)
+        state.floor_transition_pressed = is_key_pressed(KeyCode::E);
 
         state
     }

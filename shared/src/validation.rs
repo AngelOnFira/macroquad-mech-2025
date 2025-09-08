@@ -39,6 +39,13 @@ impl Validate for ClientMessage {
 
             ClientMessage::ExitStation => Ok(()),
 
+            ClientMessage::FloorTransition { target_floor, .. } => {
+                if *target_floor >= 3 {
+                    return Err(ValidationError::InvalidFloorNumber);
+                }
+                Ok(())
+            }
+
             ClientMessage::ChatMessage { message } => {
                 validate_chat_message(message)?;
                 Ok(())

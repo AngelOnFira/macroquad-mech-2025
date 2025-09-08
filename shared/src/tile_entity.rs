@@ -61,9 +61,15 @@ pub enum WindowTint {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TransitionType {
     MechEntrance { stage: u8 }, // 0 = first tile, 1 = second tile
-    StairUp { stage: u8 },
-    StairDown { stage: u8 },
+    StairUp { stage: u8, target_floor: u8 },
+    StairDown { stage: u8, target_floor: u8 },
     Ladder,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum StairwayDirection {
+    Up,
+    Down,
 }
 
 // =============================================================================
@@ -87,12 +93,14 @@ pub struct TileMap {
 pub struct MechTileMap {
     pub floors: Vec<FloorMap>,
     pub position: TilePos, // World position of mech
+    pub current_occupants: HashMap<Uuid, u8>, // player_id -> floor_id
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FloorMap {
     pub static_tiles: HashMap<TilePos, StaticTile>,
     pub entity_tiles: HashMap<TilePos, Uuid>,
+    pub multi_tile_stations: HashMap<TilePos, Uuid>, // All tiles that belong to multi-tile stations
 }
 
 impl Default for FloorMap {
@@ -106,6 +114,7 @@ impl FloorMap {
         Self {
             static_tiles: HashMap::new(),
             entity_tiles: HashMap::new(),
+            multi_tile_stations: HashMap::new(),
         }
     }
 
@@ -116,6 +125,37 @@ impl FloorMap {
             Some(TileContent::Static(*static_tile))
         } else {
             Some(TileContent::Empty)
+        }
+    }
+
+    /// Set a multi-tile station that occupies multiple positions
+    pub fn set_multi_tile_station(&mut self, positions: &[TilePos], station_entity_id: Uuid) {
+        for &pos in positions {
+            self.multi_tile_stations.insert(pos, station_entity_id);
+            self.entity_tiles.insert(pos, station_entity_id);
+        }
+    }
+
+    /// Get the station entity ID if this tile is part of a multi-tile station
+    pub fn get_station_at(&self, pos: TilePos) -> Option<Uuid> {
+        self.multi_tile_stations.get(&pos).copied()
+    }
+
+    /// Check if a position is part of a multi-tile station
+    pub fn is_multi_tile_station(&self, pos: TilePos) -> bool {
+        self.multi_tile_stations.contains_key(&pos)
+    }
+
+    /// Remove a multi-tile station from all its positions
+    pub fn remove_multi_tile_station(&mut self, station_entity_id: Uuid) {
+        let positions: Vec<TilePos> = self.multi_tile_stations
+            .iter()
+            .filter_map(|(pos, id)| if *id == station_entity_id { Some(*pos) } else { None })
+            .collect();
+        
+        for pos in positions {
+            self.multi_tile_stations.remove(&pos);
+            self.entity_tiles.remove(&pos);
         }
     }
 }
@@ -143,11 +183,7 @@ impl StaticTile {
     }
 
     pub fn blocks_vision(&self) -> bool {
-        match self {
-            StaticTile::Rock => true,
-            StaticTile::MetalWall | StaticTile::ReinforcedWall => true,
-            _ => false,
-        }
+        matches!(self, StaticTile::Rock | StaticTile::MetalWall | StaticTile::ReinforcedWall)
     }
 
     pub fn vision_attenuation(&self) -> f32 {
@@ -170,6 +206,54 @@ impl StaticTile {
                 transition_type: *transition_type,
             }),
             _ => None,
+        }
+    }
+
+    /// Convert static tile to visual representation for rendering
+    pub fn to_visual(&self) -> TileVisual {
+        match self {
+            StaticTile::Grass => TileVisual::Floor { 
+                material: Material::Metal, // TODO: Add proper grass material
+                wear: 0 
+            },
+            StaticTile::Rock => TileVisual::Wall { 
+                material: Material::Damaged 
+            },
+            StaticTile::MetalFloor => TileVisual::Floor { 
+                material: Material::Metal, 
+                wear: 0 
+            },
+            StaticTile::MetalWall => TileVisual::Wall { 
+                material: Material::Metal 
+            },
+            StaticTile::ReinforcedWall => TileVisual::Wall { 
+                material: Material::Reinforced 
+            },
+            StaticTile::CargoFloor { wear } => TileVisual::Floor { 
+                material: Material::Metal, 
+                wear: *wear 
+            },
+            StaticTile::Window { facing } => TileVisual::Window { 
+                broken: false,
+                facing: *facing 
+            },
+            StaticTile::ReinforcedWindow { facing, tint: _ } => TileVisual::Window { 
+                broken: false,
+                facing: *facing 
+            },
+            StaticTile::TransitionZone { .. } => {
+                TileVisual::TransitionFade { 
+                    progress: 0.0 
+                }
+            },
+            StaticTile::PowerConduit => TileVisual::Floor { 
+                material: Material::Metal, 
+                wear: 0 
+            }, // TODO: Add proper conduit visual
+            StaticTile::DataCable => TileVisual::Floor { 
+                material: Material::Metal, 
+                wear: 0 
+            }, // TODO: Add proper cable visual
         }
     }
 }
@@ -228,6 +312,13 @@ pub enum TileEvent {
         actor: Uuid,
         resource_type: crate::ResourceType,
         position: TilePos,
+    },
+    FloorTransitionRequested {
+        actor: Uuid,
+        mech_id: Uuid,
+        current_floor: u8,
+        target_floor: u8,
+        stairway_pos: TilePos,
     },
 }
 
@@ -321,6 +412,7 @@ impl TileMap {
             MechTileMap {
                 floors: vec![FloorMap::new(); 3], // 3 floors
                 position,
+                current_occupants: HashMap::new(),
             }
         })
     }
@@ -408,15 +500,13 @@ impl MechTileMap {
     pub fn new(_mech_entity: Uuid, floor_count: usize) -> Self {
         let mut floors = Vec::with_capacity(floor_count);
         for _ in 0..floor_count {
-            floors.push(FloorMap {
-                static_tiles: HashMap::new(),
-                entity_tiles: HashMap::new(),
-            });
+            floors.push(FloorMap::new());
         }
 
         Self {
             floors,
             position: TilePos::new(0, 0), // Will be set when created
+            current_occupants: HashMap::new(),
         }
     }
 
@@ -426,6 +516,40 @@ impl MechTileMap {
 
     pub fn get_floor_mut(&mut self, floor_idx: usize) -> Option<&mut FloorMap> {
         self.floors.get_mut(floor_idx)
+    }
+
+    /// Set which floor a player is currently on
+    pub fn set_player_floor(&mut self, player_id: Uuid, floor: u8) {
+        self.current_occupants.insert(player_id, floor);
+    }
+
+    /// Get which floor a player is on, if they're in this mech
+    pub fn get_player_floor(&self, player_id: Uuid) -> Option<u8> {
+        self.current_occupants.get(&player_id).copied()
+    }
+
+    /// Remove a player from the mech
+    pub fn remove_player(&mut self, player_id: Uuid) {
+        self.current_occupants.remove(&player_id);
+    }
+
+    /// Get all players on a specific floor
+    pub fn get_players_on_floor(&self, floor: u8) -> Vec<Uuid> {
+        self.current_occupants
+            .iter()
+            .filter_map(|(player_id, player_floor)| {
+                if *player_floor == floor {
+                    Some(*player_id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Get all players in the mech
+    pub fn get_all_players(&self) -> Vec<(Uuid, u8)> {
+        self.current_occupants.iter().map(|(id, floor)| (*id, *floor)).collect()
     }
 }
 

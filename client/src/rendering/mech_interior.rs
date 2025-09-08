@@ -32,61 +32,89 @@ pub fn render_mech_interior_with_vision(
     // Render the mech interior using world coordinate mapping
     // This allows mech interiors to be seen from the outside through windows/doors
 
-    {
+    // Check if we have detailed floor data from the server
+    if let Some(floor_map) = game_state.floor_manager.get_floor(mech.id, current_floor) {
+        // Render using detailed floor data from server
         #[cfg(feature = "profiling")]
-        scope!("basic_tiles");
+        scope!("detailed_floor_tiles");
 
-        for y in 0..FLOOR_HEIGHT_TILES {
-            for x in 0..FLOOR_WIDTH_TILES {
-                let interior_pos = TilePos::new(x, y);
-                let world_pos = MechInteriorCoordinates::interior_to_world(
-                    mech.position,
-                    current_floor,
-                    interior_pos,
+        // Render static tiles (walls, floors, stairways)
+        for (interior_pos, static_tile) in &floor_map.static_tiles {
+            let world_pos = MechInteriorCoordinates::interior_to_world(
+                mech.position,
+                current_floor,
+                *interior_pos,
+            );
+            let world_coords = world_pos.to_world();
+
+            let tile_x = cam_x + world_coords.x;
+            let tile_y = cam_y + world_coords.y;
+
+            // Check if this interior tile is visible
+            let mut visibility = 1.0;
+            if let Some(vision) = vision_system {
+                visibility =
+                    vision.get_interior_visibility(mech.id, current_floor, *interior_pos);
+                if visibility < 0.05 {
+                    continue; // Don't render invisible interior tiles
+                }
+            }
+
+            // Render the static tile
+            let tile_visual = static_tile.to_visual();
+            if let Some(vision) = vision_system {
+                super::hybrid_tiles::render_tile_visual_with_visibility(
+                    &tile_visual,
+                    tile_x,
+                    tile_y,
+                    TILE_SIZE,
+                    visibility,
                 );
-                let world_coords = world_pos.to_world();
+            } else {
+                super::hybrid_tiles::render_tile_visual(&tile_visual, tile_x, tile_y, TILE_SIZE);
+            }
+        }
 
-                let tile_x = cam_x + world_coords.x;
-                let tile_y = cam_y + world_coords.y;
+        // Render multi-tile stations
+        let station_positions = game_state.floor_manager.get_station_positions(mech.id, current_floor);
+        for (interior_pos, station_id) in &station_positions {
+            if let Some(stations) = game_state.floor_manager.get_mech_stations(mech.id) {
+                if let Some(station) = stations.get(station_id) {
+                    let world_pos = MechInteriorCoordinates::interior_to_world(
+                        mech.position,
+                        current_floor,
+                        *interior_pos,
+                    );
+                    let world_coords = world_pos.to_world();
 
-                // Check if this interior tile is visible
-                let mut visibility = 1.0;
-                if let Some(vision) = vision_system {
-                    visibility =
-                        vision.get_interior_visibility(mech.id, current_floor, interior_pos);
-                    if visibility < 0.05 {
-                        continue; // Don't render invisible interior tiles
+                    let tile_x = cam_x + world_coords.x;
+                    let tile_y = cam_y + world_coords.y;
+
+                    // Check if this station tile is visible
+                    let mut visibility = 1.0;
+                    if let Some(vision) = vision_system {
+                        visibility =
+                            vision.get_interior_visibility(mech.id, current_floor, *interior_pos);
+                        if visibility < 0.05 {
+                            continue; // Don't render invisible station tiles
+                        }
                     }
-                }
 
-                // Basic floor rendering (will be replaced by server tiles eventually)
-                let mut base_color = if x == 0
-                    || x == FLOOR_WIDTH_TILES - 1
-                    || y == 0
-                    || y == FLOOR_HEIGHT_TILES - 1
-                {
-                    // Wall
-                    LIGHTGRAY
-                } else {
-                    // Floor
-                    DARKGRAY
-                };
-
-                // Apply fog of war
-                if let Some(_vision) = vision_system {
-                    base_color = FogOfWarRenderer::apply_fog_to_color(base_color, visibility);
-                }
-
-                draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, base_color);
-
-                // Grid lines for floors
-                if !(x == 0 || x == FLOOR_WIDTH_TILES - 1 || y == 0 || y == FLOOR_HEIGHT_TILES - 1)
-                {
-                    let mut grid_color = GRAY;
+                    // Render station visual based on type
+                    let station_color = get_station_color(station.station_type);
+                    let mut final_color = station_color;
                     if let Some(_vision) = vision_system {
-                        grid_color = FogOfWarRenderer::apply_fog_to_color(grid_color, visibility);
+                        final_color = FogOfWarRenderer::apply_fog_to_color(station_color, visibility);
                     }
-                    draw_rectangle_lines(tile_x, tile_y, TILE_SIZE, TILE_SIZE, 1.0, grid_color);
+
+                    draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, final_color);
+
+                    // Draw station border to indicate it's interactive
+                    let mut border_color = WHITE;
+                    if let Some(_vision) = vision_system {
+                        border_color = FogOfWarRenderer::apply_fog_to_color(WHITE, visibility);
+                    }
+                    draw_rectangle_lines(tile_x, tile_y, TILE_SIZE, TILE_SIZE, 2.0, border_color);
                 }
             }
         }

@@ -4,17 +4,22 @@ use std::sync::{Arc, Mutex};
 use shared::*;
 
 mod debug_overlay;
+mod floor_manager;
 mod game_state;
 mod input;
 mod rendering;
+mod settings;
 mod spatial_testing;
 mod tracing_profiler;
 mod vision;
 
+mod network_common;
+mod network_trait;
+
 #[cfg(not(target_arch = "wasm32"))]
 mod network;
 #[cfg(target_arch = "wasm32")]
-mod network_web_macroquad;
+mod network_web;
 
 use debug_overlay::DebugOverlay;
 use game_state::GameState;
@@ -28,10 +33,14 @@ use profiling::scope;
 #[cfg(feature = "profiling")]
 use tracing_profiler::info_span;
 
+use network_trait::NetworkClient as NetworkClientTrait;
+#[cfg(target_arch = "wasm32")]
+use network_trait::WebNetworkClient;
+
 #[cfg(not(target_arch = "wasm32"))]
 use network::NetworkClient;
 #[cfg(target_arch = "wasm32")]
-use network_web_macroquad::NetworkClient;
+use network_web::NetworkClient;
 
 #[macroquad::main("Mech Battle Arena")]
 async fn main() {
@@ -71,7 +80,7 @@ async fn main() {
             let server_url = format!("ws://127.0.0.1:{}/ws", SERVER_PORT);
             info!("Connecting to {}", server_url);
 
-            match NetworkClient::connect(&server_url, game_clone) {
+            match NetworkClientTrait::connect(&server_url, game_clone) {
                 Ok(client) => {
                     *net_clone.lock().unwrap() = Some(client);
                     info!("Connected to server!");
@@ -95,7 +104,7 @@ async fn main() {
 
         info!("Connecting to {}", server_url);
 
-        network_client = match NetworkClient::connect(&server_url, Arc::clone(&game_state)) {
+        network_client = match NetworkClientTrait::connect(&server_url, Arc::clone(&game_state)) {
             Ok(client) => {
                 info!("WebSocket created, waiting for connection...");
                 Some(client)
@@ -205,6 +214,24 @@ async fn main() {
 
                 if input.exit_mech_pressed {
                     client.send_message(ClientMessage::ExitMech);
+                }
+
+                // Handle floor transitions when standing on stairway tiles
+                if input.floor_transition_pressed {
+                    let game = game_state.lock().unwrap();
+                    if let Some(player_id) = game.player_id {
+                        if let PlayerLocation::InsideMech { mech_id, floor, pos } = &game.player_location {
+                            let tile_pos = pos.to_tile_pos();
+                            if let Some(target_floor) = game.floor_manager.is_stairway_position(*mech_id, *floor, tile_pos) {
+                                drop(game); // Release the lock before sending message
+                                client.send_message(ClientMessage::FloorTransition {
+                                    current_position: tile_pos,
+                                    target_floor,
+                                    stairway_position: tile_pos,
+                                });
+                            }
+                        }
+                    }
                 }
 
                 // Handle station input (number keys 1-5)

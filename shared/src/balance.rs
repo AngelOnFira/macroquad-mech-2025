@@ -82,7 +82,7 @@ pub const INITIAL_RESOURCE_SPAWNS: &[(i32, i32)] =
 // ===== Mech Interior Layout =====
 pub const LADDER_POSITIONS: &[(i32, i32)] = &[
     (2, 2),
-    // Second ladder position calculated as (FLOOR_WIDTH_TILES - 3, 2)
+    // Second ladder position calculated as (FLOOR_WIDTH_TILES - 3, 2) = (7, 2)
 ];
 
 pub const STATION_POSITIONS: &[&[(i32, i32)]] = &[

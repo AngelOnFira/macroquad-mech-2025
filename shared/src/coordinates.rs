@@ -47,6 +47,20 @@ pub struct NDC {
     pub y: f32,
 }
 
+/// Position within a mech interior including floor information
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MechInteriorPos {
+    pub floor: u8,
+    pub tile_pos: TilePos,
+}
+
+/// Floor position for mech interior coordinates
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]  
+pub struct FloorPos {
+    pub x: u8,
+    pub y: u8,
+}
+
 /// Different coordinate spaces in the game
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CoordinateSpace {
@@ -879,6 +893,126 @@ impl RelativePosition {
     }
 }
 
+// =============================================================================
+// Mech Interior Position Implementation
+// =============================================================================
+
+impl MechInteriorPos {
+    /// Create a new mech interior position
+    pub fn new(floor: u8, tile_pos: TilePos) -> Self {
+        Self { floor, tile_pos }
+    }
+
+    /// Create from floor and separate coordinates
+    pub fn from_coords(floor: u8, x: i32, y: i32) -> Self {
+        Self {
+            floor,
+            tile_pos: TilePos::new(x, y),
+        }
+    }
+
+    /// Get the world position for this mech interior position
+    /// Note: This requires mech world position context for full conversion
+    pub fn to_local_world(self) -> WorldPos {
+        self.tile_pos.to_world_center()
+    }
+
+    /// Check if this position is within valid mech interior bounds
+    pub fn is_valid(self) -> bool {
+        self.floor < 3 && self.tile_pos.is_in_mech_floor_bounds()
+    }
+
+    /// Get the floor number
+    pub fn floor(self) -> u8 {
+        self.floor
+    }
+
+    /// Get the tile position on the floor
+    pub fn tile_pos(self) -> TilePos {
+        self.tile_pos
+    }
+
+    /// Convert to FloorPos (local floor coordinates)
+    pub fn to_floor_pos(self) -> Option<FloorPos> {
+        if self.tile_pos.x >= 0 
+            && self.tile_pos.x < FLOOR_WIDTH_TILES 
+            && self.tile_pos.y >= 0 
+            && self.tile_pos.y < FLOOR_HEIGHT_TILES {
+            Some(FloorPos {
+                x: self.tile_pos.x as u8,
+                y: self.tile_pos.y as u8,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+// =============================================================================
+// Floor Position Implementation
+// =============================================================================
+
+impl FloorPos {
+    /// Create a new floor position
+    pub fn new(x: u8, y: u8) -> Self {
+        Self { x, y }
+    }
+
+    /// Convert to TilePos for use with other systems
+    pub fn to_tile_pos(self) -> TilePos {
+        TilePos::new(self.x as i32, self.y as i32)
+    }
+
+    /// Convert to MechInteriorPos with floor information
+    pub fn to_mech_interior_pos(self, floor: u8) -> MechInteriorPos {
+        MechInteriorPos::new(floor, self.to_tile_pos())
+    }
+
+    /// Get world position within floor (local coordinates)
+    pub fn to_world(self) -> WorldPos {
+        self.to_tile_pos().to_world_center()
+    }
+
+    /// Check if this floor position is within bounds
+    pub fn is_valid(self) -> bool {
+        (self.x as i32) < FLOOR_WIDTH_TILES && (self.y as i32) < FLOOR_HEIGHT_TILES
+    }
+
+    /// Calculate distance to another floor position
+    pub fn distance_to(self, other: FloorPos) -> f32 {
+        let dx = (self.x as i32 - other.x as i32) as f32;
+        let dy = (self.y as i32 - other.y as i32) as f32;
+        (dx * dx + dy * dy).sqrt()
+    }
+
+    /// Calculate Manhattan distance to another floor position
+    pub fn manhattan_distance_to(self, other: FloorPos) -> u8 {
+        let dx = (self.x as i32 - other.x as i32).unsigned_abs() as u8;
+        let dy = (self.y as i32 - other.y as i32).unsigned_abs() as u8;
+        dx + dy
+    }
+
+    /// Get neighboring floor positions (4-directional)
+    pub fn neighbors_4(self) -> Vec<FloorPos> {
+        let mut neighbors = Vec::new();
+        
+        if self.x > 0 {
+            neighbors.push(FloorPos::new(self.x - 1, self.y));
+        }
+        if self.x < FLOOR_WIDTH_TILES as u8 - 1 {
+            neighbors.push(FloorPos::new(self.x + 1, self.y));
+        }
+        if self.y > 0 {
+            neighbors.push(FloorPos::new(self.x, self.y - 1));
+        }
+        if self.y < FLOOR_HEIGHT_TILES as u8 - 1 {
+            neighbors.push(FloorPos::new(self.x, self.y + 1));
+        }
+        
+        neighbors
+    }
+}
+
 #[cfg(test)]
 mod new_tests {
     use super::*;
@@ -982,5 +1116,74 @@ mod new_tests {
         // Test rounding
         let rounded = TileRange::from_world_distance(2.6 * TILE_SIZE);
         assert_eq!(rounded.tiles(), 3);
+    }
+
+    #[test]
+    fn test_mech_interior_pos() {
+        let pos = MechInteriorPos::new(1, TilePos::new(5, 7));
+        
+        assert_eq!(pos.floor(), 1);
+        assert_eq!(pos.tile_pos(), TilePos::new(5, 7));
+        assert!(pos.is_valid());
+
+        // Test conversion to floor pos
+        let floor_pos = pos.to_floor_pos().unwrap();
+        assert_eq!(floor_pos.x, 5);
+        assert_eq!(floor_pos.y, 7);
+
+        // Test invalid floor
+        let invalid_pos = MechInteriorPos::new(5, TilePos::new(5, 7));
+        assert!(!invalid_pos.is_valid());
+    }
+
+    #[test]
+    fn test_floor_pos() {
+        let pos = FloorPos::new(3, 4);
+        
+        assert_eq!(pos.x, 3);
+        assert_eq!(pos.y, 4);
+        assert!(pos.is_valid());
+
+        // Test conversion to tile pos
+        let tile_pos = pos.to_tile_pos();
+        assert_eq!(tile_pos.x, 3);
+        assert_eq!(tile_pos.y, 4);
+
+        // Test conversion to mech interior pos
+        let interior_pos = pos.to_mech_interior_pos(2);
+        assert_eq!(interior_pos.floor(), 2);
+        assert_eq!(interior_pos.tile_pos(), tile_pos);
+
+        // Test distance calculations
+        let other_pos = FloorPos::new(6, 8);
+        let distance = pos.distance_to(other_pos);
+        assert_eq!(distance, 5.0); // 3-4-5 triangle
+        
+        let manhattan = pos.manhattan_distance_to(other_pos);
+        assert_eq!(manhattan, 7); // |3-6| + |4-8| = 3 + 4 = 7
+
+        // Test neighbors
+        let neighbors = pos.neighbors_4();
+        assert!(neighbors.contains(&FloorPos::new(2, 4))); // Left
+        assert!(neighbors.contains(&FloorPos::new(4, 4))); // Right
+        assert!(neighbors.contains(&FloorPos::new(3, 3))); // Up
+        assert!(neighbors.contains(&FloorPos::new(3, 5))); // Down
+    }
+
+    #[test]
+    fn test_floor_pos_boundary_conditions() {
+        // Test corner position neighbors
+        let corner = FloorPos::new(0, 0);
+        let neighbors = corner.neighbors_4();
+        assert_eq!(neighbors.len(), 2); // Only right and down
+
+        // Test edge position
+        let edge = FloorPos::new(0, 5);
+        let neighbors = edge.neighbors_4();
+        assert_eq!(neighbors.len(), 3); // Right, up, down
+
+        // Test invalid position
+        let invalid_pos = FloorPos::new(255, 255);
+        assert!(!invalid_pos.is_valid());
     }
 }

@@ -412,25 +412,23 @@ impl Game {
         let mech_tile_map = self.tile_map.create_mech(mech_id, mech_pos);
         mech_tile_map.position = mech_pos;
 
-        // Populate the mech interior from the layout
+        // Populate the mech interior from the layout - floors are already HashMap-based
         if let Some(mech) = self.mechs.get(&mech_id) {
             for (floor_idx, floor_layout) in mech.interior.floors.iter().enumerate() {
                 if let Some(floor_map) = mech_tile_map.floors.get_mut(floor_idx) {
-                    // Add tiles from the layout
-                    for (y, row) in floor_layout.tiles.iter().enumerate() {
-                        for (x, tile_content) in row.iter().enumerate() {
-                            let tile_pos = TilePos::new(x as i32, y as i32);
-
-                            match tile_content {
-                                TileContent::Static(static_tile) => {
-                                    floor_map.static_tiles.insert(tile_pos, *static_tile);
-                                }
-                                TileContent::Entity(id) => {
-                                    floor_map.entity_tiles.insert(tile_pos, *id);
-                                }
-                                TileContent::Empty => {}
-                            }
-                        }
+                    // Copy static tiles
+                    for (pos, static_tile) in &floor_layout.static_tiles {
+                        floor_map.static_tiles.insert(*pos, *static_tile);
+                    }
+                    
+                    // Copy entity tiles  
+                    for (pos, entity_id) in &floor_layout.entity_tiles {
+                        floor_map.entity_tiles.insert(*pos, *entity_id);
+                    }
+                    
+                    // Copy multi-tile station mappings
+                    for (pos, station_id) in &floor_layout.multi_tile_stations {
+                        floor_map.multi_tile_stations.insert(*pos, *station_id);
                     }
 
                     // Add station entities
@@ -877,6 +875,7 @@ impl Game {
                         station_type: s.station_type,
                         floor: s.floor,
                         position: s.position,
+                        size: get_station_size(s.station_type),
                         operated_by: s.operated_by,
                     })
                     .collect();

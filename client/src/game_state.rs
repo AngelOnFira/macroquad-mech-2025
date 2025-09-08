@@ -1,4 +1,4 @@
-use crate::vision::ClientVisionSystem;
+use crate::{floor_manager::FloorManager, vision::ClientVisionSystem};
 use macroquad::prelude::*;
 use shared::{constants::*, network_constants::*, tile_entity::TileVisual, types::*};
 use std::collections::HashMap;
@@ -18,6 +18,7 @@ pub struct GameState {
     pub ui_state: UIState,
     pub visible_tiles: HashMap<TilePos, TileVisual>,
     pub vision_system: ClientVisionSystem,
+    pub floor_manager: FloorManager,
 }
 
 pub struct UIState {
@@ -109,6 +110,7 @@ impl GameState {
             },
             visible_tiles: HashMap::new(),
             vision_system: ClientVisionSystem::new(),
+            floor_manager: FloorManager::new(),
         }
     }
 

@@ -1,6 +1,8 @@
 #[cfg(debug_assertions)]
 use crate::game_state::GameState;
 #[cfg(debug_assertions)]
+use crate::settings::{DebugSettings, SettingsManager};
+#[cfg(debug_assertions)]
 use egui::*;
 #[cfg(debug_assertions)]
 use macroquad::prelude::get_fps;
@@ -20,6 +22,9 @@ pub struct DebugOverlay {
 
     // Smoothing for stability
     fps_smoothing_buffer: VecDeque<f32>, // Raw FPS values for smoothing
+
+    // Settings persistence
+    settings_manager: SettingsManager,
 
     // UI state
     show_performance: bool,
@@ -66,25 +71,31 @@ pub struct DebugOverlay {
 #[cfg(debug_assertions)]
 impl DebugOverlay {
     pub fn new() -> Self {
+        let settings_manager = SettingsManager::new();
+        let settings = settings_manager.get_settings().clone();
+
         Self {
             frame_times: VecDeque::with_capacity(120),
             fps_history: VecDeque::with_capacity(120),
             elapsed_time: 0.0,
             fps_smoothing_buffer: VecDeque::with_capacity(10), // 10-frame smoothing
 
-            show_performance: false,
-            show_server_state: true,
-            show_mini_map: false,
-            show_network: true,
-            show_rendering_toggles: true,
-            show_spatial_debug: true,
+            settings_manager,
 
-            spatial_debug_enabled: false,
-            show_coordinate_transforms: false,
-            show_mech_bounds: true,
-            show_door_positions: true,
-            show_coordinate_grid: false,
-            show_floor_offsets: true,
+            // Load settings from persistent storage
+            show_performance: settings.show_performance,
+            show_server_state: settings.show_server_state,
+            show_mini_map: settings.show_mini_map,
+            show_network: settings.show_network,
+            show_rendering_toggles: settings.show_rendering_toggles,
+            show_spatial_debug: settings.show_spatial_debug,
+
+            spatial_debug_enabled: settings.spatial_debug_enabled,
+            show_coordinate_transforms: settings.show_coordinate_transforms,
+            show_mech_bounds: settings.show_mech_bounds,
+            show_door_positions: settings.show_door_positions,
+            show_coordinate_grid: settings.show_coordinate_grid,
+            show_floor_offsets: settings.show_floor_offsets,
 
             test_report: String::new(),
             show_test_report: false,
@@ -94,20 +105,54 @@ impl DebugOverlay {
             message_history: VecDeque::with_capacity(20),
             message_counter: 0,
 
-            // All rendering enabled by default
-            render_mechs: true,
-            render_players: true,
-            render_resources: true,
-            render_projectiles: true,
-            render_effects: true,
-            render_ui: true,
-            render_fog: true,
-            render_tiles: true,
-            render_stations: true,
+            // Load rendering toggles from persistent storage
+            render_mechs: settings.render_mechs,
+            render_players: settings.render_players,
+            render_resources: settings.render_resources,
+            render_projectiles: settings.render_projectiles,
+            render_effects: settings.render_effects,
+            render_ui: settings.render_ui,
+            render_fog: settings.render_fog,
+            render_tiles: settings.render_tiles,
+            render_stations: settings.render_stations,
 
             ascii_grid_size: (40, 20),
             mini_map_zoom: 1.0,
         }
+    }
+
+    // Helper method to save current settings
+    fn save_settings(&mut self) {
+        let settings = DebugSettings {
+            // UI panel visibility
+            show_performance: self.show_performance,
+            show_server_state: self.show_server_state,
+            show_mini_map: self.show_mini_map,
+            show_network: self.show_network,
+            show_rendering_toggles: self.show_rendering_toggles,
+            show_spatial_debug: self.show_spatial_debug,
+
+            // Spatial debug controls
+            spatial_debug_enabled: self.spatial_debug_enabled,
+            show_coordinate_transforms: self.show_coordinate_transforms,
+            show_mech_bounds: self.show_mech_bounds,
+            show_door_positions: self.show_door_positions,
+            show_coordinate_grid: self.show_coordinate_grid,
+            show_floor_offsets: self.show_floor_offsets,
+
+            // Rendering toggles
+            render_mechs: self.render_mechs,
+            render_players: self.render_players,
+            render_resources: self.render_resources,
+            render_projectiles: self.render_projectiles,
+            render_effects: self.render_effects,
+            render_ui: self.render_ui,
+            render_fog: self.render_fog,
+            render_tiles: self.render_tiles,
+            render_stations: self.render_stations,
+        };
+
+        self.settings_manager.update_settings(settings);
     }
 
     pub fn update(&mut self, _game_state: &GameState, frame_time: f32) {
@@ -156,12 +201,17 @@ impl DebugOverlay {
             .default_open(false)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.toggle_value(&mut self.show_performance, "Performance");
-                    ui.toggle_value(&mut self.show_server_state, "Server State");
-                    ui.toggle_value(&mut self.show_mini_map, "Mini Map");
-                    ui.toggle_value(&mut self.show_network, "Network");
-                    ui.toggle_value(&mut self.show_rendering_toggles, "Rendering");
-                    ui.toggle_value(&mut self.show_spatial_debug, "Spatial");
+                    let mut changed = false;
+                    changed |= ui.toggle_value(&mut self.show_performance, "Performance").changed();
+                    changed |= ui.toggle_value(&mut self.show_server_state, "Server State").changed();
+                    changed |= ui.toggle_value(&mut self.show_mini_map, "Mini Map").changed();
+                    changed |= ui.toggle_value(&mut self.show_network, "Network").changed();
+                    changed |= ui.toggle_value(&mut self.show_rendering_toggles, "Rendering").changed();
+                    changed |= ui.toggle_value(&mut self.show_spatial_debug, "Spatial").changed();
+                    
+                    if changed {
+                        self.save_settings();
+                    }
                 });
 
                 ui.separator();
@@ -465,18 +515,28 @@ impl DebugOverlay {
             // Rendering toggles in two columns
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
-                    ui.checkbox(&mut self.render_tiles, "Render Tiles");
-                    ui.checkbox(&mut self.render_mechs, "Render Mechs");
-                    ui.checkbox(&mut self.render_players, "Render Players");
-                    ui.checkbox(&mut self.render_stations, "Render Stations");
-                    ui.checkbox(&mut self.render_resources, "Render Resources");
+                    let mut changed = false;
+                    changed |= ui.checkbox(&mut self.render_tiles, "Render Tiles").changed();
+                    changed |= ui.checkbox(&mut self.render_mechs, "Render Mechs").changed();
+                    changed |= ui.checkbox(&mut self.render_players, "Render Players").changed();
+                    changed |= ui.checkbox(&mut self.render_stations, "Render Stations").changed();
+                    changed |= ui.checkbox(&mut self.render_resources, "Render Resources").changed();
+                    
+                    if changed {
+                        self.save_settings();
+                    }
                 });
                 ui.separator();
                 ui.vertical(|ui| {
-                    ui.checkbox(&mut self.render_projectiles, "Render Projectiles");
-                    ui.checkbox(&mut self.render_effects, "Render Effects");
-                    ui.checkbox(&mut self.render_fog, "Render Fog of War");
-                    ui.checkbox(&mut self.render_ui, "Render UI");
+                    let mut changed = false;
+                    changed |= ui.checkbox(&mut self.render_projectiles, "Render Projectiles").changed();
+                    changed |= ui.checkbox(&mut self.render_effects, "Render Effects").changed();
+                    changed |= ui.checkbox(&mut self.render_fog, "Render Fog of War").changed();
+                    changed |= ui.checkbox(&mut self.render_ui, "Render UI").changed();
+                    
+                    if changed {
+                        self.save_settings();
+                    }
                 });
             });
 
@@ -492,6 +552,7 @@ impl DebugOverlay {
                 self.render_effects = true;
                 self.render_fog = true;
                 self.render_ui = true;
+                self.save_settings();
             }
 
             if ui.button("Disable All").clicked() {
@@ -504,6 +565,7 @@ impl DebugOverlay {
                 self.render_effects = false;
                 self.render_fog = false;
                 self.render_ui = false;
+                self.save_settings();
             }
         });
     }
@@ -517,27 +579,39 @@ impl DebugOverlay {
         ui.heading("Spatial Debug");
         ui.indent("spatial_debug_indent", |ui| {
             // Master toggle for spatial debug rendering
-            ui.checkbox(
+            if ui.checkbox(
                 &mut self.spatial_debug_enabled,
                 "Enable Spatial Debug Rendering",
-            );
+            ).changed() {
+                self.save_settings();
+            }
 
             ui.separator();
 
             // Spatial debug controls in two columns
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
-                    ui.checkbox(
+                    let mut changed = false;
+                    changed |= ui.checkbox(
                         &mut self.show_coordinate_transforms,
                         "Coordinate Transforms",
-                    );
-                    ui.checkbox(&mut self.show_mech_bounds, "Mech Bounds");
-                    ui.checkbox(&mut self.show_door_positions, "Door Positions");
+                    ).changed();
+                    changed |= ui.checkbox(&mut self.show_mech_bounds, "Mech Bounds").changed();
+                    changed |= ui.checkbox(&mut self.show_door_positions, "Door Positions").changed();
+                    
+                    if changed {
+                        self.save_settings();
+                    }
                 });
                 ui.separator();
                 ui.vertical(|ui| {
-                    ui.checkbox(&mut self.show_coordinate_grid, "Coordinate Grid");
-                    ui.checkbox(&mut self.show_floor_offsets, "Floor Offsets");
+                    let mut changed = false;
+                    changed |= ui.checkbox(&mut self.show_coordinate_grid, "Coordinate Grid").changed();
+                    changed |= ui.checkbox(&mut self.show_floor_offsets, "Floor Offsets").changed();
+                    
+                    if changed {
+                        self.save_settings();
+                    }
                 });
             });
 
@@ -671,6 +745,7 @@ impl DebugOverlay {
                 self.show_door_positions = true;
                 self.show_coordinate_grid = true;
                 self.show_floor_offsets = true;
+                self.save_settings();
             }
 
             if ui.button("Hide All Debug Info").clicked() {
@@ -679,6 +754,7 @@ impl DebugOverlay {
                 self.show_door_positions = false;
                 self.show_coordinate_grid = false;
                 self.show_floor_offsets = false;
+                self.save_settings();
             }
         });
     }

@@ -427,6 +427,126 @@ impl Command for ChatMessageCommand {
     }
 }
 
+/// Floor transition command for changing floors in mechs
+pub struct FloorTransitionCommand {
+    pub current_position: TilePos,
+    pub target_floor: u8,
+    pub stairway_position: TilePos,
+}
+
+#[async_trait]
+impl Command for FloorTransitionCommand {
+    async fn execute(
+        &self,
+        game: &tokio::sync::RwLock<Game>,
+        player_id: Uuid,
+        tx: &broadcast::Sender<(Uuid, ServerMessage)>,
+    ) -> GameResult<()> {
+        let mut game = game.write().await;
+
+        let player = game
+            .players
+            .get(&player_id)
+            .ok_or_else(|| GameError::player_not_found(player_id))?;
+
+        // Check if player is in a mech
+        if let PlayerLocation::InsideMech { mech_id, floor, .. } = player.location {
+            // Validate target floor
+            if self.target_floor >= 3 {
+                let error_msg = ServerMessage::FloorTransitionFailed {
+                    player_id,
+                    reason: "Invalid floor number".to_string(),
+                };
+                let _ = tx.send((player_id, error_msg));
+                return Ok(());
+            }
+
+            // Validate stairway position - check if there's actually a stairway there
+            if let Some(mech_tilemap) = game.tile_map.mech_tiles.get(&mech_id) {
+                if let Some(floor_map) = mech_tilemap.floors.get(floor as usize) {
+                    if let Some(static_tile) = floor_map.static_tiles.get(&self.stairway_position) {
+                        match static_tile {
+                            StaticTile::TransitionZone { transition_type, .. } => {
+                                let valid_transition = match transition_type {
+                                    TransitionType::StairUp { target_floor, .. } => {
+                                        *target_floor == self.target_floor
+                                    }
+                                    TransitionType::StairDown { target_floor, .. } => {
+                                        *target_floor == self.target_floor
+                                    }
+                                    _ => false,
+                                };
+
+                                if !valid_transition {
+                                    let error_msg = ServerMessage::FloorTransitionFailed {
+                                        player_id,
+                                        reason: "Invalid stairway target floor".to_string(),
+                                    };
+                                    let _ = tx.send((player_id, error_msg));
+                                    return Ok(());
+                                }
+                            }
+                            _ => {
+                                let error_msg = ServerMessage::FloorTransitionFailed {
+                                    player_id,
+                                    reason: "No stairway at specified position".to_string(),
+                                };
+                                let _ = tx.send((player_id, error_msg));
+                                return Ok(());
+                            }
+                        }
+                    } else {
+                        let error_msg = ServerMessage::FloorTransitionFailed {
+                            player_id,
+                            reason: "No tile at stairway position".to_string(),
+                        };
+                        let _ = tx.send((player_id, error_msg));
+                        return Ok(());
+                    }
+                }
+            }
+
+            // Update player location
+            if let Some(player) = game.players.get_mut(&player_id) {
+                // Calculate new position on target floor - place near stairway
+                let new_position = self.stairway_position.to_world_center();
+
+                player.location = PlayerLocation::InsideMech {
+                    mech_id,
+                    floor: self.target_floor,
+                    pos: new_position,
+                };
+
+                // Update mech occupancy tracking
+                if let Some(mech) = game.mechs.get_mut(&mech_id) {
+                    mech.interior.set_player_floor(player_id, self.target_floor);
+                }
+
+                // Send success message
+                let success_msg = ServerMessage::FloorTransitionComplete {
+                    player_id,
+                    mech_id,
+                    old_floor: floor,
+                    new_floor: self.target_floor,
+                    new_position: self.stairway_position,
+                };
+                let _ = tx.send((Uuid::nil(), success_msg)); // Broadcast to all players
+
+                Ok(())
+            } else {
+                Err(GameError::player_not_found(player_id))
+            }
+        } else {
+            let error_msg = ServerMessage::FloorTransitionFailed {
+                player_id,
+                reason: "Player not in mech".to_string(),
+            };
+            let _ = tx.send((player_id, error_msg));
+            Ok(())
+        }
+    }
+}
+
 /// Convert ClientMessage to Command
 pub fn create_command(msg: ClientMessage) -> Box<dyn Command> {
     match msg {
@@ -451,5 +571,12 @@ pub fn create_command(msg: ClientMessage) -> Box<dyn Command> {
         ClientMessage::ExitMech => Box::new(ExitMechCommand),
         ClientMessage::ExitStation => Box::new(ExitStationCommand),
         ClientMessage::ChatMessage { message } => Box::new(ChatMessageCommand { message }),
+        ClientMessage::FloorTransition { current_position, target_floor, stairway_position } => {
+            Box::new(FloorTransitionCommand { 
+                current_position, 
+                target_floor, 
+                stairway_position 
+            })
+        },
     }
 }

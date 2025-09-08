@@ -145,6 +145,9 @@ pub enum ValidationError {
 
     #[error("Message is too large: {size} bytes (max: {max})")]
     MessageTooLarge { size: usize, max: usize },
+
+    #[error("Floor number is invalid (must be 0-2)")]
+    InvalidFloorNumber,
 }
 
 /// Result type aliases for convenience
