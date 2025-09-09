@@ -2,15 +2,14 @@ use crate::{floor_manager::FloorManager, vision::ClientVisionSystem};
 use macroquad::prelude::*;
 use shared::{constants::*, network_constants::*, tile_entity::TileVisual, types::*};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 pub struct GameState {
-    pub player_id: Option<Uuid>,
+    pub player_id: Option<PlayerId>,
     pub player_location: PlayerLocation,
     pub player_team: Option<TeamId>,
-    pub players: HashMap<Uuid, PlayerData>,
-    pub mechs: HashMap<Uuid, MechState>,
-    pub stations: HashMap<Uuid, StationState>,
+    pub players: HashMap<PlayerId, PlayerData>,
+    pub mechs: HashMap<MechId, MechState>,
+    pub stations: HashMap<StationId, StationState>,
     pub resources: Vec<ResourceState>,
     pub projectiles: Vec<ProjectileData>,
     pub weapon_effects: Vec<WeaponEffect>,
@@ -23,12 +22,12 @@ pub struct GameState {
 
 pub struct UIState {
     pub pilot_station_open: bool,
-    pub pilot_station_id: Option<Uuid>,
-    pub operating_mech_id: Option<Uuid>,
+    pub pilot_station_id: Option<StationId>,
+    pub operating_mech_id: Option<MechId>,
 }
 
 pub struct PlayerData {
-    pub _id: Uuid,
+    pub _id: PlayerId,
     pub name: String,
     pub team: TeamId,
     pub location: PlayerLocation,
@@ -36,7 +35,7 @@ pub struct PlayerData {
 }
 
 pub struct MechState {
-    pub id: Uuid,
+    pub id: MechId,
     pub position: TilePos,
     pub world_position: WorldPos,
     pub team: TeamId,
@@ -58,33 +57,33 @@ pub struct MechFloor {
 // Use TileContent and TileVisual from shared::tile_entity instead
 
 pub struct StationState {
-    pub _id: Uuid,
-    pub mech_id: Uuid,
+    pub _id: StationId,
+    pub mech_id: MechId,
     pub floor: u8,
     pub position: TilePos,
     pub station_type: StationType,
     pub occupied: bool,
-    pub operated_by: Option<Uuid>,
+    pub operated_by: Option<PlayerId>,
 }
 
 pub struct ResourceState {
-    pub id: Uuid,
+    pub id: ResourceId,
     pub position: TilePos,
     pub resource_type: ResourceType,
 }
 
 pub struct ProjectileData {
-    pub id: Uuid,
+    pub id: ProjectileId,
     pub position: WorldPos,
     pub _velocity: (f32, f32),
 }
 
 pub struct WeaponEffect {
-    pub mech_id: Uuid,
+    pub mech_id: MechId,
     pub weapon_type: StationType,
     pub target: TilePos,
     pub timer: f32,
-    pub _projectile_id: Option<Uuid>,
+    pub _projectile_id: Option<ProjectileId>,
 }
 
 impl GameState {

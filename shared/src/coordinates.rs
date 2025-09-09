@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     ARENA_HEIGHT_TILES, ARENA_WIDTH_TILES, FLOOR_HEIGHT_TILES, FLOOR_WIDTH_TILES, MECH_SIZE_TILES,
     TILE_SIZE,
@@ -48,7 +50,7 @@ pub struct NDC {
 }
 
 /// Position within a mech interior including floor information
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct MechInteriorPos {
     pub floor: u8,
     pub tile_pos: TilePos,

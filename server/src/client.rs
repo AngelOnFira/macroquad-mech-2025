@@ -52,7 +52,9 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
                             }
                         }
                         Err(e) => {
-                            log::warn!("Failed to parse binary message from player {player_id}: {e}");
+                            log::warn!(
+                                "Failed to parse binary message from player {player_id}: {e}"
+                            );
                         }
                     }
                 }
@@ -146,7 +148,7 @@ pub async fn handle_action_key(
                     }
                 }
             }
-            PlayerLocation::InsideMech { pos, floor, .. } => {
+            PlayerLocation::InsideMech { pos, .. } => {
                 // First check if player is operating a station and wants to exit
                 if let Some(station_id) = player.operating_station {
                     // Exit station

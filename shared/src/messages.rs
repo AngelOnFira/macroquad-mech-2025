@@ -3,7 +3,6 @@ use crate::mech_layout::{MechInterior, MechStation};
 use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 // Client -> Server Messages
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,45 +40,45 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     // Connection
     JoinedGame {
-        player_id: Uuid,
+        player_id: PlayerId,
         team: TeamId,
         spawn_position: TilePos,
     },
     PlayerDisconnected {
-        player_id: Uuid,
+        player_id: PlayerId,
     },
 
     // Game State Updates
     GameState {
-        players: HashMap<Uuid, PlayerState>,
-        mechs: HashMap<Uuid, MechState>,
+        players: HashMap<PlayerId, PlayerState>,
+        mechs: HashMap<MechId, MechState>,
         resources: Vec<ResourceState>,
         projectiles: Vec<ProjectileState>,
     },
 
     // Mech Floor Data - Complete floor layouts for clients
     MechFloorData {
-        mech_id: Uuid,
+        mech_id: MechId,
         interior: MechInterior,
-        stations: HashMap<Uuid, MechStation>,
+        stations: HashMap<StationId, MechStation>,
     },
 
     // Floor transition success/failure
     FloorTransitionComplete {
-        player_id: Uuid,
-        mech_id: Uuid,
+        player_id: PlayerId,
+        mech_id: MechId,
         old_floor: u8,
         new_floor: u8,
         new_position: TilePos,
     },
     FloorTransitionFailed {
-        player_id: Uuid,
+        player_id: PlayerId,
         reason: String,
     },
 
     // Real-time mech interior updates (Future scope - not implemented in initial version)
     MechInteriorUpdate {
-        mech_id: Uuid,
+        mech_id: MechId,
         floor: u8,
         tile_updates: Vec<(TilePos, TileVisual)>,
         station_changes: Vec<StationUpdate>,
@@ -87,93 +86,93 @@ pub enum ServerMessage {
 
     // Player Updates
     PlayerMoved {
-        player_id: Uuid,
+        player_id: PlayerId,
         location: PlayerLocation,
     },
     PlayerPickedUpResource {
-        player_id: Uuid,
+        player_id: PlayerId,
         resource_type: ResourceType,
-        resource_id: Uuid,
+        resource_id: ResourceId,
     },
     PlayerDroppedResource {
-        player_id: Uuid,
+        player_id: PlayerId,
         resource_type: ResourceType,
         position: TilePos,
     },
     PlayerEnteredStation {
-        player_id: Uuid,
-        station_id: Uuid,
+        player_id: PlayerId,
+        station_id: StationId,
     },
     PlayerExitedStation {
-        player_id: Uuid,
-        station_id: Uuid,
+        player_id: PlayerId,
+        station_id: StationId,
     },
 
     // Mech Updates
     MechMoved {
-        mech_id: Uuid,
+        mech_id: MechId,
         position: TilePos,
         world_position: WorldPos,
     },
     MechDamaged {
-        mech_id: Uuid,
+        mech_id: MechId,
         damage: u32,
         health_remaining: u32,
     },
     MechShieldChanged {
-        mech_id: Uuid,
+        mech_id: MechId,
         shield: u32,
     },
     MechUpgraded {
-        mech_id: Uuid,
+        mech_id: MechId,
         upgrade_type: UpgradeType,
         new_level: u8,
     },
     MechRepaired {
-        mech_id: Uuid,
+        mech_id: MechId,
         health_restored: u32,
         new_health: u32,
     },
 
     // Combat
     WeaponFired {
-        mech_id: Uuid,
+        mech_id: MechId,
         weapon_type: StationType,
         target_position: TilePos,
-        projectile_id: Option<Uuid>,
+        projectile_id: Option<ProjectileId>,
     },
     ProjectileHit {
-        projectile_id: Uuid,
-        hit_mech_id: Option<Uuid>,
+        projectile_id: ProjectileId,
+        hit_mech_id: Option<MechId>,
         damage_dealt: u32,
     },
     ProjectileExpired {
-        projectile_id: Uuid,
+        projectile_id: ProjectileId,
     },
     EffectCreated {
-        effect_id: Uuid,
+        effect_id: WeaponEffectId,
         effect_type: String,
         position: WorldPos,
         duration: f32,
     },
     EffectExpired {
-        effect_id: Uuid,
+        effect_id: WeaponEffectId,
     },
 
     // Resources
     ResourceSpawned {
-        resource_id: Uuid,
+        resource_id: ResourceId,
         position: TilePos,
         resource_type: ResourceType,
     },
     ResourceCollected {
-        resource_id: Uuid,
-        player_id: Uuid,
+        resource_id: ResourceId,
+        player_id: PlayerId,
     },
 
     // Chat
     ChatMessage {
-        player_id: Uuid,
+        player_id: PlayerId,
         player_name: String,
         message: String,
         team_only: bool,
@@ -181,8 +180,8 @@ pub enum ServerMessage {
 
     // Player death
     PlayerKilled {
-        player_id: Uuid,
-        killer: Option<Uuid>, // None if killed by environment (like being run over)
+        player_id: PlayerId,
+        killer: Option<PlayerId>, // None if killed by environment (like being run over)
         respawn_position: WorldPos,
     },
 
@@ -245,17 +244,17 @@ impl ServerMessage {
 // State structures for full game state sync
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerState {
-    pub id: Uuid,
+    pub id: PlayerId,
     pub name: String,
     pub team: TeamId,
     pub location: PlayerLocation,
     pub carrying_resource: Option<ResourceType>,
-    pub operating_station: Option<Uuid>,
+    pub operating_station: Option<StationId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MechState {
-    pub id: Uuid,
+    pub id: MechId,
     pub team: TeamId,
     pub position: TilePos,
     pub world_position: WorldPos,
@@ -268,28 +267,28 @@ pub struct MechState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StationState {
-    pub id: Uuid,
+    pub id: StationId,
     pub station_type: StationType,
     pub floor: u8,
     pub position: TilePos,
     pub size: crate::mech_layout::StationSize, // Add multi-tile station support
-    pub operated_by: Option<Uuid>,
+    pub operated_by: Option<PlayerId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceState {
-    pub id: Uuid,
+    pub id: ResourceId,
     pub position: TilePos,
     pub resource_type: ResourceType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectileState {
-    pub id: Uuid,
+    pub id: ProjectileId,
     pub position: WorldPos,
     pub velocity: (f32, f32),
     pub damage: u32,
-    pub owner_mech_id: Uuid,
+    pub owner_mech_id: MechId,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -303,8 +302,8 @@ pub struct MechUpgrades {
 // Station update for real-time interior changes (Future scope)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StationUpdate {
-    Damaged { station_id: Uuid, damage_amount: u32 },
-    Repaired { station_id: Uuid, repair_amount: u32 },
-    Upgraded { station_id: Uuid, new_level: u8 },
-    StatusChanged { station_id: Uuid, new_status: String },
+    Damaged { station_id: StationId, damage_amount: u32 },
+    Repaired { station_id: StationId, repair_amount: u32 },
+    Upgraded { station_id: StationId, new_level: u8 },
+    StatusChanged { station_id: StationId, new_status: String },
 }

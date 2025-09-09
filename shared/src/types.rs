@@ -1,8 +1,20 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+// =============================================================================
+// UUID Type Aliases for Type Safety
+// =============================================================================
+
+pub type PlayerId = Uuid;
+pub type MechId = Uuid;
+pub type StationId = Uuid;
+pub type ResourceId = Uuid;
+pub type ProjectileId = Uuid;
+pub type WeaponEffectId = Uuid;
+pub type EntityId = Uuid;
+
 // Re-export the unified coordinate types for backward compatibility
-pub use crate::coordinates::{GridPos, ScreenPos, TilePos, WorldPos, NDC};
+pub use crate::coordinates::{GridPos, MechInteriorPos, ScreenPos, TilePos, WorldPos, NDC};
 
 // Add serde support to the coordinate types
 impl Serialize for WorldPos {
@@ -147,9 +159,8 @@ pub enum StationType {
 pub enum PlayerLocation {
     OutsideWorld(WorldPos),
     InsideMech {
-        mech_id: Uuid,
-        floor: u8,
-        pos: WorldPos,
+        mech_id: MechId,
+        pos: MechInteriorPos,
     },
 }
 

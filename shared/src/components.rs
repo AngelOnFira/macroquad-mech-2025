@@ -1,7 +1,6 @@
-use crate::{ResourceType, StationType, TeamId, TilePos, WorldPos};
+use crate::{ResourceType, StationType, TeamId, TilePos, WorldPos, MechId, EntityId, PlayerId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 // =============================================================================
 // Position and Spatial Components
@@ -12,7 +11,7 @@ pub struct Position {
     pub tile: TilePos,
     pub world: WorldPos,
     pub floor: Option<u8>, // None = outside, Some(n) = mech floor
-    pub mech_id: Option<Uuid>,
+    pub mech_id: Option<MechId>,
 }
 
 // =============================================================================
@@ -38,7 +37,7 @@ pub struct Turret {
     pub range: f32,
     pub ammo: u32,
     pub target_mode: TargetMode,
-    pub current_target: Option<Uuid>,
+    pub current_target: Option<EntityId>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -57,8 +56,8 @@ pub enum TargetMode {
 pub struct PowerNode {
     pub max_throughput: f32,
     pub current_load: f32,
-    pub connections: Vec<Uuid>,
-    pub network_id: Uuid,
+    pub connections: Vec<EntityId>,
+    pub network_id: EntityId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,7 +202,7 @@ pub struct ProximityTrigger {
     pub range: f32,
     pub trigger_for_teams: Option<Vec<TeamId>>,
     pub cooldown: f32,
-    pub last_triggered: HashMap<Uuid, f32>, // actor_id -> last trigger time
+    pub last_triggered: HashMap<PlayerId, f32>, // actor_id -> last trigger time
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -216,7 +215,7 @@ pub struct ResourcePickup {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MechEntrance {
-    pub mech_id: Uuid,
+    pub mech_id: MechId,
     pub target_floor: u8,
     pub entry_position: WorldPos,
     pub team_restricted: Option<TeamId>,
@@ -283,14 +282,14 @@ pub struct EntityComponents {
 // =============================================================================
 
 pub trait ComponentStorage {
-    fn get_position(&self, entity: Uuid) -> Option<&Position>;
-    fn get_station(&self, entity: Uuid) -> Option<&Station>;
-    fn get_renderable(&self, entity: Uuid) -> Option<&Renderable>;
-    fn get_solid(&self, entity: Uuid) -> Option<&Solid>;
-    fn get_opaque(&self, entity: Uuid) -> Option<&Opaque>;
+    fn get_position(&self, entity: EntityId) -> Option<&Position>;
+    fn get_station(&self, entity: EntityId) -> Option<&Station>;
+    fn get_renderable(&self, entity: EntityId) -> Option<&Renderable>;
+    fn get_solid(&self, entity: EntityId) -> Option<&Solid>;
+    fn get_opaque(&self, entity: EntityId) -> Option<&Opaque>;
 
-    fn get_position_mut(&mut self, entity: Uuid) -> Option<&mut Position>;
-    fn get_station_mut(&mut self, entity: Uuid) -> Option<&mut Station>;
+    fn get_position_mut(&mut self, entity: EntityId) -> Option<&mut Position>;
+    fn get_station_mut(&mut self, entity: EntityId) -> Option<&mut Station>;
 }
 
 #[cfg(test)]

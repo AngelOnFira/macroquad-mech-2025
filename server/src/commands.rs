@@ -136,7 +136,6 @@ impl Command for PlayerInputCommand {
                     }
                     PlayerLocation::InsideMech {
                         mech_id,
-                        floor,
                         pos,
                     } => {
                         let mut new_pos = *pos;
