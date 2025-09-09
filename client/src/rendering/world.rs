@@ -204,10 +204,6 @@ fn render_mech_first_floor(
     
     // Try to render floor 0 using detailed floor data
     if let Some(floor_map) = game_state.floor_manager.get_floor(mech.id, 0) {
-        #[cfg(not(target_arch = "wasm32"))]
-        log::debug!("Rendering mech {} floor 0 with {} static tiles", mech.id, floor_map.static_tiles.len());
-        #[cfg(target_arch = "wasm32")]
-        info!("Rendering mech {} floor 0 with {} static tiles", mech.id, floor_map.static_tiles.len());
         let offset_x = mech.world_position.x - mech.position.to_world().x;
         let offset_y = mech.world_position.y - mech.position.to_world().y;
 

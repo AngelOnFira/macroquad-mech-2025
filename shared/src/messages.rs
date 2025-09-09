@@ -205,6 +205,43 @@ pub enum ServerMessage {
     },
 }
 
+impl ServerMessage {
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            ServerMessage::JoinedGame { .. } => "JoinedGame",
+            ServerMessage::PlayerDisconnected { .. } => "PlayerDisconnected",
+            ServerMessage::GameState { .. } => "GameState",
+            ServerMessage::MechFloorData { .. } => "MechFloorData",
+            ServerMessage::FloorTransitionComplete { .. } => "FloorTransitionComplete",
+            ServerMessage::FloorTransitionFailed { .. } => "FloorTransitionFailed",
+            ServerMessage::MechInteriorUpdate { .. } => "MechInteriorUpdate",
+            ServerMessage::PlayerMoved { .. } => "PlayerMoved",
+            ServerMessage::PlayerPickedUpResource { .. } => "PlayerPickedUpResource",
+            ServerMessage::PlayerDroppedResource { .. } => "PlayerDroppedResource",
+            ServerMessage::PlayerEnteredStation { .. } => "PlayerEnteredStation",
+            ServerMessage::PlayerExitedStation { .. } => "PlayerExitedStation",
+            ServerMessage::MechMoved { .. } => "MechMoved",
+            ServerMessage::MechDamaged { .. } => "MechDamaged",
+            ServerMessage::MechShieldChanged { .. } => "MechShieldChanged",
+            ServerMessage::MechUpgraded { .. } => "MechUpgraded",
+            ServerMessage::MechRepaired { .. } => "MechRepaired",
+                ServerMessage::WeaponFired { .. } => "WeaponFired",
+            ServerMessage::ProjectileHit { .. } => "ProjectileHit",
+            ServerMessage::ProjectileExpired { .. } => "ProjectileExpired",
+            ServerMessage::EffectCreated { .. } => "EffectCreated",
+            ServerMessage::EffectExpired { .. } => "EffectExpired",
+            ServerMessage::ResourceSpawned { .. } => "ResourceSpawned",
+            ServerMessage::ResourceCollected { .. } => "ResourceCollected",
+            ServerMessage::ChatMessage { .. } => "ChatMessage",
+            ServerMessage::PlayerKilled { .. } => "PlayerKilled",
+            ServerMessage::TileUpdate { .. } => "TileUpdate",
+            ServerMessage::TileBatch { .. } => "TileBatch",
+            ServerMessage::VisibilityUpdate { .. } => "VisibilityUpdate",
+            ServerMessage::Error { .. } => "Error",
+        }
+    }
+}
+
 // State structures for full game state sync
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerState {

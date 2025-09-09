@@ -7,6 +7,9 @@ use uuid::Uuid;
 pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameState>>) {
     let mut game = game_state.lock().unwrap();
 
+    // Debug print the type of the message
+    info!("Server message type: {}", msg.type_name());
+
     match msg {
         ServerMessage::JoinedGame {
             player_id,
@@ -28,12 +31,6 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
             resources,
             projectiles,
         } => {
-            // Debug the game state received
-            info!("Game state received (players): {:#?}", players);
-            info!("Game state received (mechs): {:#?}", mechs);
-            // info!("Game state received: {:#?}", resources);
-            // info!("Game state received: {:#?}", projectiles);
-
             // Update full game state
             game.players.clear();
             for (id, player) in players {
