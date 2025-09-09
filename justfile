@@ -58,6 +58,14 @@ watch-all:
 watch-run-server:
     bacon run-server
 
+# Watch and auto-rebuild documentation using bacon
+watch-docs:
+    bacon watch-docs
+
+# Serve documentation files using browser-sync with live reload
+serve-docs:
+    npx browser-sync start --server target/doc --files "target/doc/**/*" --index "client/index.html" --no-notify --port 8081 --watch
+
 
 
 # Start development environment - use VS Code tasks instead for multiple processes
@@ -171,49 +179,3 @@ quick-start: install-wasm-target dev
 
 # CI/CD pipeline simulation
 ci: fmt check-all test build
-
-# Help with common issues
-troubleshoot:
-    @echo "Common troubleshooting steps:"
-    @echo "============================"
-    @echo "1. Port already in use:"
-    @echo "   just kill-servers"
-    @echo ""
-    @echo "2. WASM build fails:"
-    @echo "   rustup target add wasm32-unknown-unknown"
-    @echo ""
-    @echo "3. Server won't start:"
-    @echo "   lsof -i :14191  # Check what's using the port"
-    @echo ""
-    @echo "4. Clean rebuild:"
-    @echo "   just clean-all && just build"
-
-# Kill all game-related processes
-kill-servers:
-    #!/bin/bash
-    echo "Stopping all servers..."
-    pkill -f "target/debug/server" || true
-    pkill -f "trunk" || true
-    pkill -f "test_client" || true
-    pkill -f "browser-sync" || true
-    pkill -f "bacon" || true
-    # Also try to kill by port
-    lsof -ti:8080 | xargs kill -9 2>/dev/null || true
-    lsof -ti:14191 | xargs kill -9 2>/dev/null || true
-    sleep 1
-    echo "All servers stopped"
-
-# Port check
-check-ports:
-    @echo "Checking ports..."
-    @lsof -i :14191 || echo "Game server port (14191) is free"
-    @lsof -i :8080 || echo "Web server port (8080) is free"
-# Test AI system by adding AI players
-test-ai:
-    @echo "Testing AI system..."
-    ./test_ai.sh
-
-# Run the AI debug client
-debug-ai:
-    @echo "Starting AI debug client..."
-    cargo run -p debug-client

@@ -23,6 +23,13 @@ need_stdout = true
 command = ["cargo", "doc", "--color", "always", "--no-deps"]
 need_stdout = false
 
+[jobs.watch-docs]
+command = ["cargo", "doc", "--workspace", "--color", "always", "--no-deps"]
+need_stdout = false
+allow_warnings = true
+watch = ["client/src", "server/src", "shared/src"]
+on_success = "play-sound(name=90s-game-ui-6,volume=50)"
+
 # Custom job for building the WASM client
 [jobs.build-web]
 command = ["sh", "-c", "cd client && ./build-simple.sh"]

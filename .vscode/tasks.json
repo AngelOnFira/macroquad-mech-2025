@@ -95,7 +95,6 @@
             "type": "shell",
             "command": "killport 8080; just web-serve-only",
             "isBackground": true,
-            "dependsOn": "Build WASM",
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated",
@@ -121,7 +120,9 @@
             "dependsOn": [
                 "Run Server",
                 "Watch WASM", 
-                "Serve Web"
+                "Serve Web",
+                "Watch Docs",
+                "Serve Docs"
             ],
             "dependsOrder": "parallel",
             "presentation": {
@@ -159,6 +160,53 @@
                 }
             }
         },
+        {
+            "label": "Watch Docs",
+            "type": "shell",
+            "command": "just",
+            "args": ["watch-docs"],
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "bacon-docs",
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*[Ww]atching.*$",
+                    "endsPattern": "^.*[Cc]hecking.*$"
+                }
+            }
+        },
+        {
+            "label": "Serve Docs",
+            "type": "shell",
+            "command": "killport 8081; just serve-docs",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "browser-sync-docs",
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*[Bb]rowser[Ss]ync.*$",
+                    "endsPattern": "^.*[Ww]atching.*files.*$"
+                }
+            }
+        },
 
         // Alternative compound task with auto-restarting server
         {
@@ -166,7 +214,9 @@
             "dependsOn": [
                 "Watch Server",
                 "Watch WASM",
-                "Serve Web"
+                "Serve Web",
+                "Watch Docs",
+                "Serve Docs"
             ],
             "dependsOrder": "parallel",
             "presentation": {
