@@ -20,6 +20,7 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
                     Ok(json) => json,
                     Err(e) => {
                         log::error!("Failed to serialize message: {e}");
+                        log::error!("Message: {:?}", msg);
                         break;
                     }
                 };

@@ -3,6 +3,7 @@ use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::entity_storage::EntityStorage;
+use crate::mech_generation::get_station_size;
 use crate::spatial_collision::SpatialCollisionManager;
 use crate::systems::SystemManager;
 use crate::testing_modes::TestingManager;
@@ -925,6 +926,41 @@ impl Game {
             resources,
             projectiles,
         }
+    }
+
+    /// Generate MechFloorData messages for all mechs
+    pub fn get_mech_floor_data(&self) -> Vec<ServerMessage> {
+        let mut messages = Vec::new();
+        
+        for mech in self.mechs.values() {
+            // Create mech stations HashMap from the mech's stations
+            let stations: HashMap<Uuid, shared::mech_layout::MechStation> = mech.stations
+                .values()
+                .map(|s| {
+                    let mech_station = shared::mech_layout::MechStation {
+                        id: s.id,
+                        station_type: s.station_type,
+                        floor: s.floor,
+                        position: s.position,
+                        size: get_station_size(s.station_type),
+                        operated_by: s.operated_by,
+                    };
+                    (s.id, mech_station)
+                })
+                .collect();
+
+            // Generate interior layout using the same method as mech creation
+            let mut temp_stations = HashMap::new();
+            let interior = shared::mech_layout::MechLayoutGenerator::create_mech_interior(&mut temp_stations);
+
+            messages.push(ServerMessage::MechFloorData {
+                mech_id: mech.id,
+                interior,
+                stations,
+            });
+        }
+        
+        messages
     }
 
     pub fn update_physics(&mut self, delta: f32) -> Vec<ServerMessage> {

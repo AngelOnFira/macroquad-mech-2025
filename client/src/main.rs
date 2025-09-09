@@ -220,9 +220,17 @@ async fn main() {
                 if input.floor_transition_pressed {
                     let game = game_state.lock().unwrap();
                     if let Some(player_id) = game.player_id {
-                        if let PlayerLocation::InsideMech { mech_id, floor, pos } = &game.player_location {
+                        if let PlayerLocation::InsideMech {
+                            mech_id,
+                            floor,
+                            pos,
+                        } = &game.player_location
+                        {
                             let tile_pos = pos.to_tile_pos();
-                            if let Some(target_floor) = game.floor_manager.is_stairway_position(*mech_id, *floor, tile_pos) {
+                            if let Some(target_floor) = game
+                                .floor_manager
+                                .is_stairway_position(*mech_id, *floor, tile_pos)
+                            {
                                 drop(game); // Release the lock before sending message
                                 client.send_message(ClientMessage::FloorTransition {
                                     current_position: tile_pos,

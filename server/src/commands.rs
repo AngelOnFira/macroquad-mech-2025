@@ -51,6 +51,15 @@ impl Command for JoinGameCommand {
             game.get_full_state()
         };
         let _ = tx.send((player_id, state_msg));
+        
+        // Send mech floor data immediately when player joins
+        let floor_messages = {
+            let game = game.read().await;
+            game.get_mech_floor_data()
+        };
+        for floor_msg in floor_messages {
+            let _ = tx.send((player_id, floor_msg));
+        }
 
         log::info!("Player {player_id} joined as {sanitized_name} on team {team:?}");
         Ok(())

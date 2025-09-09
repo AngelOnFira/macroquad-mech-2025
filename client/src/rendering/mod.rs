@@ -132,14 +132,17 @@ impl Renderer {
                             }
 
                             if flags.render_stations {
-                                mech_interior::render_stations_on_floor_with_vision(
-                                    game_state,
-                                    mech.id,
-                                    floor,
-                                    cam_x,
-                                    cam_y,
-                                    vision_system,
-                                );
+                                // Skip floor 0 station rendering since render_mech_first_floor() handles it
+                                if floor != 0 {
+                                    mech_interior::render_stations_on_floor_with_vision(
+                                        game_state,
+                                        mech.id,
+                                        floor,
+                                        cam_x,
+                                        cam_y,
+                                        vision_system,
+                                    );
+                                }
                             }
 
                             if flags.render_players {

@@ -1,4 +1,5 @@
 use crate::game_state::GameState;
+use macroquad::prelude::*;
 use shared::*;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -18,7 +19,7 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
             #[cfg(not(target_arch = "wasm32"))]
             log::info!("Joined game as player {} on team {:?}", player_id, team);
             #[cfg(target_arch = "wasm32")]
-            macroquad::prelude::info!("Joined game as player {} on team {:?}", player_id, team);
+            info!("Joined game as player {} on team {:?}", player_id, team);
         }
 
         ServerMessage::GameState {
@@ -27,6 +28,12 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
             resources,
             projectiles,
         } => {
+            // Debug the game state received
+            info!("Game state received (players): {:#?}", players);
+            info!("Game state received (mechs): {:#?}", mechs);
+            // info!("Game state received: {:#?}", resources);
+            // info!("Game state received: {:#?}", projectiles);
+
             // Update full game state
             game.players.clear();
             for (id, player) in players {
@@ -143,9 +150,9 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
             game.resources.retain(|r| r.id != resource_id);
             if let Some(player) = game.players.get(&player_id) {
                 #[cfg(not(target_arch = "wasm32"))]
-                log::info!("{} collected a resource", player.name);
+                info!("{} collected a resource", player.name);
                 #[cfg(target_arch = "wasm32")]
-                macroquad::prelude::info!("{} collected a resource", player.name);
+                info!("{} collected a resource", player.name);
             }
         }
 
@@ -332,11 +339,13 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
             stations,
         } => {
             // Update floor manager with detailed floor data from server
-            game.floor_manager.update_mech_floors(mech_id, interior, stations);
+            game.floor_manager.update_mech_floors(mech_id, interior.clone(), stations.clone());
             #[cfg(not(target_arch = "wasm32"))]
-            log::info!("Received detailed floor data for mech {}", mech_id);
+            info!("Received detailed floor data for mech {}: {} floors, {} stations", 
+                  mech_id, interior.floors.len(), stations.len());
             #[cfg(target_arch = "wasm32")]
-            macroquad::prelude::info!("Received detailed floor data for mech {}", mech_id);
+            info!("Received detailed floor data for mech {}: {} floors, {} stations", 
+                  mech_id, interior.floors.len(), stations.len());
         }
 
         ServerMessage::FloorTransitionComplete {
@@ -354,9 +363,9 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
                     pos: new_position.to_world_pos(),
                 };
                 #[cfg(not(target_arch = "wasm32"))]
-                log::info!("Floor transition successful: {} -> {} in mech {}", old_floor, new_floor, mech_id);
+                info!("Floor transition successful: {} -> {} in mech {}", old_floor, new_floor, mech_id);
                 #[cfg(target_arch = "wasm32")]
-                macroquad::prelude::info!("Floor transition successful: {} -> {} in mech {}", old_floor, new_floor, mech_id);
+                info!("Floor transition successful: {} -> {} in mech {}", old_floor, new_floor, mech_id);
             }
 
             // Update player data for other players
@@ -375,17 +384,17 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
         } => {
             if player_id == game.player_id.unwrap_or(Uuid::nil()) {
                 #[cfg(not(target_arch = "wasm32"))]
-                log::warn!("Floor transition failed: {}", reason);
+                warn!("Floor transition failed: {}", reason);
                 #[cfg(target_arch = "wasm32")]
-                macroquad::prelude::warn!("Floor transition failed: {}", reason);
+                warn!("Floor transition failed: {}", reason);
             }
         }
 
         ServerMessage::Error { message } => {
             #[cfg(not(target_arch = "wasm32"))]
-            log::error!("Server error: {}", message);
+            error!("Server error: {}", message);
             #[cfg(target_arch = "wasm32")]
-            macroquad::prelude::error!("Server error: {}", message);
+            error!("Server error: {}", message);
         }
 
         ServerMessage::EffectCreated {
@@ -409,9 +418,9 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
         } => {
             // Could display chat messages in the future
             #[cfg(not(target_arch = "wasm32"))]
-            log::info!("Chat from {}: {}", player_name, message);
+            info!("Chat from {}: {}", player_name, message);
             #[cfg(target_arch = "wasm32")]
-            macroquad::prelude::info!("Chat from {}: {}", player_name, message);
+            info!("Chat from {}: {}", player_name, message);
         }
 
         ServerMessage::MechInteriorUpdate {

@@ -19,6 +19,7 @@ mod commands;
 mod entity_storage;
 mod game;
 mod game_tests;
+mod mech_generation;
 mod spatial_collision;
 mod systems;
 mod testing_modes;
@@ -75,7 +76,6 @@ async fn main() -> Result<()> {
     // Initialize 2 mechs for testing
     {
         let mut game = game.write().await;
-        game.create_initial_mechs();
         game.spawn_initial_resources();
     }
 
@@ -239,6 +239,14 @@ mod game_loop {
                 // Every second
                 let state_msg = game.get_full_state();
                 let _ = tx.send((Uuid::nil(), state_msg));
+                
+                // Send mech floor data every 10 seconds (less frequently than game state)
+                if game.tick_count % (STATE_UPDATE_INTERVAL * 10) == 0 {
+                    let floor_messages = game.get_mech_floor_data();
+                    for floor_msg in floor_messages {
+                        let _ = tx.send((Uuid::nil(), floor_msg));
+                    }
+                }
             }
 
             game.tick_count += 1;

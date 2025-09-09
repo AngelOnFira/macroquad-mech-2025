@@ -153,30 +153,32 @@ fn render_mechs(
     vision_system: Option<&ClientVisionSystem>,
 ) {
     for mech in game_state.mechs.values() {
+        // Render mech first floor instead of solid rectangle
+        render_mech_first_floor(game_state, mech, cam_x, cam_y, vision_system);
+
+        // Render mech outline for clarity
         let mech_size = MECH_SIZE_TILES as f32 * TILE_SIZE;
-        let mut color = get_team_color(mech.team);
         let mut outline_color = WHITE;
 
         // Use continuous world position for smooth movement
         let mech_x = cam_x + mech.world_position.x;
         let mech_y = cam_y + mech.world_position.y;
 
-        // Apply fog of war to mech based on its position
+        // Apply fog of war to outline
         if let Some(vision) = vision_system {
             let visibility = vision.get_visibility(mech.position);
-            color = FogOfWarRenderer::apply_fog_to_color(color, visibility);
             outline_color = FogOfWarRenderer::apply_fog_to_color(outline_color, visibility);
         }
 
-        // Main body
-        draw_rectangle(mech_x, mech_y, mech_size, mech_size, color);
+        // Mech outline border for visual clarity
         draw_rectangle_lines(mech_x, mech_y, mech_size, mech_size, 2.0, outline_color);
 
-        // Render visible interior tiles if looking into mech
+        // Render visible interior tiles from other floors if looking into mech
         if let Some(vision) = vision_system {
             let interior_tiles = vision.get_visible_interior_for_mech(mech.id);
             for (floor, interior_pos, visibility) in interior_tiles {
-                if visibility > 0.1 {
+                // Only render tiles from floors other than 0 (since floor 0 is now rendered above)
+                if floor != 0 && visibility > 0.1 {
                     render_visible_interior_tile(
                         mech,
                         floor,
@@ -188,6 +190,125 @@ fn render_mechs(
                 }
             }
         }
+    }
+}
+
+fn render_mech_first_floor(
+    game_state: &GameState,
+    mech: &MechState,
+    cam_x: f32,
+    cam_y: f32,
+    vision_system: Option<&ClientVisionSystem>,
+) {
+    use shared::MechInteriorCoordinates;
+    
+    // Try to render floor 0 using detailed floor data
+    if let Some(floor_map) = game_state.floor_manager.get_floor(mech.id, 0) {
+        #[cfg(not(target_arch = "wasm32"))]
+        log::debug!("Rendering mech {} floor 0 with {} static tiles", mech.id, floor_map.static_tiles.len());
+        #[cfg(target_arch = "wasm32")]
+        info!("Rendering mech {} floor 0 with {} static tiles", mech.id, floor_map.static_tiles.len());
+        let offset_x = mech.world_position.x - mech.position.to_world().x;
+        let offset_y = mech.world_position.y - mech.position.to_world().y;
+
+        // Render static tiles (walls, floors, stairways)
+        for (interior_pos, static_tile) in &floor_map.static_tiles {
+            let world_pos = MechInteriorCoordinates::interior_to_world(
+                mech.position,
+                0,
+                *interior_pos,
+            );
+            let world_coords = world_pos.to_world();
+
+            let tile_x = cam_x + world_coords.x + offset_x;
+            let tile_y = cam_y + world_coords.y + offset_y;
+
+            // Check if this interior tile is visible
+            let mut visibility = 1.0;
+            if let Some(vision) = vision_system {
+                visibility = vision.get_interior_visibility(mech.id, 0, *interior_pos);
+                if visibility < 0.05 {
+                    continue; // Don't render invisible interior tiles
+                }
+            }
+
+            // Render the static tile
+            let tile_visual = static_tile.to_visual();
+            if let Some(_vision) = vision_system {
+                super::hybrid_tiles::render_tile_visual_with_visibility(
+                    &tile_visual,
+                    tile_x,
+                    tile_y,
+                    TILE_SIZE,
+                    visibility,
+                );
+            } else {
+                super::hybrid_tiles::render_tile_visual(&tile_visual, tile_x, tile_y, TILE_SIZE);
+            }
+        }
+
+        // Render multi-tile stations on floor 0
+        let station_positions = game_state.floor_manager.get_station_positions(mech.id, 0);
+        for (interior_pos, station_id) in &station_positions {
+            if let Some(stations) = game_state.floor_manager.get_mech_stations(mech.id) {
+                if let Some(station) = stations.get(station_id) {
+                    let world_pos = MechInteriorCoordinates::interior_to_world(
+                        mech.position,
+                        0,
+                        *interior_pos,
+                    );
+                    let world_coords = world_pos.to_world();
+
+                    let tile_x = cam_x + world_coords.x + offset_x;
+                    let tile_y = cam_y + world_coords.y + offset_y;
+
+                    // Check if this station tile is visible
+                    let mut visibility = 1.0;
+                    if let Some(vision) = vision_system {
+                        visibility = vision.get_interior_visibility(mech.id, 0, *interior_pos);
+                        if visibility < 0.05 {
+                            continue; // Don't render invisible station tiles
+                        }
+                    }
+
+                    // Render station visual based on type
+                    let station_color = get_station_color(station.station_type);
+                    let mut final_color = station_color;
+                    if let Some(_vision) = vision_system {
+                        final_color = FogOfWarRenderer::apply_fog_to_color(station_color, visibility);
+                    }
+
+                    draw_rectangle(tile_x, tile_y, TILE_SIZE, TILE_SIZE, final_color);
+
+                    // Draw station border to indicate it's interactive
+                    let mut border_color = WHITE;
+                    if let Some(_vision) = vision_system {
+                        border_color = FogOfWarRenderer::apply_fog_to_color(WHITE, visibility);
+                    }
+                    draw_rectangle_lines(tile_x, tile_y, TILE_SIZE, TILE_SIZE, 2.0, border_color);
+                }
+            }
+        }
+    } else {
+        // Fallback to colored rectangle if no floor data available
+        #[cfg(not(target_arch = "wasm32"))]
+        log::debug!("No floor data available for mech {}, using colored rectangle fallback", mech.id);
+        #[cfg(target_arch = "wasm32")]
+        info!("No floor data available for mech {}, using colored rectangle fallback", mech.id);
+        
+        let mech_size = MECH_SIZE_TILES as f32 * TILE_SIZE;
+        let mut color = get_team_color(mech.team);
+
+        let mech_x = cam_x + mech.world_position.x;
+        let mech_y = cam_y + mech.world_position.y;
+
+        // Apply fog of war to mech based on its position
+        if let Some(vision) = vision_system {
+            let visibility = vision.get_visibility(mech.position);
+            color = FogOfWarRenderer::apply_fog_to_color(color, visibility);
+        }
+
+        draw_rectangle(mech_x, mech_y, mech_size, mech_size, color);
     }
 }
 
