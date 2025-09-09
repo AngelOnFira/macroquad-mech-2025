@@ -164,6 +164,48 @@ pub enum PlayerLocation {
     },
 }
 
+impl PlayerLocation {
+    /// Get the effective world position for this player location
+    /// For InsideMech, requires mech world position for conversion
+    pub fn world_pos(&self, mech_world_pos: Option<WorldPos>) -> WorldPos {
+        match self {
+            PlayerLocation::OutsideWorld(pos) => *pos,
+            PlayerLocation::InsideMech { pos, .. } => {
+                match mech_world_pos {
+                    Some(mech_pos) => pos.to_world_with_mech(mech_pos),
+                    None => pos.to_local_world(), // Fallback to local coordinates
+                }
+            }
+        }
+    }
+
+    /// Get the effective tile position for this player location
+    pub fn tile_pos(&self, mech_world_pos: Option<WorldPos>) -> TilePos {
+        self.world_pos(mech_world_pos).to_tile()
+    }
+
+    /// Check if player is inside a specific mech
+    pub fn is_inside_mech(&self, mech_id: MechId) -> bool {
+        matches!(self, PlayerLocation::InsideMech { mech_id: id, .. } if *id == mech_id)
+    }
+
+    /// Get the mech ID if player is inside a mech
+    pub fn mech_id(&self) -> Option<MechId> {
+        match self {
+            PlayerLocation::InsideMech { mech_id, .. } => Some(*mech_id),
+            _ => None,
+        }
+    }
+
+    /// Get the floor if player is inside a mech
+    pub fn floor(&self) -> Option<u8> {
+        match self {
+            PlayerLocation::InsideMech { pos, .. } => Some(pos.floor()),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TeamId {
     Red,

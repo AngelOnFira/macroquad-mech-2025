@@ -171,7 +171,8 @@ pub async fn handle_action_key(
                 }
 
                 // Otherwise check for station to enter
-                let player_tile = pos.to_tile_pos();
+                let player_tile = pos.tile_pos();
+                let floor = pos.floor();
                 let station_to_enter = game
                     .mechs
                     .values()

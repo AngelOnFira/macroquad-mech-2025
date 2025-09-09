@@ -41,7 +41,7 @@ impl Command for JoinGameCommand {
         let join_msg = ServerMessage::JoinedGame {
             player_id,
             team,
-            spawn_position: spawn_pos.to_tile_pos(),
+            spawn_position: spawn_pos.to_tile(),
         };
         let _ = tx.send((player_id, join_msg));
 
@@ -138,21 +138,23 @@ impl Command for PlayerInputCommand {
                         mech_id,
                         pos,
                     } => {
-                        let mut new_pos = *pos;
-                        // Move within mech interior bounds
-                        new_pos.x += delta_x;
-                        new_pos.y += delta_y;
+                        // Convert to local world position, apply movement, then convert back
+                        let mut new_world_pos = pos.to_local_world();
+                        new_world_pos.x += delta_x;
+                        new_world_pos.y += delta_y;
 
                         // Keep within proper mech floor bounds
                         let floor_width_pixels = (shared::FLOOR_WIDTH_TILES as f32) * TILE_SIZE;
                         let floor_height_pixels = (shared::FLOOR_HEIGHT_TILES as f32) * TILE_SIZE;
-                        new_pos.x = new_pos.x.max(0.0).min(floor_width_pixels);
-                        new_pos.y = new_pos.y.max(0.0).min(floor_height_pixels);
+                        new_world_pos.x = new_world_pos.x.max(0.0).min(floor_width_pixels);
+                        new_world_pos.y = new_world_pos.y.max(0.0).min(floor_height_pixels);
+
+                        // Convert back to MechInteriorPos, preserving floor
+                        let new_pos = MechInteriorPos::new(pos.floor(), new_world_pos.to_tile());
 
                         (
                             PlayerLocation::InsideMech {
                                 mech_id: *mech_id,
-                                floor: *floor,
                                 pos: new_pos,
                             },
                             false,
@@ -166,7 +168,7 @@ impl Command for PlayerInputCommand {
             // Check for tile events at new position (only for OutsideWorld)
             if should_check_tile {
                 if let PlayerLocation::OutsideWorld(pos) = new_location {
-                    let tile_pos = pos.to_tile_pos();
+                    let tile_pos = pos.to_tile();
                     if let Some(tile_content) = game.tile_map.get_world_tile(tile_pos) {
                         if let shared::tile_entity::TileContent::Static(static_tile) = tile_content
                         {
@@ -206,7 +208,7 @@ impl Command for PlayerInputCommand {
                                 let mech_entry_info = if let Some(player) = game.players.get(&actor)
                                 {
                                     if let PlayerLocation::OutsideWorld(pos) = player.location {
-                                        let tile_pos = pos.to_tile_pos();
+                                        let tile_pos = pos.to_tile();
 
                                         // Find the mech that owns this door tile
                                         let mut entry_info = None;
@@ -217,8 +219,9 @@ impl Command for PlayerInputCommand {
                                             {
                                                 // Check team access
                                                 if mech.team == player.team {
-                                                    let entry_pos =
+                                                    let entry_world_pos =
                                                         doors.get_entry_position(tile_pos);
+                                                    let entry_pos = MechInteriorPos::new(0, entry_world_pos.to_tile());
                                                     entry_info = Some((*mech_id, entry_pos));
                                                 } else {
                                                     log::debug!(
@@ -241,7 +244,6 @@ impl Command for PlayerInputCommand {
                                     if let Some(player_mut) = game.players.get_mut(&actor) {
                                         player_mut.location = PlayerLocation::InsideMech {
                                             mech_id,
-                                            floor: 0,
                                             pos: entry_pos,
                                         };
 
@@ -458,7 +460,8 @@ impl Command for FloorTransitionCommand {
             .ok_or_else(|| GameError::player_not_found(player_id))?;
 
         // Check if player is in a mech
-        if let PlayerLocation::InsideMech { mech_id, floor, .. } = player.location {
+        if let PlayerLocation::InsideMech { mech_id, pos, .. } = player.location {
+            let floor = pos.floor();
             // Validate target floor
             if self.target_floor >= 3 {
                 let error_msg = ServerMessage::FloorTransitionFailed {
@@ -517,11 +520,10 @@ impl Command for FloorTransitionCommand {
             // Update player location
             if let Some(player) = game.players.get_mut(&player_id) {
                 // Calculate new position on target floor - place near stairway
-                let new_position = self.stairway_position.to_world_center();
+                let new_position = MechInteriorPos::new(self.target_floor, self.stairway_position);
 
                 player.location = PlayerLocation::InsideMech {
                     mech_id,
-                    floor: self.target_floor,
                     pos: new_position,
                 };
 

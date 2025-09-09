@@ -140,7 +140,7 @@ impl ClientVisionSystem {
 
         let world_pos = match player.location {
             PlayerLocation::OutsideWorld(pos) => pos,
-            PlayerLocation::InsideMech { pos, .. } => pos,
+            PlayerLocation::InsideMech { pos, .. } => pos.to_local_world(),
         };
 
         Some((world_pos, player.location))

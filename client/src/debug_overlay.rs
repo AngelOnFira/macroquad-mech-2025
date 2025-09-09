@@ -434,12 +434,14 @@ impl DebugOverlay {
                 PlayerLocation::OutsideWorld(pos) => {
                     format!("Outside at ({:.1}, {:.1})", pos.x, pos.y)
                 }
-                PlayerLocation::InsideMech { floor, pos, .. } => {
+                PlayerLocation::InsideMech { pos, .. } => {
+                    let floor = pos.floor();
+                    let tile_pos = pos.tile_pos();
                     format!(
                         "Inside Mech - Floor {} at ({:.1}, {:.1})",
                         floor + 1,
-                        pos.x,
-                        pos.y
+                        tile_pos.x as f32,
+                        tile_pos.y as f32
                     )
                 }
             };
@@ -632,24 +634,22 @@ impl DebugOverlay {
                     }
                     PlayerLocation::InsideMech {
                         mech_id,
-                        floor,
                         pos,
                     } => {
+                        let floor = pos.floor();
+                        let tile_pos = pos.tile_pos();
                         ui.label(format!("Location: Inside Mech"));
                         ui.label(format!("Mech ID: {:.8}", mech_id.to_string()));
                         ui.label(format!("Floor: {}", floor));
-                        ui.label(format!("Interior Position: ({:.1}, {:.1})", pos.x, pos.y));
+                        ui.label(format!("Interior Position: ({:.1}, {:.1})", tile_pos.x as f32, tile_pos.y as f32));
 
                         // Calculate world position using the coordinate system
                         if let Some(mech) = game_state.mechs.get(mech_id) {
                             // Convert interior pos to tile pos for the calculation
-                            let interior_tile_pos = shared::TilePos::new(
-                                (pos.x / shared::TILE_SIZE) as i32,
-                                (pos.y / shared::TILE_SIZE) as i32,
-                            );
+                            let interior_tile_pos = tile_pos;
                             let world_tile_pos = shared::MechInteriorCoordinates::interior_to_world(
                                 mech.position,
-                                *floor,
+                                floor,
                                 interior_tile_pos,
                             );
                             let world_pos = world_tile_pos.to_world_pos();
@@ -766,7 +766,7 @@ impl DebugOverlay {
         // Get player position for centering
         let player_pos = match game_state.player_location {
             PlayerLocation::OutsideWorld(world_pos) => world_pos.to_tile_pos(),
-            PlayerLocation::InsideMech { pos, .. } => pos.to_tile_pos(),
+            PlayerLocation::InsideMech { pos, .. } => pos.tile_pos(),
         };
 
         let center_x = width / 2;
@@ -788,8 +788,8 @@ impl DebugOverlay {
         // Mark other players
         for player in game_state.players.values() {
             let player_tile = match player.location {
-                PlayerLocation::OutsideWorld(world_pos) => world_pos.to_tile_pos(),
-                PlayerLocation::InsideMech { pos, .. } => pos.to_tile_pos(),
+                PlayerLocation::OutsideWorld(world_pos) => world_pos.to_tile(),
+                PlayerLocation::InsideMech { pos, .. } => pos.tile_pos(),
             };
 
             let rel_x = player_tile.x - player_pos.x + center_x as i32;

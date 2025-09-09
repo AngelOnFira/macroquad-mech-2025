@@ -283,7 +283,14 @@ impl Game {
         for (player_id, player) in &self.players {
             let world_pos = match player.location {
                 PlayerLocation::OutsideWorld(pos) => pos,
-                PlayerLocation::InsideMech { pos, .. } => pos,
+                PlayerLocation::InsideMech { mech_id, pos, .. } => {
+                    // Get mech world position to convert interior pos to world pos
+                    if let Some(mech) = self.mechs.get(&mech_id) {
+                        pos.to_world_with_mech(mech.world_position)
+                    } else {
+                        pos.to_local_world() // Fallback
+                    }
+                },
             };
 
             // Calculate visibility using the vision system

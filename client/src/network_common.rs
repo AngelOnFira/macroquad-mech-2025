@@ -356,8 +356,7 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
                 // Update our player location
                 game.player_location = PlayerLocation::InsideMech {
                     mech_id,
-                    floor: new_floor,
-                    pos: new_position.to_world_pos(),
+                    pos: MechInteriorPos::new(new_floor, new_position),
                 };
                 #[cfg(not(target_arch = "wasm32"))]
                 info!("Floor transition successful: {} -> {} in mech {}", old_floor, new_floor, mech_id);
@@ -369,8 +368,7 @@ pub fn handle_server_message(msg: ServerMessage, game_state: &Arc<Mutex<GameStat
             if let Some(player) = game.players.get_mut(&player_id) {
                 player.location = PlayerLocation::InsideMech {
                     mech_id,
-                    floor: new_floor,
-                    pos: new_position.to_world_pos(),
+                    pos: MechInteriorPos::new(new_floor, new_position),
                 };
             }
         }

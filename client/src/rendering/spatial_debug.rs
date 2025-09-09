@@ -415,9 +415,9 @@ impl SpatialDebugRenderer {
                 }
                 shared::types::PlayerLocation::InsideMech {
                     mech_id,
-                    floor,
                     pos,
                 } => {
+                    let floor = pos.floor();
                     draw_text(
                         &format!("Location: Inside Mech"),
                         panel_x + 10.0,
@@ -439,8 +439,8 @@ impl SpatialDebugRenderer {
                     draw_text(
                         &format!(
                             "Interior: ({:.1}, {:.1})",
-                            pos.x / TILE_SIZE,
-                            pos.y / TILE_SIZE
+                            pos.tile_pos().x as f32,
+                            pos.tile_pos().y as f32
                         ),
                         panel_x + 10.0,
                         y,
@@ -451,10 +451,10 @@ impl SpatialDebugRenderer {
 
                     // Calculate and show equivalent world position
                     if let Some(mech) = game_state.mechs.get(mech_id) {
-                        let interior_tile = pos.to_tile();
+                        let interior_tile = pos.tile_pos();
                         let world_tile = MechInteriorCoordinates::interior_to_world(
                             mech.position,
-                            *floor,
+                            floor,
                             interior_tile,
                         );
                         let world_pos = world_tile.to_world();

@@ -104,20 +104,20 @@ impl SpatialTestSuite {
                 PlayerLocation::OutsideWorld(pos) => *pos,
                 PlayerLocation::InsideMech {
                     mech_id,
-                    floor,
                     pos,
                 } => {
+                    let floor = pos.floor();
                     // Use coordinate transformation to get world position
                     if let Some(mech) = game_state.mechs.get(mech_id) {
-                        let interior_tile = pos.to_tile();
+                        let interior_tile = pos.tile_pos();
                         let world_tile = MechInteriorCoordinates::interior_to_world(
                             mech.position,
-                            *floor,
+                            floor,
                             interior_tile,
                         );
                         world_tile.to_world_center()
                     } else {
-                        *pos // Fallback to interior position if mech not found
+                        pos.to_local_world() // Fallback to local world position
                     }
                 }
             };
@@ -128,7 +128,8 @@ impl SpatialTestSuite {
                 match &player_location {
                     PlayerLocation::InsideMech { pos, .. } => {
                         // For interior players, error is difference between calculated world pos and expected
-                        let expected_world = WorldPos::new(mech_pos.x + pos.x, mech_pos.y + pos.y);
+                        let local_world = pos.to_local_world();
+                        let expected_world = WorldPos::new(mech_pos.x + local_world.x, mech_pos.y + local_world.y);
                         calculated_pos.distance_to(expected_world)
                     }
                     _ => 0.0, // No error for outside world players
@@ -247,7 +248,9 @@ impl SpatialTestSuite {
                     PlayerLocation::InsideMech { pos: curr_pos, .. },
                 ) => {
                     // Check if player moved within the mech
-                    if prev_pos.distance_to(*curr_pos) > 1.0 {
+                    let prev_world = prev_pos.to_local_world();
+                    let curr_world = curr_pos.to_local_world();
+                    if prev_world.distance_to(curr_world) > 1.0 {
                         interior_movements += 1;
                     }
 

@@ -216,17 +216,17 @@ impl TestingManager {
             match &player.location {
                 shared::types::PlayerLocation::InsideMech {
                     mech_id,
-                    floor,
                     pos,
                 } => {
+                    let floor = pos.floor();
                     interior_players += 1;
 
                     // Calculate equivalent world position using coordinate transformation
                     if let Some(mech) = mechs.get(mech_id) {
-                        let interior_tile = pos.to_tile();
+                        let interior_tile = pos.tile_pos();
                         let world_tile = shared::MechInteriorCoordinates::interior_to_world(
                             mech.position,
-                            *floor,
+                            floor,
                             interior_tile,
                         );
                         let world_pos = world_tile.to_world_center();
@@ -235,8 +235,8 @@ impl TestingManager {
                             "Player {} - Interior: F{} ({:.1}, {:.1}) | World Equiv: ({:.1}, {:.1}) | Mech: {}",
                             player_id.to_string().chars().take(8).collect::<String>(),
                             floor,
-                            pos.x / shared::TILE_SIZE,
-                            pos.y / shared::TILE_SIZE,
+                            pos.tile_pos().x as f32,
+                            pos.tile_pos().y as f32,
                             world_pos.x / shared::TILE_SIZE,
                             world_pos.y / shared::TILE_SIZE,
                             mech_id.to_string().chars().take(8).collect::<String>(),

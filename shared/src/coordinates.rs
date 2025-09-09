@@ -919,6 +919,35 @@ impl MechInteriorPos {
         self.tile_pos.to_world_center()
     }
 
+    /// Convert to world position given a mech's world position
+    /// This is the key method for rendering and positioning
+    pub fn to_world_with_mech(self, mech_world_pos: WorldPos) -> WorldPos {
+        let local_world = self.to_local_world();
+        WorldPos::new(
+            mech_world_pos.x + local_world.x,
+            mech_world_pos.y + local_world.y,
+        )
+    }
+
+    /// Create MechInteriorPos from WorldPos and mech world position
+    /// This is useful for converting existing world positions to mech-relative positions
+    pub fn from_world_with_mech(world_pos: WorldPos, mech_world_pos: WorldPos) -> Self {
+        let relative_pos = WorldPos::new(
+            world_pos.x - mech_world_pos.x,
+            world_pos.y - mech_world_pos.y,
+        );
+        Self::new(0, relative_pos.to_tile()) // Default to floor 0
+    }
+
+    /// Create MechInteriorPos from WorldPos and mech world position with specific floor
+    pub fn from_world_with_mech_and_floor(world_pos: WorldPos, mech_world_pos: WorldPos, floor: u8) -> Self {
+        let relative_pos = WorldPos::new(
+            world_pos.x - mech_world_pos.x,
+            world_pos.y - mech_world_pos.y,
+        );
+        Self::new(floor, relative_pos.to_tile())
+    }
+
     /// Check if this position is within valid mech interior bounds
     pub fn is_valid(self) -> bool {
         self.floor < 3 && self.tile_pos.is_in_mech_floor_bounds()

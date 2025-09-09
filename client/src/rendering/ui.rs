@@ -21,12 +21,14 @@ fn render_team_and_location_info(game_state: &GameState) {
     // Location info
     let location_text = match game_state.player_location {
         PlayerLocation::OutsideWorld(pos) => format!("Outside at ({}, {})", pos.x, pos.y),
-        PlayerLocation::InsideMech { floor, pos, .. } => {
+        PlayerLocation::InsideMech { pos, .. } => {
+            let floor = pos.floor();
+            let tile_pos = pos.tile_pos();
             format!(
                 "Inside Mech - Floor {} at ({}, {})",
                 floor + 1,
-                pos.x,
-                pos.y
+                tile_pos.x,
+                tile_pos.y
             )
         }
     };
@@ -90,7 +92,8 @@ fn render_control_hints(game_state: &GameState) {
     );
 
     // Context-specific hints
-    if let PlayerLocation::InsideMech { floor, .. } = game_state.player_location {
+    if let PlayerLocation::InsideMech { pos, .. } = game_state.player_location {
+        let floor = pos.floor();
         draw_text(
             &format!(
                 "Current Floor: {} | Up/Down arrows at ladders to change floors",

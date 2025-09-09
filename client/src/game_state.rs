@@ -129,8 +129,9 @@ impl GameState {
                 self.camera_offset = (pos.x - screen_width() / 2.0, pos.y - screen_height() / 2.0);
             }
             PlayerLocation::InsideMech { pos, .. } => {
-                // Center on the mech interior view
-                self.camera_offset = (pos.x - screen_width() / 2.0, pos.y - screen_height() / 2.0);
+                // Center on the mech interior view using local world coordinates
+                let local_world_pos = pos.to_local_world();
+                self.camera_offset = (local_world_pos.x - screen_width() / 2.0, local_world_pos.y - screen_height() / 2.0);
             }
         }
     }

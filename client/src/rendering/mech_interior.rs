@@ -229,14 +229,14 @@ pub fn render_players_on_floor_with_vision(
     for player in game_state.players.values() {
         if let PlayerLocation::InsideMech {
             mech_id: player_mech_id,
-            floor: player_floor,
             pos,
         } = player.location
         {
+            let player_floor = pos.floor();
             if player_mech_id == mech_id && player_floor == floor {
                 // Map interior position to world coordinates
                 if let Some(mech) = game_state.mechs.get(&mech_id) {
-                    let interior_pos = pos.to_tile();
+                    let interior_pos = pos.tile_pos();
                     let world_pos = MechInteriorCoordinates::interior_to_world(
                         mech.position,
                         floor,

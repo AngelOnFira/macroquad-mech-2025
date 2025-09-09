@@ -5,7 +5,7 @@ use crate::systems::GameSystem;
 use log::info;
 use shared::{
     components::*,
-    coordinates::MechDoorPositions,
+    coordinates::{MechDoorPositions, MechInteriorPos},
     tile_entity::TileEvent,
     types::{TilePos, WorldPos},
     PlayerLocation, ServerMessage,
@@ -372,10 +372,10 @@ impl GameSystem for TileBehaviorSystem {
                             fallback_doors.get_entry_position(TilePos::new(0, 0))
                         };
 
+                        let interior_pos = MechInteriorPos::new(0, entry_pos.to_tile());
                         player.location = PlayerLocation::InsideMech {
                             mech_id,
-                            floor,
-                            pos: entry_pos,
+                            pos: interior_pos,
                         };
 
                         messages.push(ServerMessage::PlayerMoved {
@@ -403,7 +403,7 @@ impl GameSystem for TileBehaviorSystem {
                                 let (mech_to_deposit, tile_pos) = match player.location {
                                     PlayerLocation::InsideMech { mech_id, pos, .. } => {
                                         // Player is inside a mech - deposit to that mech
-                                        (Some(mech_id), pos.to_tile_pos())
+                                        (Some(mech_id), pos.tile_pos())
                                     }
                                     PlayerLocation::OutsideWorld(pos) => {
                                         // Player is outside - shouldn't happen with new cargo bay system
@@ -477,8 +477,7 @@ impl GameSystem for TileBehaviorSystem {
                                                     player_id: actor,
                                                     location: PlayerLocation::InsideMech {
                                                         mech_id: *mech_id,
-                                                        floor: 0,
-                                                        pos: doors.get_entry_position(tile_pos),
+                                                        pos: MechInteriorPos::new(0, doors.get_entry_position(tile_pos).to_tile()),
                                                     },
                                                 });
 
@@ -486,8 +485,7 @@ impl GameSystem for TileBehaviorSystem {
                                                 if let Some(player) = game.players.get_mut(&actor) {
                                                     player.location = PlayerLocation::InsideMech {
                                                         mech_id: *mech_id,
-                                                        floor: 0,
-                                                        pos: doors.get_entry_position(tile_pos),
+                                                        pos: MechInteriorPos::new(0, doors.get_entry_position(tile_pos).to_tile()),
                                                     };
                                                 }
 
@@ -541,10 +539,9 @@ impl GameSystem for TileBehaviorSystem {
 
 // Helper functions
 fn get_player_world_pos(location: &PlayerLocation) -> WorldPos {
-    match location {
-        PlayerLocation::OutsideWorld(pos) => *pos,
-        PlayerLocation::InsideMech { pos, .. } => *pos,
-    }
+    // Note: This is used for resource pickup distance calculations
+    // We use local world position (fallback) since we don't have mech world pos context here
+    location.world_pos(None)
 }
 
 fn calculate_distance(pos1: &WorldPos, pos2: &WorldPos) -> f32 {
