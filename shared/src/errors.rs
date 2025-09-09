@@ -109,8 +109,14 @@ pub enum GameError {
 /// Network-specific errors
 #[derive(Error, Debug)]
 pub enum NetworkError {
-    #[error("Failed to serialize message: {0}")]
-    SerializationError(#[from] serde_json::Error),
+    #[error("Failed to serialize message (JSON): {0}")]
+    JsonSerializationError(#[from] serde_json::Error),
+
+    #[error("Failed to serialize message (MessagePack): {0}")]
+    MessagePackEncodeError(#[from] rmp_serde::encode::Error),
+
+    #[error("Failed to deserialize message (MessagePack): {0}")]
+    MessagePackDecodeError(#[from] rmp_serde::decode::Error),
 
     #[error("Failed to send message: connection closed")]
     ConnectionClosed,

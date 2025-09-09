@@ -6,6 +6,9 @@ pub trait NetworkTransport: Send + Sync {
     /// Send a client message to the server
     fn send_message(&self, msg: ClientMessage) -> NetworkResult<()>;
 
+    /// Send binary data to the server
+    fn send_binary(&self, data: Vec<u8>) -> NetworkResult<()>;
+
     /// Check if the connection is active
     fn is_connected(&self) -> bool;
 
@@ -14,6 +17,11 @@ pub trait NetworkTransport: Send + Sync {
 
     /// Get connection status information
     fn get_connection_info(&self) -> ConnectionInfo;
+}
+
+/// Helper trait for handling binary server messages
+pub trait BinaryMessageHandler: Send + Sync {
+    fn handle_server_message_binary(&self, bytes: &[u8]) -> crate::GameResult<()>;
 }
 
 /// Information about the network connection
@@ -126,13 +134,24 @@ pub fn handle_server_message<T>(
     }
 }
 
-/// Serialize a client message to JSON
-pub fn serialize_client_message(msg: &ClientMessage) -> NetworkResult<String> {
+/// Serialize a client message to MessagePack
+pub fn serialize_client_message(msg: &ClientMessage) -> NetworkResult<Vec<u8>> {
+    rmp_serde::to_vec(msg).map_err(NetworkError::from)
+}
+
+/// Deserialize a server message from MessagePack
+pub fn deserialize_server_message(bytes: &[u8]) -> NetworkResult<ServerMessage> {
+    rmp_serde::from_slice(bytes).map_err(NetworkError::from)
+}
+
+/// Legacy JSON functions for backwards compatibility during migration
+#[deprecated(note = "Use MessagePack variants instead")]
+pub fn serialize_client_message_json(msg: &ClientMessage) -> NetworkResult<String> {
     serde_json::to_string(msg).map_err(NetworkError::from)
 }
 
-/// Deserialize a server message from JSON
-pub fn deserialize_server_message(json: &str) -> NetworkResult<ServerMessage> {
+#[deprecated(note = "Use MessagePack variants instead")]
+pub fn deserialize_server_message_json(json: &str) -> NetworkResult<ServerMessage> {
     serde_json::from_str(json).map_err(NetworkError::from)
 }
 
@@ -222,8 +241,25 @@ mod tests {
             message: "Hello world".to_string(),
         };
 
-        let json = serialize_client_message(&msg).unwrap();
-        assert!(json.contains("ChatMessage"));
-        assert!(json.contains("Hello world"));
+        let bytes = serialize_client_message(&msg).unwrap();
+        assert!(!bytes.is_empty());
+        
+        // Test round-trip by deserializing back
+        // Note: We need a ServerMessage for deserialize test, so create one
+        let server_msg = ServerMessage::ChatMessage {
+            player_id: uuid::Uuid::new_v4(),
+            player_name: "Test".to_string(),
+            message: "Hello world".to_string(),
+            team_only: false,
+        };
+        
+        let server_bytes = rmp_serde::to_vec(&server_msg).unwrap();
+        let deserialized = deserialize_server_message(&server_bytes).unwrap();
+        
+        if let ServerMessage::ChatMessage { message, .. } = deserialized {
+            assert_eq!(message, "Hello world");
+        } else {
+            panic!("Wrong message type");
+        }
     }
 }

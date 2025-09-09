@@ -47,8 +47,8 @@ impl NetworkClientTrait for NetworkClient {
     }
 
     fn send_message(&self, msg: ClientMessage) {
-        let json = serde_json::to_string(&msg).unwrap();
-        self.sender.send(Message::Text(json)).unwrap();
+        let bytes = rmp_serde::to_vec(&msg).unwrap();
+        self.sender.send(Message::Binary(bytes)).unwrap();
     }
 
     fn is_connected(&self) -> bool {
@@ -67,9 +67,24 @@ struct ClientHandler {
 #[cfg(not(target_arch = "wasm32"))]
 impl Handler for ClientHandler {
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        if let Message::Text(text) = msg {
-            if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&text) {
-                self.handle_server_message(server_msg);
+        match msg {
+            Message::Binary(bytes) => {
+                if let Ok(server_msg) = rmp_serde::from_slice::<ServerMessage>(&bytes) {
+                    self.handle_server_message(server_msg);
+                } else {
+                    log::warn!("Failed to parse binary message from server");
+                }
+            }
+            Message::Text(text) => {
+                // Legacy JSON support during migration
+                if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(&text) {
+                    self.handle_server_message(server_msg);
+                } else {
+                    log::warn!("Failed to parse JSON message from server");
+                }
+            }
+            _ => {
+                // Ignore other message types
             }
         }
         Ok(())

@@ -16,15 +16,15 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
         while let Ok((target_id, msg)) = rx.recv().await {
             // Send to all if target is nil, or to specific player
             if target_id == Uuid::nil() || target_id == player_id {
-                let msg_json = match serde_json::to_string(&msg) {
-                    Ok(json) => json,
+                let msg_bytes = match rmp_serde::to_vec(&msg) {
+                    Ok(bytes) => bytes,
                     Err(e) => {
                         log::error!("Failed to serialize message: {e}");
                         log::error!("Message: {:?}", msg);
                         break;
                     }
                 };
-                if sender.send(Message::Text(msg_json)).await.is_err() {
+                if sender.send(Message::Binary(msg_bytes)).await.is_err() {
                     break;
                 }
             }
@@ -35,22 +35,54 @@ pub async fn handle_client(socket: WebSocket, player_id: Uuid, state: AppState) 
     let tx = state.tx.clone();
     let game = state.game.clone();
     let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            match serde_json::from_str::<ClientMessage>(&text) {
-                Ok(client_msg) => {
-                    // Validate the message before processing
-                    if let Err(e) = client_msg.validate() {
-                        log::warn!("Invalid message from player {player_id}: {e}");
-                        // Optionally send error back to client
-                        continue;
-                    }
-                    let command = crate::commands::create_command(client_msg);
-                    if let Err(e) = command.execute(&game, player_id, &tx).await {
-                        log::warn!("Command execution failed for player {player_id}: {e}");
+        while let Some(msg) = receiver.next().await {
+            match msg {
+                Ok(Message::Binary(bytes)) => {
+                    match rmp_serde::from_slice::<ClientMessage>(&bytes) {
+                        Ok(client_msg) => {
+                            // Validate the message before processing
+                            if let Err(e) = client_msg.validate() {
+                                log::warn!("Invalid message from player {player_id}: {e}");
+                                // Optionally send error back to client
+                                continue;
+                            }
+                            let command = crate::commands::create_command(client_msg);
+                            if let Err(e) = command.execute(&game, player_id, &tx).await {
+                                log::warn!("Command execution failed for player {player_id}: {e}");
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to parse binary message from player {player_id}: {e}");
+                        }
                     }
                 }
+                Ok(Message::Text(text)) => {
+                    // Legacy JSON support during migration
+                    match serde_json::from_str::<ClientMessage>(&text) {
+                        Ok(client_msg) => {
+                            // Validate the message before processing
+                            if let Err(e) = client_msg.validate() {
+                                log::warn!("Invalid message from player {player_id}: {e}");
+                                // Optionally send error back to client
+                                continue;
+                            }
+                            let command = crate::commands::create_command(client_msg);
+                            if let Err(e) = command.execute(&game, player_id, &tx).await {
+                                log::warn!("Command execution failed for player {player_id}: {e}");
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to parse JSON message from player {player_id}: {e}");
+                        }
+                    }
+                }
+                Ok(_) => {
+                    // Ignore other message types (Close, Ping, Pong)
+                    log::debug!("Received non-text/binary message from player {player_id}");
+                }
                 Err(e) => {
-                    log::warn!("Failed to parse message from player {player_id}: {e}");
+                    log::warn!("WebSocket error from player {player_id}: {e}");
+                    break;
                 }
             }
         }

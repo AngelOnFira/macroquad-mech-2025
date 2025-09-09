@@ -20,9 +20,11 @@ use std::sync::{Arc, Mutex};
 extern "C" {
     fn js_ws_connect(url_ptr: *const u8, url_len: usize) -> u32;
     fn js_ws_send(socket_id: u32, data_ptr: *const u8, data_len: usize);
+    fn js_ws_send_binary(socket_id: u32, data_ptr: *const u8, data_len: usize);
     fn js_ws_close(socket_id: u32);
     fn js_ws_is_connected(socket_id: u32) -> u32;
     fn js_ws_poll_message(socket_id: u32, buffer_ptr: *mut u8, buffer_len: usize) -> i32;
+    fn js_ws_poll_binary_message(socket_id: u32, buffer_ptr: *mut u8, buffer_len: usize) -> i32;
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -53,9 +55,9 @@ impl NetworkClientTrait for NetworkClient {
     }
 
     fn send_message(&self, msg: ClientMessage) {
-        if let Ok(json) = serde_json::to_string(&msg) {
+        if let Ok(bytes) = rmp_serde::to_vec(&msg) {
             unsafe {
-                js_ws_send(self.socket_id, json.as_ptr(), json.len());
+                js_ws_send_binary(self.socket_id, bytes.as_ptr(), bytes.len());
             }
         }
     }
@@ -68,7 +70,29 @@ impl NetworkClientTrait for NetworkClient {
 #[cfg(target_arch = "wasm32")]
 impl WebNetworkClient for NetworkClient {
     fn update(&mut self) {
-        // Poll for messages
+        // Poll for binary messages first (primary MessagePack format)
+        loop {
+            let msg_len = unsafe {
+                js_ws_poll_binary_message(
+                    self.socket_id,
+                    self.message_buffer.as_mut_ptr(),
+                    self.message_buffer.len(),
+                )
+            };
+
+            if msg_len < 0 {
+                break; // No more binary messages
+            }
+
+            // Parse the binary message
+            if let Ok(server_msg) = rmp_serde::from_slice::<ServerMessage>(&self.message_buffer[0..msg_len as usize]) {
+                handle_server_message(server_msg, &self.game_state);
+            } else {
+                error!("Failed to parse binary server message, length: {}", msg_len);
+            }
+        }
+
+        // Poll for legacy text messages (JSON)
         loop {
             let msg_len = unsafe {
                 js_ws_poll_message(
@@ -79,16 +103,16 @@ impl WebNetworkClient for NetworkClient {
             };
 
             if msg_len < 0 {
-                break; // No more messages
+                break; // No more text messages
             }
 
-            // Parse the message
+            // Parse the text message
             if let Ok(message_str) = std::str::from_utf8(&self.message_buffer[0..msg_len as usize])
             {
                 if let Ok(server_msg) = serde_json::from_str::<ServerMessage>(message_str) {
                     handle_server_message(server_msg, &self.game_state);
                 } else {
-                    error!("Failed to parse server message: {}", message_str);
+                    error!("Failed to parse JSON server message: {}", message_str);
                 }
             }
         }

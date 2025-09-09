@@ -4,8 +4,9 @@
 const sockets = new Map();
 let nextSocketId = 1;
 
-// Message queue for each socket
+// Message queues for each socket (separate for text and binary)
 const messageQueues = new Map();
+const binaryMessageQueues = new Map();
 
 // Register the module that will be imported by WASM
 miniquad_add_plugin({
@@ -19,8 +20,9 @@ miniquad_add_plugin({
                     const ws = new WebSocket(url);
                     ws.binaryType = 'arraybuffer';
 
-                    // Initialize message queue
+                    // Initialize message queues
                     messageQueues.set(socketId, []);
+                    binaryMessageQueues.set(socketId, []);
 
                     ws.onopen = function () {
                         console.log(`WebSocket ${socketId} connected to ${url}`);
@@ -29,6 +31,8 @@ miniquad_add_plugin({
                     ws.onmessage = function (event) {
                         if (typeof event.data === 'string') {
                             messageQueues.get(socketId).push(event.data);
+                        } else if (event.data instanceof ArrayBuffer) {
+                            binaryMessageQueues.get(socketId).push(new Uint8Array(event.data));
                         }
                     };
 
@@ -40,6 +44,7 @@ miniquad_add_plugin({
                         console.log(`WebSocket ${socketId} closed: code=${event.code}, reason=${event.reason}`);
                         sockets.delete(socketId);
                         messageQueues.delete(socketId);
+                        binaryMessageQueues.delete(socketId);
                     };
 
                     sockets.set(socketId, ws);
@@ -58,12 +63,23 @@ miniquad_add_plugin({
                 }
             },
 
+            js_ws_send_binary: function (socketId, dataPtr, dataLen) {
+                const socket = sockets.get(socketId);
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    // Copy bytes from WASM memory
+                    const buffer = new Uint8Array(wasm_memory.buffer, dataPtr, dataLen);
+                    const data = new Uint8Array(buffer);
+                    socket.send(data.buffer);
+                }
+            },
+
             js_ws_close: function (socketId) {
                 const socket = sockets.get(socketId);
                 if (socket) {
                     socket.close();
                     sockets.delete(socketId);
                     messageQueues.delete(socketId);
+                    binaryMessageQueues.delete(socketId);
                 }
             },
 
@@ -91,6 +107,26 @@ miniquad_add_plugin({
                 buffer.set(bytes);
 
                 return bytes.length;
+            },
+
+            js_ws_poll_binary_message: function (socketId, bufferPtr, bufferLen) {
+                const queue = binaryMessageQueues.get(socketId);
+                if (!queue || queue.length === 0) {
+                    return -1; // No binary messages
+                }
+
+                const binaryMessage = queue.shift();
+
+                if (binaryMessage.length > bufferLen) {
+                    console.error('Binary message too large for buffer');
+                    return -1;
+                }
+
+                // Copy binary message to WASM memory
+                const buffer = new Uint8Array(wasm_memory.buffer, bufferPtr, bufferLen);
+                buffer.set(binaryMessage);
+
+                return binaryMessage.length;
             },
         };
 

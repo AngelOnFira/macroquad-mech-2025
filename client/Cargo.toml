@@ -17,6 +17,7 @@ shared = { path = "../shared" }
 macroquad = "0.4"
 serde = { workspace = true }
 serde_json = { workspace = true }
+rmp-serde = { workspace = true }
 url = "2.5"
 
 # Profiling dependencies
