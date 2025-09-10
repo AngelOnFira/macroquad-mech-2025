@@ -46,7 +46,7 @@ jobs:
         uses: cargo-bins/cargo-binstall@v1.15.4
 
       - name: Install just
-        run: cargo binstall just
+        run: cargo binstall just -y
 
       - name: Build WASM for Pages
         run: just release-pages
