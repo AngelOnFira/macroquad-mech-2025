@@ -128,10 +128,17 @@ impl GameState {
             PlayerLocation::OutsideWorld(pos) => {
                 self.camera_offset = (pos.x - screen_width() / 2.0, pos.y - screen_height() / 2.0);
             }
-            PlayerLocation::InsideMech { pos, .. } => {
-                // Center on the mech interior view using local world coordinates
-                let local_world_pos = pos.to_local_world();
-                self.camera_offset = (local_world_pos.x - screen_width() / 2.0, local_world_pos.y - screen_height() / 2.0);
+            PlayerLocation::InsideMech { mech_id, pos } => {
+                // Get the world position by finding the mech's world position
+                let world_pos = if let Some(mech) = self.mechs.get(mech_id) {
+                    // Use the mech's world position to convert interior position to world coordinates
+                    pos.to_world_with_mech(mech.world_position)
+                } else {
+                    // Fallback: use local world coordinates if mech not found yet
+                    // This can happen during initial connection/sync
+                    pos.to_local_world()
+                };
+                self.camera_offset = (world_pos.x - screen_width() / 2.0, world_pos.y - screen_height() / 2.0);
             }
         }
     }

@@ -587,7 +587,33 @@ pub async fn handle_station_button(
 }
 
 pub async fn handle_engine_control(game: &mut Game, player_id: Uuid, movement: (f32, f32)) {
-    // Check if player is operating an engine station
+    // Debug mode: Allow direct mech control for debug builds
+    #[cfg(debug_assertions)]
+    {
+        // For debug builds, allow controlling any mech directly
+        // Find a mech owned by the player's team for debug control
+        if let Some(player) = game.players.get(&player_id) {
+            let team_mech = game.mechs.values_mut().find(|m| m.team == player.team);
+            if let Some(mech) = team_mech {
+                // Apply debug movement directly
+                let debug_speed = shared::balance::MECH_DEBUG_SPEED;
+                let (mut vx, mut vy) = movement;
+                
+                // Normalize diagonal movement
+                let magnitude = (vx * vx + vy * vy).sqrt();
+                if magnitude > 1.0 {
+                    vx /= magnitude;
+                    vy /= magnitude;
+                }
+                
+                // Apply debug speed to normalized velocity
+                mech.velocity = (vx * debug_speed, vy * debug_speed);
+                return; // Exit early for debug mode
+            }
+        }
+    }
+
+    // Normal mode: Check if player is operating an engine station
     let player_station = game
         .players
         .get(&player_id)

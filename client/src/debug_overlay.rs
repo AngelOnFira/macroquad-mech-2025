@@ -33,6 +33,12 @@ pub struct DebugOverlay {
     show_network: bool,
     show_rendering_toggles: bool,
     show_spatial_debug: bool,
+    show_mech_controls: bool,
+
+    // Mech debug control state
+    debug_mech_movement: Option<shared::types::Direction>,
+    selected_debug_mech: Option<MechId>,
+    previous_debug_movement: Option<shared::types::Direction>, // Track previous state to send stop commands
 
     // Spatial debug controls
     pub spatial_debug_enabled: bool,
@@ -89,6 +95,12 @@ impl DebugOverlay {
             show_network: settings.show_network,
             show_rendering_toggles: settings.show_rendering_toggles,
             show_spatial_debug: settings.show_spatial_debug,
+            show_mech_controls: settings.show_mech_controls,
+
+            // Mech debug control state
+            debug_mech_movement: None,
+            selected_debug_mech: None,
+            previous_debug_movement: None,
 
             spatial_debug_enabled: settings.spatial_debug_enabled,
             show_coordinate_transforms: settings.show_coordinate_transforms,
@@ -131,6 +143,7 @@ impl DebugOverlay {
             show_network: self.show_network,
             show_rendering_toggles: self.show_rendering_toggles,
             show_spatial_debug: self.show_spatial_debug,
+            show_mech_controls: self.show_mech_controls,
 
             // Spatial debug controls
             spatial_debug_enabled: self.spatial_debug_enabled,
@@ -208,6 +221,7 @@ impl DebugOverlay {
                     changed |= ui.toggle_value(&mut self.show_network, "Network").changed();
                     changed |= ui.toggle_value(&mut self.show_rendering_toggles, "Rendering").changed();
                     changed |= ui.toggle_value(&mut self.show_spatial_debug, "Spatial").changed();
+                    changed |= ui.toggle_value(&mut self.show_mech_controls, "Mech Controls").changed();
                     
                     if changed {
                         self.save_settings();
@@ -234,6 +248,10 @@ impl DebugOverlay {
 
                 if self.show_rendering_toggles {
                     self.render_rendering_toggles_panel(ui);
+                }
+
+                if self.show_mech_controls {
+                    self.render_mech_controls_panel(ui, game_state);
                 }
 
                 if self.show_spatial_debug {
@@ -757,6 +775,180 @@ impl DebugOverlay {
                 self.save_settings();
             }
         });
+    }
+
+    fn render_mech_controls_panel(&mut self, ui: &mut Ui, game_state: &GameState) {
+        ui.heading("Mech Controls");
+        ui.indent("mech_controls_indent", |ui| {
+            // Available mechs selection
+            ui.strong("Available Mechs:");
+            
+            let mut selected_mech_changed = false;
+            
+            if game_state.mechs.is_empty() {
+                ui.label("No mechs available");
+                // Clear selection if no mechs
+                if self.selected_debug_mech.is_some() {
+                    self.selected_debug_mech = None;
+                    self.debug_mech_movement = None;
+                }
+                return;
+            }
+            
+            // Auto-select first mech if none selected
+            if self.selected_debug_mech.is_none() || !game_state.mechs.contains_key(&self.selected_debug_mech.unwrap()) {
+                self.selected_debug_mech = game_state.mechs.keys().next().copied();
+                self.debug_mech_movement = None; // Clear movement when switching mechs
+                selected_mech_changed = true;
+            }
+            
+            // Mech selection buttons
+            ui.horizontal(|ui| {
+                for (mech_id, mech) in &game_state.mechs {
+                    let team_color = match mech.team {
+                        shared::TeamId::Red => egui::Color32::from_rgb(200, 100, 100),
+                        shared::TeamId::Blue => egui::Color32::from_rgb(100, 150, 200),
+                    };
+                    
+                    let is_selected = self.selected_debug_mech == Some(*mech_id);
+                    let button_text = format!("{} Mech", 
+                        match mech.team {
+                            shared::TeamId::Red => "Red",
+                            shared::TeamId::Blue => "Blue",
+                        }
+                    );
+                    
+                    let button = if is_selected {
+                        egui::Button::new(button_text).fill(team_color)
+                    } else {
+                        egui::Button::new(button_text)
+                    };
+                    
+                    if ui.add(button).clicked() && !is_selected {
+                        self.selected_debug_mech = Some(*mech_id);
+                        self.debug_mech_movement = None; // Clear movement when switching mechs
+                        selected_mech_changed = true;
+                    }
+                }
+            });
+            
+            ui.separator();
+            
+            // Display current mech info
+            if let Some(selected_id) = self.selected_debug_mech {
+                if let Some(mech) = game_state.mechs.get(&selected_id) {
+                    ui.strong("Selected Mech Info:");
+                    ui.label(format!("Position: ({}, {})", mech.position.x, mech.position.y));
+                    ui.label(format!("World Pos: ({:.1}, {:.1})", mech.world_position.x, mech.world_position.y));
+                    ui.label(format!("Health: {} Shield: {}", mech.health, mech.shield));
+                    ui.label(format!("Team: {:?}", mech.team));
+                }
+            }
+            
+            ui.separator();
+            
+            // Movement control buttons
+            ui.strong("Movement Controls:");
+            
+            let button_size = [40.0, 40.0];
+            
+            // Up button
+            ui.horizontal(|ui| {
+                ui.add_space(button_size[0] + 5.0); // Center the up button
+                let up_button = if self.debug_mech_movement == Some(shared::types::Direction::Up) {
+                    egui::Button::new("^").fill(egui::Color32::from_rgb(100, 200, 100)).min_size(egui::Vec2::from(button_size))
+                } else {
+                    egui::Button::new("^").min_size(egui::Vec2::from(button_size))
+                };
+                
+                if ui.add(up_button).clicked() {
+                    if self.debug_mech_movement == Some(shared::types::Direction::Up) {
+                        self.debug_mech_movement = None; // Stop
+                    } else {
+                        self.debug_mech_movement = Some(shared::types::Direction::Up); // Start moving up
+                    }
+                }
+            
+            // Left, Stop, Right buttons
+                let left_button = if self.debug_mech_movement == Some(shared::types::Direction::Left) {
+                    egui::Button::new("<").fill(egui::Color32::from_rgb(100, 200, 100)).min_size(egui::Vec2::from(button_size))
+                } else {
+                    egui::Button::new("<").min_size(egui::Vec2::from(button_size))
+                };
+                
+                if ui.add(left_button).clicked() {
+                    if self.debug_mech_movement == Some(shared::types::Direction::Left) {
+                        self.debug_mech_movement = None; // Stop
+                    } else {
+                        self.debug_mech_movement = Some(shared::types::Direction::Left); // Start moving left
+                    }
+                }
+                
+                // Stop button
+                if ui.add(egui::Button::new("Stop").min_size(egui::Vec2::from(button_size))).clicked() {
+                    self.debug_mech_movement = None;
+                }
+                
+                let right_button = if self.debug_mech_movement == Some(shared::types::Direction::Right) {
+                    egui::Button::new(">").fill(egui::Color32::from_rgb(100, 200, 100)).min_size(egui::Vec2::from(button_size))
+                } else {
+                    egui::Button::new(">").min_size(egui::Vec2::from(button_size))
+                };
+                
+                if ui.add(right_button).clicked() {
+                    if self.debug_mech_movement == Some(shared::types::Direction::Right) {
+                        self.debug_mech_movement = None; // Stop
+                    } else {
+                        self.debug_mech_movement = Some(shared::types::Direction::Right); // Start moving right
+                    }
+                }
+            
+            // Down button
+                let down_button = if self.debug_mech_movement == Some(shared::types::Direction::Down) {
+                    egui::Button::new("v").fill(egui::Color32::from_rgb(100, 200, 100)).min_size(egui::Vec2::from(button_size))
+                } else {
+                    egui::Button::new("v").min_size(egui::Vec2::from(button_size))
+                };
+                
+                if ui.add(down_button).clicked() {
+                    if self.debug_mech_movement == Some(shared::types::Direction::Down) {
+                        self.debug_mech_movement = None; // Stop
+                    } else {
+                        self.debug_mech_movement = Some(shared::types::Direction::Down); // Start moving down
+                    }
+                }
+            });
+            
+            // Movement status
+            ui.separator();
+            let movement_text = match self.debug_mech_movement {
+                Some(shared::types::Direction::Up) => "Moving Up ↑",
+                Some(shared::types::Direction::Down) => "Moving Down ↓", 
+                Some(shared::types::Direction::Left) => "Moving Left ←",
+                Some(shared::types::Direction::Right) => "Moving Right →",
+                None => "Stopped",
+            };
+            ui.label(format!("Status: {}", movement_text));
+        });
+    }
+
+    /// Get debug movement command for sending EngineControl messages
+    pub fn get_debug_movement_command(&self) -> Option<(MechId, shared::types::Direction)> {
+        if let (Some(mech_id), Some(direction)) = (self.selected_debug_mech, self.debug_mech_movement) {
+            Some((mech_id, direction))
+        } else {
+            None
+        }
+    }
+
+    /// Check if we need to send a stop command (movement changed from Some to None)
+    pub fn needs_stop_command(&self) -> bool {
+        self.previous_debug_movement.is_some() && self.debug_mech_movement.is_none()
+    }
+
+    /// Update the previous movement state (call after handling movement)
+    pub fn update_previous_movement_state(&mut self) {
+        self.previous_debug_movement = self.debug_mech_movement;
     }
 
     fn generate_ascii_view(&self, game_state: &GameState) -> String {

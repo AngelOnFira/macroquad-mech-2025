@@ -64,7 +64,7 @@ watch-docs:
 
 # Serve documentation files using browser-sync with live reload
 serve-docs:
-    npx browser-sync start --server target/doc --files "target/doc/**/*" --index "client/index.html" --no-notify --port 8081 --watch
+    npx browser-sync start --server target/doc --index "client/index.html" --no-notify --port 8081
 
 
 

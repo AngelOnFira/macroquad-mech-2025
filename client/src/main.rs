@@ -309,6 +309,27 @@ async fn main() {
             if let Some(ref mut client) = network_client {
                 client.update();
             }
+
+            // Handle debug mech movement controls
+            #[cfg(debug_assertions)]
+            if let Some(ref client) = network_client {
+                // Send movement command if active
+                if let Some((_mech_id, direction)) = debug_overlay.get_debug_movement_command() {
+                    let (dx, dy) = direction.to_velocity();
+                    info!("Sending movement command: {:?}", (dx, dy));
+                    client.send_message(shared::messages::ClientMessage::EngineControl {
+                        movement: (dx, dy),
+                    });
+                } else if debug_overlay.needs_stop_command() {
+                    // Send stop command when movement is cleared
+                    info!("Sending stop command");
+                    client.send_message(shared::messages::ClientMessage::EngineControl {
+                        movement: (0.0, 0.0),
+                    });
+                }
+                
+                debug_overlay.update_previous_movement_state();
+            }
         }
 
         // Update game state
@@ -334,6 +355,7 @@ async fn main() {
             spatial_test_suite.auto_record_if_testing(&game);
         }
 
+        #[cfg(debug_assertions)]
         egui_macroquad::ui(|egui_ctx| {
             let game = game_state.lock().unwrap();
             debug_overlay.render_ui(egui_ctx, &game, &mut spatial_test_suite);

@@ -111,54 +111,54 @@ impl Renderer {
                 );
             }
 
-            // ALWAYS render all mech interiors in their world positions
-            if flags.render_tiles || flags.render_stations || flags.render_players {
-                for mech in game_state.mechs.values() {
-                    // Render all floors of this mech in world space
-                    for floor in 0..shared::MECH_FLOORS as u8 {
-                        {
-                            #[cfg(feature = "profiling")]
-                            scope!("mech_interior_world_space");
+            // // ALWAYS render all mech interiors in their world positions
+            // if flags.render_tiles || flags.render_stations || flags.render_players {
+            //     for mech in game_state.mechs.values() {
+            //         // Render all floors of this mech in world space
+            //         for floor in 0..shared::MECH_FLOORS as u8 {
+            //             {
+            //                 #[cfg(feature = "profiling")]
+            //                 scope!("mech_interior_world_space");
 
-                            if flags.render_tiles {
-                                mech_interior::render_mech_interior_with_vision(
-                                    game_state,
-                                    mech,
-                                    floor,
-                                    cam_x,
-                                    cam_y,
-                                    vision_system,
-                                );
-                            }
+            //                 if flags.render_tiles {
+            //                     mech_interior::render_mech_interior_with_vision(
+            //                         game_state,
+            //                         mech,
+            //                         floor,
+            //                         cam_x,
+            //                         cam_y,
+            //                         vision_system,
+            //                     );
+            //                 }
 
-                            if flags.render_stations {
-                                // Skip floor 0 station rendering since render_mech_first_floor() handles it
-                                if floor != 0 {
-                                    mech_interior::render_stations_on_floor_with_vision(
-                                        game_state,
-                                        mech.id,
-                                        floor,
-                                        cam_x,
-                                        cam_y,
-                                        vision_system,
-                                    );
-                                }
-                            }
+            //                 if flags.render_stations {
+            //                     // Skip floor 0 station rendering since render_mech_first_floor() handles it
+            //                     if floor != 0 {
+            //                         mech_interior::render_stations_on_floor_with_vision(
+            //                             game_state,
+            //                             mech.id,
+            //                             floor,
+            //                             cam_x,
+            //                             cam_y,
+            //                             vision_system,
+            //                         );
+            //                     }
+            //                 }
 
-                            if flags.render_players {
-                                mech_interior::render_players_on_floor_with_vision(
-                                    game_state,
-                                    mech.id,
-                                    floor,
-                                    cam_x,
-                                    cam_y,
-                                    vision_system,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
+            //                 if flags.render_players {
+            //                     mech_interior::render_players_on_floor_with_vision(
+            //                         game_state,
+            //                         mech.id,
+            //                         floor,
+            //                         cam_x,
+            //                         cam_y,
+            //                         vision_system,
+            //                     );
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
 
             // Render effects in world space
             if flags.render_effects {

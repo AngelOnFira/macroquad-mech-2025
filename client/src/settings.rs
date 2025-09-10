@@ -19,6 +19,9 @@ pub struct DebugSettings {
     pub show_coordinate_grid: bool,
     pub show_floor_offsets: bool,
 
+    // Mech control debug panel
+    pub show_mech_controls: bool,
+
     // Rendering toggles
     pub render_mechs: bool,
     pub render_players: bool,
@@ -41,6 +44,9 @@ impl Default for DebugSettings {
             show_network: true,
             show_rendering_toggles: true,
             show_spatial_debug: true,
+
+            // Mech control defaults
+            show_mech_controls: false,
 
             // Spatial debug defaults
             spatial_debug_enabled: false,

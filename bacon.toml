@@ -59,6 +59,7 @@ command = ["cargo", "run", "--bin", "server"]
 need_stdout = true
 allow_warnings = true
 background = false
+on_change_strategy = "kill_then_restart"
 watch = ["server/src", "shared/src"]
 env = { "RUST_LOG" = "info" }
 

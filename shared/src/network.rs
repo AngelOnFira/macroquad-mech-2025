@@ -144,17 +144,6 @@ pub fn deserialize_server_message(bytes: &[u8]) -> NetworkResult<ServerMessage> 
     rmp_serde::from_slice(bytes).map_err(NetworkError::from)
 }
 
-/// Legacy JSON functions for backwards compatibility during migration
-#[deprecated(note = "Use MessagePack variants instead")]
-pub fn serialize_client_message_json(msg: &ClientMessage) -> NetworkResult<String> {
-    serde_json::to_string(msg).map_err(NetworkError::from)
-}
-
-#[deprecated(note = "Use MessagePack variants instead")]
-pub fn deserialize_server_message_json(json: &str) -> NetworkResult<ServerMessage> {
-    serde_json::from_str(json).map_err(NetworkError::from)
-}
-
 /// Auto-reconnect logic that can be shared across platforms
 pub struct ReconnectManager {
     max_attempts: u32,

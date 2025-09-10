@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::GameSystem;
 use crate::game::Game;
 use log::info;
@@ -7,15 +9,15 @@ use uuid::Uuid;
 /// Collision system handles all entity-entity collisions and responses
 pub struct CollisionSystem {
     /// Cache for collision shapes to avoid recalculating every frame
-    player_shapes: std::collections::HashMap<Uuid, CollisionShape>,
-    mech_shapes: std::collections::HashMap<Uuid, CollisionShape>,
+    player_shapes: HashMap<Uuid, CollisionShape>,
+    mech_shapes: HashMap<Uuid, CollisionShape>,
 }
 
 impl CollisionSystem {
     pub fn new() -> Self {
         Self {
-            player_shapes: std::collections::HashMap::new(),
-            mech_shapes: std::collections::HashMap::new(),
+            player_shapes: HashMap::new(),
+            mech_shapes: HashMap::new(),
         }
     }
 

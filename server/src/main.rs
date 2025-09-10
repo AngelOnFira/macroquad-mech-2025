@@ -228,7 +228,7 @@ mod game_loop {
 
             let mut game = game.write().await;
 
-            // Update all systems through SystemManager - this handles everything!
+            // Update all systems through SystemManager
             let messages = game.update(FRAME_DELTA_SECONDS);
             for msg in messages {
                 let _ = tx.send((Uuid::nil(), msg));
