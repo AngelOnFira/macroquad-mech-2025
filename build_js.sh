@@ -5,7 +5,7 @@ function wrap_js {
     cat $1 >> dist/mq_js_bundle.js
     echo "}());" >> dist/mq_js_bundle.js
 }
-cat ../miniquad/js/gl.js > dist/mq_js_bundle.js
+cat client/miniquad-gl.js > dist/mq_js_bundle.js
 # wrap_js ../quad-snd/js/audio.js
 # wrap_js ../sapp-jsutils/js/sapp_jsutils.js
 # wrap_js ../quad-net/js/quad-net.js
