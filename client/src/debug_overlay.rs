@@ -956,6 +956,14 @@ pub struct DebugOverlay {
     pub render_fog: bool,
     pub render_tiles: bool,
     pub render_stations: bool,
+    
+    // Spatial debug controls (disabled in release builds)
+    pub spatial_debug_enabled: bool,
+    pub show_coordinate_transforms: bool,
+    pub show_mech_bounds: bool,
+    pub show_door_positions: bool,
+    pub show_coordinate_grid: bool,
+    pub show_floor_offsets: bool,
 }
 
 #[cfg(not(debug_assertions))]
@@ -971,10 +979,18 @@ impl DebugOverlay {
             render_fog: true,
             render_tiles: true,
             render_stations: true,
+            
+            // Spatial debug disabled in release builds
+            spatial_debug_enabled: false,
+            show_coordinate_transforms: false,
+            show_mech_bounds: false,
+            show_door_positions: false,
+            show_coordinate_grid: false,
+            show_floor_offsets: false,
         }
     }
 
     pub fn update(&mut self, _game_state: &crate::game_state::GameState, _frame_time: f32) {}
-    pub fn render_ui(&mut self, _ctx: &egui::Context, _game_state: &crate::game_state::GameState) {}
+    pub fn render_ui(&mut self, _ctx: &egui::Context, _game_state: &crate::game_state::GameState, _spatial_test_suite: &mut crate::spatial_testing::SpatialTestSuite) {}
     pub fn log_server_message(&mut self, _message: &str) {}
 }

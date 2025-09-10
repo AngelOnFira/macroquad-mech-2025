@@ -212,12 +212,13 @@ impl Renderer {
             if flags.show_coordinate_transforms {
                 if let PlayerLocation::InsideMech {
                     mech_id,
-                    floor,
                     pos,
                 } = game_state.player_location
                 {
+                    // Convert MechInteriorPos to WorldPos for the method call
+                    let world_pos = pos.tile_pos.to_world_center();
                     self.spatial_debug
-                        .render_coordinate_mapping(game_state, mech_id, pos, floor, cam_x, cam_y);
+                        .render_coordinate_mapping(game_state, mech_id, world_pos, pos.floor, cam_x, cam_y);
                 }
             }
         }
