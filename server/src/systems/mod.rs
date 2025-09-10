@@ -6,6 +6,9 @@ pub mod physics;
 pub mod resource;
 pub mod tile_behavior;
 
+// Export action types for external use
+pub use physics::PhysicsAction;
+
 use crate::game::Game;
 use shared::ServerMessage;
 
