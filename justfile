@@ -148,6 +148,10 @@ release-web:
     cd client && ./build-simple.sh --release
     npx browser-sync start --server dist --no-notify --port 8080
 
+# Build optimized for GitHub Pages deployment
+release-pages:
+    cd client && ./build-simple.sh --pages
+
 # Watch for changes and rebuild
 watch:
     cargo watch -x "check --workspace"

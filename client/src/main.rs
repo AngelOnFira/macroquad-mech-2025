@@ -3,6 +3,14 @@ use std::sync::{Arc, Mutex};
 
 use shared::*;
 
+// Use wee_alloc as the global allocator for smaller WASM size
+#[cfg(target_arch = "wasm32")]
+use wee_alloc;
+
+#[cfg(target_arch = "wasm32")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 mod debug_overlay;
 mod floor_manager;
 mod game_state;

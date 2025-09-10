@@ -33,3 +33,14 @@ overflow-checks = true   # Disable overflow checks for performance
 # Additional optimizations for WASM specifically
 [profile.debug-opt.package."*"]
 opt-level = 2
+
+# Profile for GitHub Pages release - optimized for size
+[profile.release-size]
+inherits = "release"
+opt-level = "s"              # Optimize for size
+lto = true                   # Link-time optimization
+codegen-units = 1            # Better optimization
+panic = "abort"              # Smaller binary
+strip = true                 # Remove debug symbols
+overflow-checks = false      # Disable overflow checks for size
+incremental = false          # Better optimization

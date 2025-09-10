@@ -10,6 +10,10 @@ if [[ "$1" == "--release" ]]; then
     PROFILE="release"
     CARGO_FLAGS="--release"
     FEATURES="web"
+elif [[ "$1" == "--pages" ]]; then
+    PROFILE="release-size"
+    CARGO_FLAGS="--profile release-size"
+    FEATURES="web"
 fi
 
 echo "Building WASM for profile: $PROFILE"
