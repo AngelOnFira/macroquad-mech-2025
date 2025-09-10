@@ -42,6 +42,12 @@ jobs:
       - name: Install wasm-opt
         run: npm install -g wasm-opt
 
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.15.4
+
+      - name: Install just
+        run: cargo binstall just
+
       - name: Build WASM for Pages
         run: just release-pages
 
